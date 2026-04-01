@@ -85,14 +85,17 @@ function getSettingsPath(): string {
 	return join(process.env.HOME || process.env.USERPROFILE || homedir(), ".pi", "agent", "settings.json");
 }
 
+const SETTINGS_NAMESPACE = "dotsPiEnhancements";
+
 function readSetting<T>(key: string, fallback: T): T {
 	try {
 		const path = getSettingsPath();
 		if (!existsSync(path)) return fallback;
 		const settings = JSON.parse(readFileSync(path, "utf-8"));
-		return (typeof settings === "object" && settings !== null && key in settings)
-			? settings[key] as T
-			: fallback;
+		if (typeof settings !== "object" || settings === null) return fallback;
+		const ns = settings[SETTINGS_NAMESPACE];
+		if (typeof ns !== "object" || ns === null) return fallback;
+		return key in ns ? (ns as Record<string, unknown>)[key] as T : fallback;
 	} catch { return fallback; }
 }
 
@@ -104,7 +107,11 @@ function writeSetting(key: string, value: unknown): boolean {
 			const parsed = JSON.parse(readFileSync(path, "utf-8"));
 			if (typeof parsed === "object" && parsed !== null) settings = parsed;
 		}
-		settings[key] = value;
+		const ns = (typeof settings[SETTINGS_NAMESPACE] === "object" && settings[SETTINGS_NAMESPACE] !== null)
+			? settings[SETTINGS_NAMESPACE] as Record<string, unknown>
+			: {};
+		ns[key] = value;
+		settings[SETTINGS_NAMESPACE] = ns;
 		mkdirSync(dirname(path), { recursive: true });
 		writeFileSync(path, JSON.stringify(settings, null, 2) + "\n");
 		return true;
@@ -112,7 +119,7 @@ function writeSetting(key: string, value: unknown): boolean {
 }
 
 function getGifRating(): string {
-	const val = readSetting<string>("todoGifRating", DEFAULT_GIF_RATING);
+	const val = readSetting<string>("gifRating", DEFAULT_GIF_RATING);
 	return VALID_RATINGS.includes(val) ? val : DEFAULT_GIF_RATING;
 }
 

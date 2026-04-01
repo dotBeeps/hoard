@@ -395,9 +395,10 @@ class CompactionPanelComponent implements Component {
 
 		// ── Help ──
 		lines.push(border("│") + padLine("") + border("│"));
+		const kh = getPanels()?.keyHints;
 		const help = focused
-			? th.fg("dim", "↑↓ nav · ←→/Space adjust · g global · q close")
-			: th.fg("dim", `Alt+C toggle · /digestion help`);
+			? th.fg("dim", `↑↓ nav · ←→/Space adjust · g global · ${kh?.focused ?? "q close · Esc unfocus"}`)
+			: th.fg("dim", `${kh?.unfocused ?? "Alt+T focus"} · /digestion help`);
 		lines.push(border("│") + padLine("  " + help) + border("│"));
 
 		// ── Bottom border ──

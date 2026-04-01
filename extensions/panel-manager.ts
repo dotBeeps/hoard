@@ -23,6 +23,9 @@
 import type { ExtensionAPI, Theme } from "@mariozechner/pi-coding-agent";
 import type { OverlayHandle, TUI } from "@mariozechner/pi-tui";
 import { matchesKey, Key } from "@mariozechner/pi-tui";
+import { readFileSync, existsSync } from "node:fs";
+import { join } from "node:path";
+import { homedir } from "node:os";
 
 // ── Types ──
 
@@ -43,10 +46,36 @@ export interface ManagedPanel {
 	onClose?(): void;
 }
 
+// ── Settings ──
+
+const SETTINGS_NAMESPACE = "dotsPiEnhancements";
+
+function getSettingsPath(): string {
+	return join(process.env.HOME || process.env.USERPROFILE || homedir(), ".pi", "agent", "settings.json");
+}
+
+function readSetting<T>(key: string, fallback: T): T {
+	try {
+		const path = getSettingsPath();
+		if (!existsSync(path)) return fallback;
+		const settings = JSON.parse(readFileSync(path, "utf-8"));
+		if (typeof settings !== "object" || settings === null) return fallback;
+		const ns = settings[SETTINGS_NAMESPACE];
+		if (typeof ns !== "object" || ns === null) return fallback;
+		return key in ns ? (ns as Record<string, unknown>)[key] as T : fallback;
+	} catch { return fallback; }
+}
+
+/** Turn a matchesKey-style code like "alt+t" into a display label like "Alt+T". */
+function keyLabel(code: string): string {
+	return code.split("+").map(p => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join("+");
+}
+
 // ── Constants ──
 
-const FOCUS_SHORTCUT = "alt+t";
-const FOCUS_LABEL = "Alt+T";
+const DEFAULT_FOCUS_KEY = "alt+t";
+const FOCUS_SHORTCUT = readSetting<string>("panelFocusKey", DEFAULT_FOCUS_KEY);
+const FOCUS_LABEL = keyLabel(FOCUS_SHORTCUT);
 const API_KEY = Symbol.for("dot.panels");
 
 // ── Registry (module-private) ──

@@ -11,6 +11,21 @@ Custom [pi](https://github.com/badlogic/pi-mono) skills and extensions — built
 ### 🧠 Skills
 
 <details>
+<summary><strong><code>agent-init</code></strong> — Investigate a project and create its AGENTS.md</summary>
+
+Scans your project directory, interviews you about preferences, and generates a high-quality `AGENTS.md` file — the universal open format for guiding AI coding agents.
+
+- **Auto-detects** languages, frameworks, build tools, test runners, linting, CI/CD
+- **Interviews** you with the `ask` tool to fill gaps the codebase can’t tell
+- **Handles existing files** — updates AGENTS.md, suggests CLAUDE.md imports, notes .cursorrules
+- **Cross-agent compatible** — works with Codex, Copilot, Cursor, Jules, Aider, Gemini CLI, and more
+- **Real-world patterns** drawn from OpenAI Codex, Apache Airflow, and 60k+ repos
+
+📂 [`skills/agent-init/SKILL.md`](skills/agent-init/SKILL.md)
+
+</details>
+
+<details>
 <summary><strong><code>skill-designer</code></strong> — Design and create Agent Skills (agentskills.io spec)</summary>
 
 The skill that makes more skills. Very dragon-hoard energy.
@@ -67,7 +82,8 @@ pi install https://github.com/dotBeeps/dots-pi-enhancements
 <summary>Manual install (cherry-pick what you want)</summary>
 
 ```bash
-# Install the skill globally
+# Install skills globally
+cp -r dots-pi-enhancements/skills/agent-init ~/.pi/agent/skills/
 cp -r dots-pi-enhancements/skills/skill-designer ~/.pi/agent/skills/
 
 # Install the extension globally

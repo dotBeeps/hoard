@@ -589,7 +589,7 @@ export default function (pi: ExtensionAPI) {
 							"When focused: ↑↓ navigate, ←→ or Space to adjust,",
 							"g to copy from global config,",
 							"Enter on 'Compact Now' to trigger manually,",
-							"Alt+T to cycle focus, q to close, Esc to unfocus",
+							`${getPanels()?.keyHints?.focusKey ?? "Alt+T"} to cycle focus, q to close, Esc to unfocus`,
 						].join("\n"),
 						"info",
 					);

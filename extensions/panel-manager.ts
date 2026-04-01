@@ -46,6 +46,7 @@ export interface ManagedPanel {
 // ── Constants ──
 
 const FOCUS_SHORTCUT = "alt+t";
+const FOCUS_LABEL = "Alt+T";
 const API_KEY = Symbol.for("dot.panels");
 
 // ── Registry (module-private) ──
@@ -245,6 +246,15 @@ export default function (pi: ExtensionAPI) {
 		cycleFocus: () => registry.cycleFocus(),
 		unfocusAll: () => registry.unfocusAll(),
 		requestRender: () => registry.requestRender(),
+		/** Display-friendly hints for shared panel keys. */
+		keyHints: {
+			/** Just the focus-cycle key label, e.g. "Alt+T" */
+			focusKey: FOCUS_LABEL,
+			/** Hint fragment for a *focused* panel: "q close · Esc unfocus" */
+			focused: "q close · Esc unfocus",
+			/** Hint fragment for an *unfocused* panel: "Alt+T focus" */
+			unfocused: `${FOCUS_LABEL} focus`,
+		},
 		/** Wrap a component so shared keys (Esc, q, Alt+T) route through the registry. */
 		wrapComponent(
 			panelId: string,

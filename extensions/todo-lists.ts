@@ -765,7 +765,8 @@ class TodoPanelComponent implements Component {
 		}
 
 		// ── Help text ──
-		const help = focused ? th.fg("dim", "↑↓ nav · Space toggle · q close · Esc unfocus") : th.fg("dim", `Alt+T focus · /todos help`);
+		const kh = getPanels()?.keyHints;
+		const help = focused ? th.fg("dim", `↑↓ nav · Space toggle · ${kh?.focused ?? "q close · Esc unfocus"}`) : th.fg("dim", `${kh?.unfocused ?? "Alt+T focus"} · /todos help`);
 		lines.push(border("│") + padLine("  " + help) + border("│"));
 
 		// ── Bottom border ──
@@ -980,7 +981,7 @@ export default function (pi: ExtensionAPI) {
 						"", "  /todos open <tag> [anchor] [width] [gifSize]",
 						"  /todos close [tag]                  Close panel",
 						"  /todos close-all                    Close all",
-						"  /todos focus [tag]                  Focus / cycle (Alt+T)",
+						`  /todos focus [tag]                  Focus / cycle (${getPanels()?.keyHints?.focusKey ?? "Alt+T"})`,
 						"  /todos status                       List panels",
 						"  /todos layout [count]               Suggest positions",
 						"  /todos refresh                      Refresh all",

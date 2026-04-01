@@ -4,57 +4,79 @@
 
 A [pi](https://github.com/badlogic/pi-mono) package containing custom Agent Skills and TUI extensions. Installable via `pi install https://github.com/dotBeeps/dots-pi-enhancements`. No build step — pi loads TypeScript extensions and Markdown skills directly.
 
+## Setup & Development
+
+```bash
+# Install as a pi package (symlinks into pi's package registry)
+pi install https://github.com/dotBeeps/dots-pi-enhancements
+
+# Or for local development — clone and point pi at the directory
+pi install ../../Development/dots-pi-enhancements
+```
+
+- **No build step** — pi loads `.ts` files directly via jiti
+- **Reload after changes** — run `/reload` in pi to pick up extension edits
+- **Settings file** — `~/.pi/agent/settings.json` (global), `.pi/settings.json` (project)
+
 ## Repository Structure
 
 ```
-extensions/          TypeScript pi extensions (loaded by convention)
-  ask.ts             Interactive user input tool for agents
-  todo-lists.ts      Persistent floating todo panels with animated GIF mascots
-skills/              Agent Skills — each subdirectory has a SKILL.md
-  agent-init/        Generates AGENTS.md files for projects
-  skill-designer/    Guides creation of new Agent Skills
-  todo-panels/       Teaches agents to manage floating todo panels
-package.json         pi-package manifest (convention discovery, no explicit pi key needed)
+extensions/                TypeScript pi extensions (loaded by convention)
+  ask.ts                   Interactive user input tool (select/confirm/text)
+  panel-manager.ts         Shared panel infrastructure — singleton registry, focus cycling, hotkeys
+  digestion-settings.ts    Compaction tuning panel — live-adjust context management
+  todo-lists.ts            Floating todo panels with animated GIF mascots
+skills/                    Agent Skills — each subdirectory has a SKILL.md
+  agent-init/              Generates AGENTS.md files for projects
+  dot-panels/              How to build panel extensions using the panel-manager API
+  extension-designer/      Guides creation of pi extensions (tools, TUI, events)
+  skill-designer/          Guides creation of new Agent Skills
+  todo-panels/             Teaches agents to manage floating todo panels
+package.json               pi-package manifest (convention discovery)
 ```
 
 Pi auto-discovers `extensions/` and `skills/` directories — no manifest paths required.
 
-## Adding a New Skill
+## Architecture
 
-Follow the `skill-designer` skill and its quality checklist. Key rules:
+### Inter-Extension Communication
 
-- **Archetype first** — classify as Convention Guide (400–900 words), Tool/Task (200–400 words), or Design/Process (800–1500 words), then use the matching template from `skills/skill-designer/references/templates.md`
-- **Directory name = `name` field** — lowercase, hyphens only, 1–64 chars
-- **Description formula** — `[What it does — verbs] + [When to use — triggers]`, aim for 100–200 chars
-- **Body under 500 lines** — split detailed reference into `references/` subdirectory
-- **Headings** — H1 title, H2 sections, no deeper than H3
-- **Directive tone** — "Do X", not "You could X"
-- **Rationale with rules** — "Prefer X over Y — because Z"
-- **Anti-patterns** — show the wrong approach alongside the correct one
+Extensions **must not import each other directly** — pi's jiti loader isolates module caches per extension entry point, causing duplicate state and shortcut conflicts.
 
-Scaffold:
-```bash
-mkdir -p skills/my-skill
-# Then write skills/my-skill/SKILL.md with frontmatter + body
+Instead, use `globalThis` with `Symbol.for()` for shared APIs:
+
+```typescript
+// Publisher (panel-manager.ts) — writes API at load time
+const API_KEY = Symbol.for("dot.panels");
+(globalThis as any)[API_KEY] = { register, close, focusPanel, ... };
+
+// Consumer (any other extension) — reads with fallback
+const PANELS_KEY = Symbol.for("dot.panels");
+function getPanels(): any { return (globalThis as any)[PANELS_KEY]; }
+const panels = getPanels();
+panels?.register("my-panel", { handle, invalidate, dispose });
 ```
 
-## Adding a New Extension
+`Symbol.for()` returns the same symbol across isolated module contexts — safe for cross-extension singletons.
 
-Extensions are single TypeScript files in `extensions/`. Follow patterns established in `ask.ts`:
+For event coordination between extensions, use `pi.events`:
 
-- **Imports** — use `@mariozechner/pi-coding-agent` for `ExtensionAPI`, `@mariozechner/pi-tui` for TUI components, `@sinclair/typebox` for schemas, `@mariozechner/pi-ai` for `StringEnum`
-- **`StringEnum`** — use instead of plain string unions for enum parameters (Google model compatibility)
-- **`Type.Object`** — define all parameters with `@sinclair/typebox` schemas including `description` fields
-- **`promptSnippet`** — one-line summary so agents see the tool in their prompt
-- **`promptGuidelines`** — array of usage hints telling agents when and how to invoke the tool
-- **`renderCall` / `renderResult`** — implement both for clean, themed TUI display
-- **JSDoc header** — opening comment block explaining what the extension does and its modes/features
-- **Error handling** — gracefully handle `!ctx.hasUI` (non-interactive mode) and invalid parameters
-- **Naming** — one tool per file, filename matches tool name
+```typescript
+pi.events.emit("panels:ready");           // Publisher
+pi.events.on("panels:ready", () => {});   // Consumer
+```
 
-**Overlay patterns** — for persistent non-blocking panels, use `tui.showOverlay()` with `nonCapturing: true` (captured from widget factory or `ctx.ui.custom()` callback). See `todo-lists.ts` for the full pattern: invisible widget captures TUI reference, commands/shortcuts use it to manage overlays.
+### Settings Namespace
 
-Reference: pi extension docs at `/opt/pi-coding-agent/docs/extensions.md` and examples at `/opt/pi-coding-agent/examples/extensions/`.
+All package settings live under the `dotsPiEnhancements` key in `~/.pi/agent/settings.json`. Each extension documents its own keys — read with a `readSetting(key, fallback)` helper, falling back to defaults.
+
+### Panel Extensions
+
+Panel-manager owns shared infrastructure (focus cycling, hotkeys, TUI capture). Other extensions register panels through its globalThis API. See the `dot-panels` skill for the full integration guide.
+
+## Adding Skills or Extensions
+
+Use the `skill-designer` and `extension-designer` skills — they cover scaffolding, structure, quality checklists, and best practices.
 
 ## Code Style
 

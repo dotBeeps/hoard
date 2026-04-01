@@ -158,6 +158,73 @@ const reconstructState = (ctx: ExtensionContext) => {
 };
 ```
 
+## Commands & Shortcuts
+
+Register `/commands` for user-triggered actions and keyboard shortcuts for quick access:
+
+```typescript
+pi.registerCommand("myext", {
+	description: "Manage my extension",
+	handler: async (args, ctx) => {
+		const parts = (args ?? "").trim().split(/\s+/);
+		switch (parts[0]) {
+			case "open": ctx.ui.notify(doOpen(), "info"); return;
+			case "close": ctx.ui.notify(doClose(), "info"); return;
+			default: ctx.ui.notify("Usage: /myext open|close", "info");
+		}
+	},
+});
+
+pi.registerShortcut("alt+m", {
+	description: "Toggle my extension",
+	handler: async () => { toggle(); },
+});
+```
+
+## Prompt Integration
+
+Help the LLM discover and use your tool correctly with `promptSnippet` and `promptGuidelines`:
+
+```typescript
+pi.registerTool({
+	name: "my_tool",
+	// ...
+	promptSnippet: "One-line summary shown in system prompt",
+	promptGuidelines: [
+		"Use X for this, Y for that — be specific about when to use each action",
+		"Don't do Z — explain the common mistake",
+	],
+});
+```
+
+- `promptSnippet` — one line, always visible in the prompt. Make it scannable.
+- `promptGuidelines` — array of usage hints. Each should teach the LLM one behavior.
+
+## Inter-Extension Communication
+
+Extensions **cannot import each other** — pi's jiti loader isolates module caches. Use these patterns instead:
+
+### globalThis API (for shared infrastructure)
+
+```typescript
+// Publisher extension
+const API_KEY = Symbol.for("my-namespace.api");
+(globalThis as any)[API_KEY] = { method1, method2, property };
+
+// Consumer extension
+function getApi(): any { return (globalThis as any)[Symbol.for("my-namespace.api")]; }
+getApi()?.method1();  // Always use optional chaining — publisher may not be loaded yet
+```
+
+### pi.events (for notifications)
+
+```typescript
+pi.events.emit("my-ext:ready", { version: 1 });
+pi.events.on("my-ext:ready", (data) => { /* react */ });
+```
+
+For panel extensions specifically, see the `dot-panels` skill.
+
 ## Anti-Patterns
 
 ❌ **Storing state in external files** — breaks branching; state diverges from conversation tree.
@@ -193,3 +260,5 @@ const reconstructState = (ctx: ExtensionContext) => {
 For detailed API docs and patterns, read these files:
 - [Extension API](references/extension-api.md) — Full event list, ctx methods, registration APIs
 - [TUI Patterns](references/tui-patterns.md) — Copy-paste patterns for common UI needs
+
+For panel-specific development, load the `dot-panels` skill.

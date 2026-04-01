@@ -45,6 +45,37 @@ Covers the full authoring workflow following the [agentskills.io](https://agents
 </details>
 
 <details>
+<summary><strong><code>dot-panels</code></strong> — Build panel extensions with the panel-manager API</summary>
+
+Developer-facing guide for building floating overlay panels that integrate with the shared panel-manager infrastructure.
+
+- **Step-by-step** panel creation workflow (access API → create component → wrap → show → register)
+- **Panel Manager API** reference — all methods, properties, and `keyHints`
+- **Configurable hotkeys** — settings namespace, `keyLabel()` pattern
+- **TUI conventions** — focus-aware borders, cached rendering, hint bars, width safety
+- **Anti-patterns** — no direct imports, no duplicate shortcuts, no hardcoded key labels
+
+📂 [`skills/dot-panels/SKILL.md`](skills/dot-panels/SKILL.md)
+
+</details>
+
+<details>
+<summary><strong><code>extension-designer</code></strong> — Design and build pi extensions</summary>
+
+Full guide for creating pi extensions — tools, commands, shortcuts, TUI components, events, and state management.
+
+- **Architecture decision tree** — tool vs command vs event vs UI
+- **Custom tools** — StringEnum, schemas, execute, renderCall/renderResult
+- **TUI components** — overlays, widgets, cached rendering, theme integration
+- **State management** — details-based branching, session reconstruction
+- **Inter-extension communication** — globalThis API pattern, pi.events
+- **Reference docs** — full API reference and 7 copy-paste TUI patterns
+
+📂 [`skills/extension-designer/SKILL.md`](skills/extension-designer/SKILL.md)
+
+</details>
+
+<details>
 <summary><strong><code>todo-panels</code></strong> — Open and manage floating todo panels</summary>
 
 Display `.pi/todos` as persistent floating panels grouped by tag. Panels stay on screen while you work, auto-refresh when todos change, and only capture keyboard input when focused.
@@ -60,6 +91,43 @@ Display `.pi/todos` as persistent floating panels grouped by tag. Panels stay on
 </details>
 
 ### 🔧 Extensions
+
+<details>
+<summary><strong><code>panel-manager</code></strong> — Shared panel infrastructure</summary>
+
+Singleton extension that owns floating overlay panel lifecycle. Other extensions register panels through its globalThis API.
+
+| Feature | Details |
+|---------|--------|
+| API access | `globalThis[Symbol.for("dot.panels")]` |
+| Focus cycling | Configurable hotkey (default Alt+T) |
+| Shared keys | Close (Q), Unfocus (Escape) — all configurable |
+| Key hints | `keyHints` object for dynamic hint bar text |
+| Component wrapping | `wrapComponent()` routes shared keys transparently |
+| Session lifecycle | Auto-closes all panels on switch/shutdown |
+| Settings | `panelFocusKey`, `panelCloseKey`, `panelUnfocusKey` |
+
+📂 [`extensions/panel-manager.ts`](extensions/panel-manager.ts)
+
+</details>
+
+<details>
+<summary><strong><code>digestion-settings</code></strong> — Compaction tuning panel</summary>
+
+Floating panel for live-adjusting context compaction settings. Changes take effect immediately and persist to `.pi/settings.json`.
+
+| Feature | Details |
+|---------|--------|
+| Settings | auto-compaction toggle, reserveTokens, keepRecentTokens |
+| Scope | Project settings override global settings |
+| Context bar | Live token usage with color-coded progress bar |
+| Copy from global | Pull global settings into project config |
+| Compact Now | Trigger compaction manually from the panel |
+| Hook | `session_before_compact` — enforces live disable toggle |
+
+📂 [`extensions/digestion-settings.ts`](extensions/digestion-settings.ts)
+
+</details>
 
 <details>
 <summary><strong><code>ask</code></strong> — Interactive user input tool for agents</summary>

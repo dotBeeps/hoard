@@ -76,7 +76,8 @@ const DEFAULT_ANCHOR: OverlayAnchor = "right-center";
 const DEFAULT_WIDTH = "30%";
 const DEFAULT_MIN_WIDTH = 30;
 const DEFAULT_MAX_HEIGHT = "90%";
-const GIF_RATING = "r"; // "up to" filter — r includes everything. Giphy content is almost all g-rated anyway.
+const DEFAULT_GIF_RATING = "r";
+const VALID_RATINGS = ["g", "pg", "pg-13", "r"];
 
 // ── Settings ──
 
@@ -173,7 +174,7 @@ const TAG_SEARCH_FALLBACK: Record<string, string> = {
 
 // Prompt for AI vibe-matched GIF search.
 // Kept short for Haiku — we want 2-4 word Giphy queries, not essays.
-const VIBE_PROMPT = `You pick Giphy search terms for a coding todo panel's animated sticker.
+const DEFAULT_VIBE_PROMPT = `You pick Giphy search terms for a coding todo panel's animated sticker.
 The panel belongs to a tiny candy-flavored dog (dot) and a big cozy dragon (Ember).
 Aesthetic: furry art, toony animals, cute cartoon characters.
 
@@ -185,6 +186,12 @@ Respond with ONLY a 2-3 word Giphy search query. No quotes, no explanation.
 The first word MUST be "furry". Keep it short — Giphy's sticker pool is small, specific queries return nothing.
 Loosely relate to the work. Prefer dogs, wolves, foxes, dragons.
 Examples: "furry coding", "furry sleepy", "furry panic", "furry celebrate", "furry detective"`;
+
+/** Read the vibe prompt from settings, falling back to built-in default.
+ *  Supports placeholders: {tag}, {todos} */
+function getVibePrompt(): string {
+	return readSetting<string>("gifVibePrompt", DEFAULT_VIBE_PROMPT);
+}
 
 // ── Kitty Unicode Placeholder Constants ──
 // U+10EEEE is Kitty's designated placeholder character.
@@ -319,7 +326,7 @@ async function generateVibeQuery(tag: string, todos: TodoFile[]): Promise<string
 		const todoSummary = todos.length > 0
 			? todos.slice(0, 8).map(t => `- [${t.status === "done" ? "x" : " "}] ${t.title}`).join("\n")
 			: "(empty — no todos yet)";
-		const prompt = VIBE_PROMPT
+		const prompt = getVibePrompt()
 			.replace("{tag}", tag)
 			.replace("{todos}", todoSummary);
 
@@ -382,7 +389,9 @@ function pickCleanResult(results: GiphyResult[]): string | null {
  */
 async function searchGiphy(query: string): Promise<string | null> {
 	try {
-		const params = new URLSearchParams({ api_key: GIPHY_API_KEY, q: query, limit: "25", rating: GIF_RATING });
+		const rating = readSetting<string>("gifRating", DEFAULT_GIF_RATING);
+		const validRating = VALID_RATINGS.includes(rating) ? rating : DEFAULT_GIF_RATING;
+		const params = new URLSearchParams({ api_key: GIPHY_API_KEY, q: query, limit: "25", rating: validRating });
 
 		// Try stickers first — inherently toony/hand-drawn
 		const stickerRes = await fetch(`${GIPHY_STICKER_URL}?${params}`);

@@ -76,8 +76,7 @@ const DEFAULT_ANCHOR: OverlayAnchor = "right-center";
 const DEFAULT_WIDTH = "30%";
 const DEFAULT_MIN_WIDTH = 30;
 const DEFAULT_MAX_HEIGHT = "90%";
-const DEFAULT_GIF_RATING = "pg";
-const VALID_RATINGS = ["g", "pg", "pg-13", "r"];
+const GIF_RATING = "r"; // "up to" filter — r includes everything. Giphy content is almost all g-rated anyway.
 
 // ── Settings ──
 
@@ -118,10 +117,7 @@ function writeSetting(key: string, value: unknown): boolean {
 	} catch { return false; }
 }
 
-function getGifRating(): string {
-	const val = readSetting<string>("gifRating", DEFAULT_GIF_RATING);
-	return VALID_RATINGS.includes(val) ? val : DEFAULT_GIF_RATING;
-}
+
 
 const VALID_ANCHORS: OverlayAnchor[] = [
 	"top-left", "top-center", "top-right",
@@ -158,36 +154,37 @@ const MIN_FRAME_DELAY_MS = 50;
 const VIBE_MODEL = "anthropic/claude-haiku-4-5";
 const VIBE_TIMEOUT_MS = 4000;
 
-// Fallback search terms — used when the AI vibe generator isn't available
+// Fallback search terms — used when the AI vibe generator isn't available.
+// Keep queries to 2-3 broad words — sticker API has a small pool,
+// over-specific queries return 0 results.
 const TAG_SEARCH_FALLBACK: Record<string, string> = {
-	bugs: "puppy computer bug sticker",
-	sprint: "dog running fast sticker",
-	done: "happy puppy celebration dance",
-	blocked: "sleepy puppy waiting sticker",
-	review: "dog looking detective sticker",
-	urgent: "puppy panic alarm sticker",
-	feature: "dog building crafting sticker",
-	refactor: "cat cleaning tidy sticker",
-	test: "dog science experiment sticker",
-	docs: "dog typing writing sticker",
-	all: "puppy coding programming sticker",
+	bugs: "furry computer",
+	sprint: "furry running",
+	done: "furry happy dance",
+	blocked: "furry sleepy",
+	review: "furry detective",
+	urgent: "furry panic",
+	feature: "furry building",
+	refactor: "furry cleaning",
+	test: "furry science",
+	docs: "furry typing",
+	all: "furry coding",
 };
 
 // Prompt for AI vibe-matched GIF search.
 // Kept short for Haiku — we want 2-4 word Giphy queries, not essays.
 const VIBE_PROMPT = `You pick Giphy search terms for a coding todo panel's animated sticker.
 The panel belongs to a tiny candy-flavored dog (dot) and a big cozy dragon (Ember).
-Vibes: cute animals, cozy chaos, warm and playful, smol engineer energy.
+Aesthetic: furry art, toony animals, cute cartoon characters.
 
 Panel tag: "{tag}"
 Todo items:
 {todos}
 
-Respond with ONLY a 2-5 word Giphy search query. No quotes, no explanation.
-Pick something cute and loosely related to the work.
-Prefer: dogs, puppies, cats, dragons, animals doing people things.
-Avoid: realistic photos, corporate stock, anything that says AI or generated.
-Examples: "puppy typing fast sticker", "sleepy dog coffee", "cat fixing computer", "dragon cozy fire"`;
+Respond with ONLY a 2-3 word Giphy search query. No quotes, no explanation.
+The first word MUST be "furry". Keep it short — Giphy's sticker pool is small, specific queries return nothing.
+Loosely relate to the work. Prefer dogs, wolves, foxes, dragons.
+Examples: "furry coding", "furry sleepy", "furry panic", "furry celebrate", "furry detective"`;
 
 // ── Kitty Unicode Placeholder Constants ──
 // U+10EEEE is Kitty's designated placeholder character.
@@ -352,7 +349,7 @@ async function generateVibeQuery(tag: string, todos: TodoFile[]): Promise<string
 }
 
 function getFallbackQuery(tag: string): string {
-	return TAG_SEARCH_FALLBACK[tag.toLowerCase()] ?? `cute dog ${tag}`;
+	return TAG_SEARCH_FALLBACK[tag.toLowerCase()] ?? `furry ${tag}`;
 }
 
 // ── GIF Fetching & Frame Extraction ──
@@ -385,8 +382,7 @@ function pickCleanResult(results: GiphyResult[]): string | null {
  */
 async function searchGiphy(query: string): Promise<string | null> {
 	try {
-		const rating = getGifRating();
-		const params = new URLSearchParams({ api_key: GIPHY_API_KEY, q: query, limit: "25", rating });
+		const params = new URLSearchParams({ api_key: GIPHY_API_KEY, q: query, limit: "25", rating: GIF_RATING });
 
 		// Try stickers first — inherently toony/hand-drawn
 		const stickerRes = await fetch(`${GIPHY_STICKER_URL}?${params}`);

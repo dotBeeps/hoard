@@ -1,0 +1,809 @@
+/**
+ * Todo Panels Extension — Persistent floating panels for .pi/todos
+ *
+ * Features:
+ * - Non-blocking, non-capturing overlay panels showing todos grouped by tag
+ * - Focus cycling via Alt+T — panels capture keyboard input only when focused
+ * - Backed by pi's built-in `.pi/todos` file system (no session state)
+ * - Agent-callable `todo_panel` tool for opening, closing, focusing, and layout
+ * - `/todos` command for user panel management
+ * - Auto-refreshes when the built-in `todo` tool modifies files
+ * - Animated GIF mascots (Unicode placeholders + Kitty virtual placements)
+ *
+ * A small dog and a large dragon made this together.
+ */
+
+import { StringEnum } from "@mariozechner/pi-ai";
+import type { ExtensionAPI, ExtensionContext, Theme } from "@mariozechner/pi-coding-agent";
+import type { Component, OverlayAnchor, OverlayHandle, TUI } from "@mariozechner/pi-tui";
+import {
+	matchesKey, Key, Text, truncateToWidth, visibleWidth,
+	calculateImageRows, getCellDimensions, getGifDimensions,
+} from "@mariozechner/pi-tui";
+import { Type } from "@sinclair/typebox";
+import { execSync } from "node:child_process";
+import { readFileSync, readdirSync, writeFileSync, existsSync, mkdirSync, unlinkSync, rmdirSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+
+// ── Types ──
+
+interface TodoFile {
+	id: string;
+	title: string;
+	tags: string[];
+	status: string;
+	created_at: string;
+	body: string;
+	assigned?: string;
+}
+
+interface PanelState {
+	tag: string;
+	handle: OverlayHandle;
+	component: TodoPanelComponent;
+	anchor: OverlayAnchor;
+	width: number | string;
+}
+
+interface LayoutSuggestion {
+	anchor: OverlayAnchor;
+	width: string;
+	margin?: { top?: number; right?: number; bottom?: number; left?: number };
+}
+
+interface GifFrames {
+	frames: string[];   // base64 PNG per frame
+	delays: number[];   // ms per frame
+	widthPx: number;
+	heightPx: number;
+}
+
+/** Per-panel mascot state */
+interface MascotState {
+	imageId: number;
+	cols: number;
+	rows: number;
+	gifData: GifFrames;
+	currentFrame: number;
+	interval: ReturnType<typeof setInterval> | null;
+}
+
+// ── Constants ──
+
+const FOCUS_SHORTCUT = "alt+t";
+const DEFAULT_ANCHOR: OverlayAnchor = "right-center";
+const DEFAULT_WIDTH = "30%";
+const DEFAULT_MIN_WIDTH = 30;
+const DEFAULT_MAX_HEIGHT = "90%";
+
+const VALID_ANCHORS: OverlayAnchor[] = [
+	"top-left", "top-center", "top-right",
+	"left-center", "center", "right-center",
+	"bottom-left", "bottom-center", "bottom-right",
+];
+
+// ── GIF Constants ──
+
+const GIPHY_API_KEY = "GlVGYHkr3WSBnllca54iNt0yFbjz7L65";
+const GIPHY_SEARCH_URL = "https://api.giphy.com/v1/gifs/search";
+const GIF_SIZE_VARIANT = "fixed_width_small";
+const GIF_CACHE_TTL_MS = 30 * 60 * 1000;
+const MAX_GIF_CELLS_W = 12;
+const MAX_GIF_CELLS_H = 6;
+const DEFAULT_FRAME_DELAY_MS = 80;
+const MIN_FRAME_DELAY_MS = 50;
+
+const TAG_SEARCH_MAP: Record<string, string> = {
+	bugs: "bug fixing coding",
+	sprint: "running fast",
+	done: "celebration party",
+	blocked: "waiting bored",
+	review: "looking examining",
+	urgent: "alarm hurry",
+	feature: "building creating",
+	refactor: "cleaning organizing",
+	test: "testing science",
+	docs: "writing typing",
+	all: "coding programming",
+};
+
+// ── Kitty Unicode Placeholder Constants ──
+// U+10EEEE is Kitty's designated placeholder character.
+// Combined with row/column diacritics, it tells Kitty where to render a virtual image.
+// See: https://sw.kovidgoyal.net/kitty/graphics-protocol/#unicode-placeholders
+
+const PLACEHOLDER_CHAR = "\u{10EEEE}";
+const DIACRITICS = [
+	0x0305, 0x030D, 0x030E, 0x0310, 0x0312, 0x033D, 0x033E, 0x033F,
+	0x0346, 0x034A, 0x034B, 0x034C, 0x0350, 0x0351, 0x0352, 0x0357,
+	0x035B, 0x0363, 0x0364, 0x0365, 0x0366, 0x0367, 0x0368, 0x0369,
+	0x036A, 0x036B, 0x036C, 0x036D, 0x036E, 0x036F, 0x0483, 0x0484,
+	0x0485, 0x0486, 0x0487, 0x0592, 0x0593, 0x0594, 0x0595, 0x0597,
+	0x0598, 0x0599, 0x059C, 0x059D, 0x059E, 0x059F, 0x05A0,
+];
+
+// Sequential IDs 1–200 for 256-color fg encoding
+let nextMascotId = 1;
+function allocateMascotId(): number {
+	const id = nextMascotId;
+	nextMascotId = (nextMascotId % 200) + 1;
+	return id;
+}
+
+// ── Kitty Protocol Helpers ──
+
+/**
+ * Transmit a single PNG frame to Kitty's memory as a virtual placement.
+ * Uses U=1 for Unicode placeholder display, q=2 to suppress responses.
+ * The image is NOT rendered at cursor position — it only appears where
+ * placeholder characters with matching foreground color exist.
+ *
+ * Written as a single process.stdout.write() to minimize interleave risk
+ * with the TUI's own output buffer.
+ */
+function transmitFrame(imageId: number, base64Data: string, cols: number, rows: number): void {
+	const CHUNK = 4096;
+	const params = `a=T,U=1,f=100,q=2,i=${imageId},c=${cols},r=${rows}`;
+	let buf: string;
+
+	if (base64Data.length <= CHUNK) {
+		buf = `\x1b_G${params};${base64Data}\x1b\\`;
+	} else {
+		const parts: string[] = [];
+		let offset = 0;
+		let first = true;
+		while (offset < base64Data.length) {
+			const chunk = base64Data.slice(offset, offset + CHUNK);
+			const isLast = offset + CHUNK >= base64Data.length;
+			if (first) {
+				parts.push(`\x1b_G${params},m=1;${chunk}\x1b\\`);
+				first = false;
+			} else if (isLast) {
+				parts.push(`\x1b_Gm=0;${chunk}\x1b\\`);
+			} else {
+				parts.push(`\x1b_Gm=1;${chunk}\x1b\\`);
+			}
+			offset += CHUNK;
+		}
+		buf = parts.join("");
+	}
+
+	process.stdout.write(buf);
+}
+
+/** Delete a Kitty image by ID, freeing memory. */
+function deleteKittyImage(imageId: number): void {
+	process.stdout.write(`\x1b_Ga=d,d=I,i=${imageId}\x1b\\`);
+}
+
+/**
+ * Build Unicode placeholder lines for a virtual Kitty image.
+ * Each grapheme cluster is U+10EEEE + row diacritic + column diacritic.
+ * The foreground color encodes the image ID (256-color mode for IDs ≤ 255).
+ * visibleWidth() correctly measures each cluster as width 1.
+ * Intl.Segmenter keeps clusters intact during compositor slicing.
+ */
+function buildPlaceholderLines(imageId: number, cols: number, rows: number): string[] {
+	const fgSet = imageId <= 255
+		? `\x1b[38;5;${imageId}m`
+		: `\x1b[38;2;${imageId & 0xFF};${(imageId >> 8) & 0xFF};${(imageId >> 16) & 0xFF}m`;
+	const fgReset = "\x1b[39m";
+	const lines: string[] = [];
+	for (let row = 0; row < rows; row++) {
+		let line = fgSet;
+		for (let col = 0; col < cols; col++) {
+			line += PLACEHOLDER_CHAR
+				+ String.fromCodePoint(DIACRITICS[row] ?? DIACRITICS[0]!)
+				+ String.fromCodePoint(DIACRITICS[col] ?? DIACRITICS[0]!);
+		}
+		line += fgReset;
+		lines.push(line);
+	}
+	return lines;
+}
+
+// ── GIF Fetching & Frame Extraction ──
+
+async function searchGiphy(query: string): Promise<string | null> {
+	try {
+		const params = new URLSearchParams({ api_key: GIPHY_API_KEY, q: query, limit: "10", rating: "g" });
+		const r = await fetch(`${GIPHY_SEARCH_URL}?${params}`);
+		if (!r.ok) return null;
+		const data = (await r.json()) as { data: Array<{ images: Record<string, { url?: string }> }> };
+		if (!data.data?.length) return null;
+		const idx = Math.floor(Math.random() * Math.min(data.data.length, 10));
+		return data.data[idx]?.images?.[GIF_SIZE_VARIANT]?.url ?? null;
+	} catch { return null; }
+}
+
+async function downloadGif(url: string): Promise<Buffer | null> {
+	try {
+		const r = await fetch(url);
+		return r.ok ? Buffer.from(await r.arrayBuffer()) : null;
+	} catch { return null; }
+}
+
+function extractFrames(gifBuffer: Buffer): { frames: string[]; delays: number[] } | null {
+	const dir = join(tmpdir(), `todo-gif-${Date.now()}`);
+	try {
+		mkdirSync(dir, { recursive: true });
+		const gifPath = join(dir, "input.gif");
+		writeFileSync(gifPath, gifBuffer);
+
+		let delays: number[] = [];
+		try {
+			delays = execSync(`magick identify -format "%T\\n" "${gifPath}"`, { encoding: "utf-8", timeout: 5000 })
+				.trim().split("\n")
+				.map(d => { const v = parseInt(d, 10); return v > 0 ? v * 10 : DEFAULT_FRAME_DELAY_MS; });
+		} catch {}
+
+		execSync(`magick "${gifPath}" -coalesce "${join(dir, "frame_%04d.png")}"`, { timeout: 15000 });
+		const files = readdirSync(dir).filter(f => f.startsWith("frame_") && f.endsWith(".png")).sort();
+		if (!files.length) return null;
+
+		const frames = files.map(f => readFileSync(join(dir, f)).toString("base64"));
+		while (delays.length < frames.length) delays.push(DEFAULT_FRAME_DELAY_MS);
+		return { frames, delays: delays.slice(0, frames.length) };
+	} catch { return null; }
+	finally {
+		try { if (existsSync(dir)) { for (const f of readdirSync(dir)) unlinkSync(join(dir, f)); rmdirSync(dir); } } catch {}
+	}
+}
+
+// ── Todo File I/O ──
+
+function getTodosDir(cwd: string): string { return join(cwd, ".pi", "todos"); }
+
+function parseTodoFile(content: string, filename: string): TodoFile | null {
+	try {
+		const firstBrace = content.indexOf("{");
+		if (firstBrace === -1) return null;
+		let depth = 0, endBrace = -1;
+		for (let i = firstBrace; i < content.length; i++) {
+			if (content[i] === "{") depth++;
+			else if (content[i] === "}") { depth--; if (depth === 0) { endBrace = i; break; } }
+		}
+		if (endBrace === -1) return null;
+		const meta = JSON.parse(content.slice(firstBrace, endBrace + 1));
+		const body = content.slice(endBrace + 1).trim();
+		return {
+			id: meta.id ?? filename.replace(/\.md$/, ""),
+			title: meta.title ?? "Untitled",
+			tags: Array.isArray(meta.tags) ? meta.tags : [],
+			status: meta.status ?? "open",
+			created_at: meta.created_at ?? "",
+			body, assigned: meta.assigned,
+		};
+	} catch { return null; }
+}
+
+function readAllTodos(cwd: string): TodoFile[] {
+	const dir = getTodosDir(cwd);
+	if (!existsSync(dir)) return [];
+	const todos: TodoFile[] = [];
+	for (const file of readdirSync(dir).filter(f => f.endsWith(".md"))) {
+		try {
+			const todo = parseTodoFile(readFileSync(join(dir, file), "utf-8"), file);
+			if (todo) todos.push(todo);
+		} catch {}
+	}
+	todos.sort((a, b) => a.created_at.localeCompare(b.created_at));
+	return todos;
+}
+
+function readTodosByTag(cwd: string, tag: string): TodoFile[] {
+	const all = readAllTodos(cwd);
+	if (tag === "*" || tag === "all") return all;
+	return all.filter(t => t.tags.some(tg => tg.toLowerCase() === tag.toLowerCase()));
+}
+
+function toggleTodoStatus(cwd: string, todoId: string): TodoFile | null {
+	const dir = getTodosDir(cwd);
+	const fp = join(dir, `${todoId}.md`);
+	if (!existsSync(fp)) return null;
+	const content = readFileSync(fp, "utf-8");
+	const todo = parseTodoFile(content, `${todoId}.md`);
+	if (!todo) return null;
+	const newStatus = todo.status === "done" ? "open" : "done";
+	const firstBrace = content.indexOf("{");
+	let depth = 0, endBrace = -1;
+	for (let i = firstBrace; i < content.length; i++) {
+		if (content[i] === "{") depth++;
+		else if (content[i] === "}") { depth--; if (depth === 0) { endBrace = i; break; } }
+	}
+	const meta = JSON.parse(content.slice(firstBrace, endBrace + 1));
+	meta.status = newStatus;
+	writeFileSync(fp, JSON.stringify(meta, null, 2) + content.slice(endBrace + 1), "utf-8");
+	todo.status = newStatus;
+	return todo;
+}
+
+// ── Layout Helpers ──
+
+function suggestLayout(panelCount: number): LayoutSuggestion[] {
+	if (panelCount <= 0) return [];
+	if (panelCount === 1) return [{ anchor: "right-center", width: "30%", margin: { right: 1 } }];
+	if (panelCount === 2) return [
+		{ anchor: "top-right", width: "30%", margin: { right: 1, top: 1 } },
+		{ anchor: "bottom-right", width: "30%", margin: { right: 1, bottom: 1 } },
+	];
+	if (panelCount === 3) return [
+		{ anchor: "top-right", width: "28%", margin: { right: 1, top: 0 } },
+		{ anchor: "right-center", width: "28%", margin: { right: 1 } },
+		{ anchor: "bottom-right", width: "28%", margin: { right: 1, bottom: 0 } },
+	];
+	const suggestions: LayoutSuggestion[] = [];
+	const rightCount = Math.ceil(panelCount / 2);
+	const leftCount = panelCount - rightCount;
+	const rightAnchors: OverlayAnchor[] = ["top-right", "right-center", "bottom-right"];
+	const leftAnchors: OverlayAnchor[] = ["top-left", "left-center", "bottom-left"];
+	for (let i = 0; i < rightCount && i < 3; i++) suggestions.push({ anchor: rightAnchors[i]!, width: "28%", margin: { right: 1 } });
+	for (let i = 0; i < leftCount && i < 3; i++) suggestions.push({ anchor: leftAnchors[i]!, width: "28%", margin: { left: 1 } });
+	return suggestions;
+}
+
+// ── Panel Component ──
+
+class TodoPanelComponent implements Component {
+	private tag: string;
+	private theme: Theme;
+	private tui: TUI;
+	private cwd: string;
+	private todos: TodoFile[] = [];
+	private selectedIndex = 0;
+	private scrollOffset = 0;
+	private cachedWidth?: number;
+	private cachedLines?: string[];
+	private handle: OverlayHandle | null = null;
+
+	// GIF mascot state
+	private mascot: MascotState | null = null;
+	private gifCache: Map<string, GifFrames>;
+
+	public onClose?: () => void;
+	public onCycleFocus?: () => void;
+
+	constructor(tag: string, theme: Theme, tui: TUI, cwd: string, gifCache: Map<string, GifFrames>) {
+		this.tag = tag;
+		this.theme = theme;
+		this.tui = tui;
+		this.cwd = cwd;
+		this.gifCache = gifCache;
+		this.refresh();
+		this.loadMascot();
+	}
+
+	setHandle(handle: OverlayHandle): void { this.handle = handle; }
+
+	// ── Mascot Loading ──
+
+	private async loadMascot(): Promise<void> {
+		const cached = this.gifCache.get(this.tag);
+		if (cached) { this.setupMascot(cached); return; }
+
+		const query = TAG_SEARCH_MAP[this.tag.toLowerCase()] ?? `${this.tag} funny`;
+		const url = await searchGiphy(query);
+		if (!url) return;
+		const gifBuffer = await downloadGif(url);
+		if (!gifBuffer) return;
+		const extracted = extractFrames(gifBuffer);
+		if (!extracted || !extracted.frames.length) return;
+		const dims = getGifDimensions(gifBuffer.toString("base64")) ?? { widthPx: 100, heightPx: 100 };
+		const gifData: GifFrames = {
+			frames: extracted.frames, delays: extracted.delays,
+			widthPx: dims.widthPx, heightPx: dims.heightPx,
+		};
+		this.gifCache.set(this.tag, gifData);
+		this.setupMascot(gifData);
+	}
+
+	private setupMascot(gifData: GifFrames): void {
+		this.disposeMascot();
+
+		const cellDims = getCellDimensions();
+		const cols = Math.min(MAX_GIF_CELLS_W, Math.max(2, Math.floor(gifData.widthPx / cellDims.widthPx)));
+		const rows = Math.min(MAX_GIF_CELLS_H, Math.max(2, calculateImageRows(
+			{ widthPx: gifData.widthPx, heightPx: gifData.heightPx }, cols, cellDims,
+		)));
+		const imageId = allocateMascotId();
+
+		this.mascot = { imageId, cols, rows, gifData, currentFrame: 0, interval: null };
+
+		// Transmit first frame after a microtask delay to avoid racing with
+		// the TUI's current render cycle.
+		setTimeout(() => {
+			if (!this.mascot) return;
+			transmitFrame(imageId, gifData.frames[0]!, cols, rows);
+
+			// For multi-frame GIFs: software animation via setInterval.
+			// Each tick re-transmits the next frame for the same image ID.
+			// From the Kitty docs: "When a new image is transmitted with the
+			// same id, all existing placements are updated to show the new image."
+			if (gifData.frames.length > 1) {
+				const avgDelay = Math.max(
+					MIN_FRAME_DELAY_MS,
+					gifData.delays.reduce((a, b) => a + b, 0) / gifData.delays.length,
+				);
+				this.mascot!.interval = setInterval(() => {
+					if (!this.mascot) return;
+					this.mascot.currentFrame = (this.mascot.currentFrame + 1) % this.mascot.gifData.frames.length;
+					transmitFrame(this.mascot.imageId, this.mascot.gifData.frames[this.mascot.currentFrame]!, this.mascot.cols, this.mascot.rows);
+				}, avgDelay);
+			}
+
+			// Trigger overlay re-render to show placeholders now that the image is loaded
+			this.invalidate();
+			this.tui.requestRender();
+		}, 0);
+	}
+
+	disposeMascot(): void {
+		if (this.mascot) {
+			if (this.mascot.interval) clearInterval(this.mascot.interval);
+			deleteKittyImage(this.mascot.imageId);
+			this.mascot = null;
+		}
+	}
+
+	// ── Todo Panel Logic ──
+
+	private ensureVisible(): void {
+		const maxVisible = 12;
+		if (this.selectedIndex < this.scrollOffset) this.scrollOffset = this.selectedIndex;
+		else if (this.selectedIndex >= this.scrollOffset + maxVisible) this.scrollOffset = this.selectedIndex - maxVisible + 1;
+	}
+
+	refresh(): void {
+		this.todos = readTodosByTag(this.cwd, this.tag);
+		if (this.selectedIndex >= this.todos.length) this.selectedIndex = Math.max(0, this.todos.length - 1);
+		this.invalidate();
+	}
+
+	handleInput(data: string): void {
+		if (matchesKey(data, Key.escape)) { this.handle?.unfocus(); this.invalidate(); this.tui.requestRender(); return; }
+		if (matchesKey(data, "q")) { this.onClose?.(); return; }
+		if (matchesKey(data, FOCUS_SHORTCUT)) { this.onCycleFocus?.(); return; }
+		if (matchesKey(data, Key.up) && this.selectedIndex > 0) { this.selectedIndex--; this.ensureVisible(); this.invalidate(); this.tui.requestRender(); }
+		else if (matchesKey(data, Key.down) && this.selectedIndex < this.todos.length - 1) { this.selectedIndex++; this.ensureVisible(); this.invalidate(); this.tui.requestRender(); }
+		else if (matchesKey(data, Key.space) || matchesKey(data, Key.enter)) {
+			const todo = this.todos[this.selectedIndex];
+			if (todo) { toggleTodoStatus(this.cwd, todo.id); this.refresh(); this.tui.requestRender(); }
+		}
+	}
+
+	render(width: number): string[] {
+		if (this.cachedLines && this.cachedWidth === width) return this.cachedLines;
+
+		const th = this.theme;
+		const focused = this.handle?.isFocused() ?? false;
+		const innerW = Math.max(10, width - 2);
+		const lines: string[] = [];
+		const borderColor = focused ? "accent" : "border";
+		const border = (c: string) => th.fg(borderColor, c);
+		const padLine = (s: string): string => {
+			const raw = truncateToWidth(s, innerW);
+			return raw + " ".repeat(Math.max(0, innerW - visibleWidth(raw)));
+		};
+
+		// ── Title bar ──
+		const doneCount = this.todos.filter(t => t.status === "done").length;
+		const totalCount = this.todos.length;
+		const tagDisplay = this.tag === "*" || this.tag === "all" ? "All Todos" : this.tag;
+		const focusIcon = focused ? " ⚡" : "";
+		const titleText = ` 📋 ${tagDisplay} (${doneCount}/${totalCount})${focusIcon} `;
+		const titleStyled = focused ? th.fg("accent", th.bold(titleText)) : th.fg("text", th.bold(titleText));
+		const titleW = visibleWidth(titleText);
+		const lp = Math.max(1, Math.floor((innerW - titleW) / 2));
+		const rp = Math.max(1, innerW - titleW - lp);
+		lines.push(border("╭") + border("─".repeat(lp)) + titleStyled + border("─".repeat(rp)) + border("╮"));
+
+		// ── Todo list ──
+		if (this.todos.length === 0) {
+			lines.push(border("│") + padLine("") + border("│"));
+			lines.push(border("│") + padLine(th.fg("dim", "  No todos" + (this.tag !== "*" && this.tag !== "all" ? ` tagged '${this.tag}'` : "") + ".")) + border("│"));
+			lines.push(border("│") + padLine(th.fg("dim", "  Use the todo tool to create some!")) + border("│"));
+			lines.push(border("│") + padLine("") + border("│"));
+		} else {
+			lines.push(border("│") + padLine("") + border("│"));
+			const barWidth = Math.min(20, innerW - 10);
+			if (barWidth >= 5) {
+				const filled = totalCount > 0 ? Math.round((doneCount / totalCount) * barWidth) : 0;
+				const pct = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
+				lines.push(border("│") + padLine("  " + th.fg("success", "█".repeat(filled)) + th.fg("dim", "░".repeat(barWidth - filled)) + th.fg("muted", ` ${pct}%`)) + border("│"));
+				lines.push(border("│") + padLine("") + border("│"));
+			}
+
+			const maxVisible = 12;
+			const visibleStart = Math.max(0, Math.min(this.scrollOffset, this.todos.length - maxVisible));
+			const visibleEnd = Math.min(this.todos.length, visibleStart + maxVisible);
+			if (visibleStart > 0) lines.push(border("│") + padLine(th.fg("dim", `  ↑ ${visibleStart} more`)) + border("│"));
+
+			for (let i = 0; i < visibleEnd - visibleStart; i++) {
+				const todo = this.todos[visibleStart + i]!;
+				const globalIdx = visibleStart + i;
+				const isSelected = focused && globalIdx === this.selectedIndex;
+				const check = todo.status === "done" ? th.fg("success", "✓") : th.fg("dim", "○");
+				const pointer = isSelected ? th.fg("accent", "▸ ") : "  ";
+				const titleColor = todo.status === "done"
+					? th.fg("muted", th.strikethrough(todo.title))
+					: isSelected ? th.fg("accent", todo.title) : th.fg("text", todo.title);
+				lines.push(border("│") + padLine(`${pointer}${check} ${titleColor}`) + border("│"));
+				if (isSelected && todo.body) {
+					const preview = todo.body.split("\n")[0] ?? "";
+					if (preview.trim()) lines.push(border("│") + padLine("     " + th.fg("dim", truncateToWidth(preview, innerW - 7))) + border("│"));
+				}
+			}
+
+			if (visibleEnd < this.todos.length) lines.push(border("│") + padLine(th.fg("dim", `  ↓ ${this.todos.length - visibleEnd} more`)) + border("│"));
+			lines.push(border("│") + padLine("") + border("│"));
+		}
+
+		// ── Help text ──
+		const help = focused ? th.fg("dim", "↑↓ nav · Space toggle · q close · Esc unfocus") : th.fg("dim", `Alt+T focus · /todos help`);
+		lines.push(border("│") + padLine("  " + help) + border("│"));
+
+		// ── GIF mascot (Unicode placeholders) ──
+		// The image data is transmitted to Kitty via process.stdout.write() in
+		// setupMascot/setInterval — NOT in render(). Kitty stores it in memory
+		// with a=T,U=1 (virtual placement). The placeholder characters below
+		// tell Kitty where to display the image. The foreground color encodes
+		// the image ID. This is compositor-safe: Intl.Segmenter keeps the
+		// grapheme clusters intact, and visibleWidth() measures each as width 1.
+		if (this.mascot) {
+			const mLines = buildPlaceholderLines(this.mascot.imageId, this.mascot.cols, this.mascot.rows);
+			lines.push(border("│") + padLine("") + border("│"));
+			for (const ml of mLines) {
+				const mlW = visibleWidth(ml);
+				const mlLeft = Math.max(0, Math.floor((innerW - mlW) / 2));
+				const mlRight = Math.max(0, innerW - mlW - mlLeft);
+				lines.push(border("│") + " ".repeat(mlLeft) + ml + " ".repeat(mlRight) + border("│"));
+			}
+		}
+
+		// ── Bottom border ──
+		lines.push(border("╰") + border("─".repeat(innerW)) + border("╯"));
+
+		this.cachedWidth = width;
+		this.cachedLines = lines;
+		return lines;
+	}
+
+	invalidate(): void { this.cachedWidth = undefined; this.cachedLines = undefined; }
+}
+
+// ── Tool Parameters ──
+
+const TodoPanelParams = Type.Object({
+	action: StringEnum(["open", "close", "close_all", "focus", "unfocus", "list_panels", "suggest_layout", "refresh"] as const),
+	tag: Type.Optional(Type.String({ description: "Tag to filter todos by (use 'all' for all todos)" })),
+	anchor: Type.Optional(Type.String({ description: "Panel position: top-left, top-center, top-right, left-center, center, right-center, bottom-left, bottom-center, bottom-right" })),
+	width: Type.Optional(Type.String({ description: "Panel width as number or percentage (e.g. '30%' or '40')" })),
+	count: Type.Optional(Type.Number({ description: "Number of panels for suggest_layout" })),
+	offsetX: Type.Optional(Type.Number({ description: "Horizontal offset from anchor position" })),
+	offsetY: Type.Optional(Type.Number({ description: "Vertical offset from anchor position" })),
+});
+
+// ── Extension ──
+
+export default function (pi: ExtensionAPI) {
+	let tuiRef: TUI | null = null;
+	let themeRef: Theme | null = null;
+	let cwdRef = process.cwd();
+	const panels = new Map<string, PanelState>();
+	const focusOrder: string[] = [];
+	const gifCache = new Map<string, GifFrames>();
+
+	function parseAnchor(s: string | undefined): OverlayAnchor {
+		return s && VALID_ANCHORS.includes(s as OverlayAnchor) ? s as OverlayAnchor : DEFAULT_ANCHOR;
+	}
+	function parseWidth(s: string | undefined): number | string {
+		if (!s) return DEFAULT_WIDTH;
+		if (s.endsWith("%")) return s;
+		const n = parseInt(s, 10);
+		return isNaN(n) ? DEFAULT_WIDTH : n;
+	}
+
+	function refreshAllPanels(): void {
+		for (const p of panels.values()) p.component.refresh();
+		tuiRef?.requestRender();
+	}
+
+	function openPanel(tag: string, anchor?: string, width?: string, offsetX?: number, offsetY?: number): string {
+		if (!tuiRef || !themeRef) return "Error: TUI not available (non-interactive mode)";
+		if (panels.has(tag)) { panels.get(tag)!.component.refresh(); tuiRef.requestRender(); return `Panel '${tag}' already open — refreshed`; }
+
+		const parsedAnchor = parseAnchor(anchor);
+		const parsedWidth = parseWidth(width);
+		const component = new TodoPanelComponent(tag, themeRef, tuiRef, cwdRef, gifCache);
+		const handle = tuiRef.showOverlay(component, {
+			nonCapturing: true, anchor: parsedAnchor, width: parsedWidth,
+			minWidth: DEFAULT_MIN_WIDTH, maxHeight: DEFAULT_MAX_HEIGHT, margin: 1,
+			...(offsetX !== undefined ? { offsetX } : {}),
+			...(offsetY !== undefined ? { offsetY } : {}),
+		});
+		component.setHandle(handle);
+		component.onClose = () => closePanel(tag);
+		component.onCycleFocus = () => cycleFocus();
+		panels.set(tag, { tag, handle, component, anchor: parsedAnchor, width: parsedWidth });
+		if (!focusOrder.includes(tag)) focusOrder.push(tag);
+		return `Opened panel for '${tag}' at ${parsedAnchor}`;
+	}
+
+	function closePanel(tag: string): string {
+		const panel = panels.get(tag);
+		if (!panel) return `No panel open for '${tag}'`;
+		panel.component.disposeMascot();
+		panel.handle.hide();
+		panels.delete(tag);
+		const idx = focusOrder.indexOf(tag);
+		if (idx !== -1) focusOrder.splice(idx, 1);
+		return `Closed panel '${tag}'`;
+	}
+
+	function closeAllPanels(): string {
+		const count = panels.size;
+		for (const p of panels.values()) { p.component.disposeMascot(); p.handle.hide(); }
+		panels.clear();
+		focusOrder.length = 0;
+		return `Closed ${count} panel(s)`;
+	}
+
+	function focusPanel(tag?: string): string {
+		if (panels.size === 0) return "No panels open";
+		if (tag) {
+			const panel = panels.get(tag);
+			if (!panel) return `No panel open for '${tag}'`;
+			for (const [t, p] of panels) { if (t !== tag) p.handle.unfocus(); }
+			panel.handle.focus(); panel.component.invalidate(); tuiRef?.requestRender();
+			return `Focused panel '${tag}'`;
+		}
+		return cycleFocus();
+	}
+
+	function cycleFocus(): string {
+		if (focusOrder.length === 0) return "No panels open";
+		let currentIdx = -1;
+		for (let i = 0; i < focusOrder.length; i++) {
+			if (panels.get(focusOrder[i]!)?.handle.isFocused()) { currentIdx = i; break; }
+		}
+		for (const p of panels.values()) { p.handle.unfocus(); p.component.invalidate(); }
+		const nextIdx = (currentIdx + 1) % focusOrder.length;
+		const nextTag = focusOrder[nextIdx]!;
+		const next = panels.get(nextTag);
+		if (next) { next.handle.focus(); next.component.invalidate(); tuiRef?.requestRender(); return `Focused panel '${nextTag}'`; }
+		return "No panels to focus";
+	}
+
+	function unfocusAll(): string {
+		for (const p of panels.values()) { p.handle.unfocus(); p.component.invalidate(); }
+		tuiRef?.requestRender();
+		return "All panels unfocused";
+	}
+
+	function listPanels(): string {
+		if (panels.size === 0) return "No panels open";
+		const lines = [`${panels.size} panel(s) open:`];
+		for (const [tag, panel] of panels) {
+			const focused = panel.handle.isFocused() ? " ⚡" : "";
+			const todos = readTodosByTag(cwdRef, tag);
+			const done = todos.filter(t => t.status === "done").length;
+			lines.push(`  📋 ${tag} (${done}/${todos.length}) at ${panel.anchor}${focused}`);
+		}
+		return lines.join("\n");
+	}
+
+	function getSuggestedLayout(count: number): string {
+		const suggestions = suggestLayout(count);
+		if (!suggestions.length) return "No layout suggestions for 0 panels";
+		const lines = [`Suggested layout for ${count} panel(s):`];
+		for (let i = 0; i < suggestions.length; i++) { const s = suggestions[i]!; lines.push(`  Panel ${i + 1}: /todos open <tag> ${s.anchor} ${s.width}`); }
+		return lines.join("\n");
+	}
+
+	// ── TUI Capture ──
+	function captureTui(ctx: ExtensionContext): void {
+		cwdRef = ctx.cwd;
+		if (ctx.hasUI) {
+			ctx.ui.setWidget("__todo_panel_capture", (tui, theme) => {
+				tuiRef = tui; themeRef = theme;
+				return { render: () => [], invalidate: () => {} };
+			});
+		}
+	}
+
+	// ── Events ──
+	pi.on("session_start", async (_event, ctx) => captureTui(ctx));
+	pi.on("session_switch", async (_event, ctx) => { closeAllPanels(); captureTui(ctx); });
+	pi.on("session_shutdown", async () => closeAllPanels());
+	process.stdout.on("resize", () => { if (panels.size > 0) { for (const p of panels.values()) p.component.invalidate(); tuiRef?.requestRender(); } });
+	pi.on("tool_result", async (event) => { if (event.toolName === "todo" && panels.size > 0) refreshAllPanels(); });
+
+	// ── Keyboard Shortcut ──
+	pi.registerShortcut(FOCUS_SHORTCUT, { description: "Cycle focus between todo panels", handler: async () => { if (panels.size > 0) cycleFocus(); } });
+
+	// ── Tool ──
+	const makeResult = (text: string, error?: boolean) => ({ content: [{ type: "text" as const, text }], details: { panelCount: panels.size, error } });
+
+	pi.registerTool({
+		name: "todo_panel", label: "Todo Panel",
+		description: "Manage floating todo panels. Panels display todos from .pi/todos filtered by tag. Actions: open (tag, anchor?, width?), close (tag), close_all, focus (tag?), unfocus, list_panels, suggest_layout (count), refresh. Use the built-in 'todo' tool for CRUD operations on todos.",
+		promptSnippet: "Open/close/focus persistent floating todo panels showing .pi/todos filtered by tag",
+		promptGuidelines: [
+			"Use the built-in 'todo' tool to create, update, and manage individual todos. Use 'todo_panel' only for managing the visual panels.",
+			"When opening multiple panels, call suggest_layout first to get optimal positions.",
+			"Panels auto-refresh when the todo tool modifies files — no need to manually refresh after todo CRUD.",
+			"Tag todos with a consistent name to group them into a panel (e.g., tag: 'sprint', tag: 'bugs').",
+			"Use tag 'all' to show all todos regardless of tag.",
+		],
+		parameters: TodoPanelParams,
+		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+			if (!ctx.hasUI && params.action !== "suggest_layout") return makeResult("Error: panels require interactive mode", true);
+			switch (params.action) {
+				case "open": return params.tag ? makeResult(openPanel(params.tag, params.anchor, params.width, params.offsetX, params.offsetY)) : makeResult("Error: tag required for open", true);
+				case "close": return params.tag ? makeResult(closePanel(params.tag)) : makeResult("Error: tag required for close", true);
+				case "close_all": return makeResult(closeAllPanels());
+				case "focus": return makeResult(focusPanel(params.tag));
+				case "unfocus": return makeResult(unfocusAll());
+				case "list_panels": return makeResult(listPanels());
+				case "suggest_layout": return makeResult(getSuggestedLayout(params.count ?? panels.size + 1));
+				case "refresh": refreshAllPanels(); return makeResult("Refreshed all panels");
+				default: return makeResult(`Unknown action: ${params.action}`, true);
+			}
+		},
+		renderCall(args, theme) {
+			let text = theme.fg("toolTitle", theme.bold("todo_panel ")) + theme.fg("muted", args.action || "");
+			if (args.tag) text += " " + theme.fg("accent", `"${args.tag}"`);
+			if (args.anchor) text += " " + theme.fg("dim", args.anchor);
+			return new Text(text, 0, 0);
+		},
+		renderResult(result, _options, theme) {
+			const details = result.details as { panelCount?: number; error?: boolean } | undefined;
+			const msg = result.content[0]?.type === "text" ? (result.content[0] as { text: string }).text : "";
+			if (details?.error) return new Text(theme.fg("error", `✗ ${msg}`), 0, 0);
+			const info = details?.panelCount !== undefined ? theme.fg("dim", ` (${details.panelCount} panel(s))`) : "";
+			return new Text(theme.fg("success", "✓ ") + theme.fg("muted", msg) + info, 0, 0);
+		},
+	});
+
+	// ── /todos Command ──
+	pi.registerCommand("todos", {
+		description: "Manage todo panels: open, close, focus, layout, help",
+		handler: async (args, ctx) => {
+			const parts = (args ?? "").trim().split(/\s+/).filter(Boolean);
+			const subcmd = parts[0]?.toLowerCase() ?? "help";
+			switch (subcmd) {
+				case "open": {
+					const tag = parts[1];
+					if (!tag) { ctx.ui.notify("Usage: /todos open <tag> [anchor] [width]", "warning"); return; }
+					ctx.ui.notify(openPanel(tag, parts[2], parts[3]), "info");
+					return;
+				}
+				case "close": {
+					const tag = parts[1];
+					if (!tag) { for (const [t, p] of panels) { if (p.handle.isFocused()) { ctx.ui.notify(closePanel(t), "info"); return; } } ctx.ui.notify("No focused panel to close", "warning"); return; }
+					ctx.ui.notify(closePanel(tag), "info"); return;
+				}
+				case "close-all": ctx.ui.notify(closeAllPanels(), "info"); return;
+				case "focus": ctx.ui.notify(panels.size === 0 ? "No panels open" : focusPanel(parts[1]), "info"); return;
+				case "layout": { const c = parts[1] ? parseInt(parts[1], 10) : panels.size + 1; ctx.ui.notify(getSuggestedLayout(isNaN(c) ? 1 : c), "info"); return; }
+				case "status": ctx.ui.notify(listPanels(), "info"); return;
+				case "refresh": refreshAllPanels(); ctx.ui.notify("Refreshed all panels", "info"); return;
+				default:
+					ctx.ui.notify([
+						"Todo Panels — floating .pi/todos viewers",
+						"", "  /todos open <tag> [anchor] [width]  Open a panel",
+						"  /todos close [tag]                  Close panel",
+						"  /todos close-all                    Close all",
+						"  /todos focus [tag]                  Focus / cycle (Alt+T)",
+						"  /todos status                       List panels",
+						"  /todos layout [count]               Suggest positions",
+						"  /todos refresh                      Refresh all",
+						"", "Anchors: top-left, top-center, top-right, left-center,",
+						"         center, right-center, bottom-left, bottom-center, bottom-right",
+						"", "GIF mascots animate automatically for each panel.",
+					].join("\n"), "info");
+			}
+		},
+	});
+}

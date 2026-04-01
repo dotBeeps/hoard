@@ -8,9 +8,12 @@ A [pi](https://github.com/badlogic/pi-mono) package containing custom Agent Skil
 
 ```
 extensions/          TypeScript pi extensions (loaded by convention)
+  ask.ts             Interactive user input tool for agents
+  todo-lists.ts      Persistent floating todo panels with animated GIF mascots
 skills/              Agent Skills — each subdirectory has a SKILL.md
   agent-init/        Generates AGENTS.md files for projects
   skill-designer/    Guides creation of new Agent Skills
+  todo-panels/       Teaches agents to manage floating todo panels
 package.json         pi-package manifest (convention discovery, no explicit pi key needed)
 ```
 
@@ -48,6 +51,8 @@ Extensions are single TypeScript files in `extensions/`. Follow patterns establi
 - **JSDoc header** — opening comment block explaining what the extension does and its modes/features
 - **Error handling** — gracefully handle `!ctx.hasUI` (non-interactive mode) and invalid parameters
 - **Naming** — one tool per file, filename matches tool name
+
+**Overlay patterns** — for persistent non-blocking panels, use `tui.showOverlay()` with `nonCapturing: true` (captured from widget factory or `ctx.ui.custom()` callback). See `todo-lists.ts` for the full pattern: invisible widget captures TUI reference, commands/shortcuts use it to manage overlays.
 
 Reference: pi extension docs at `/opt/pi-coding-agent/docs/extensions.md` and examples at `/opt/pi-coding-agent/examples/extensions/`.
 

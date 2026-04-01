@@ -44,6 +44,21 @@ Covers the full authoring workflow following the [agentskills.io](https://agents
 
 </details>
 
+<details>
+<summary><strong><code>todo-panels</code></strong> — Open and manage floating todo panels</summary>
+
+Display `.pi/todos` as persistent floating panels grouped by tag. Panels stay on screen while you work, auto-refresh when todos change, and only capture keyboard input when focused.
+
+- **Tag-based grouping** — filter todos by tag into separate panels
+- **Focus cycling** — `Alt+T` or `/todos focus` to cycle between panels
+- **Agent layout helpers** — `suggest_layout` calculates optimal positions so agents don't do math
+- **Two-tool system** — built-in `todo` for CRUD, `todo_panel` for display
+- **Auto-refresh** — panels update when the `todo` tool modifies files
+
+📂 [`skills/todo-panels/SKILL.md`](skills/todo-panels/SKILL.md)
+
+</details>
+
 ### 🔧 Extensions
 
 <details>
@@ -65,6 +80,28 @@ One tool, three modes — lets agents interview users, gather preferences, or co
 - Prompt guideline tells agents to phrase questions warmly
 
 📂 [`extensions/ask.ts`](extensions/ask.ts)
+
+</details>
+
+<details>
+<summary><strong><code>todo-lists</code></strong> — Persistent floating todo panels with animated GIF mascots</summary>
+
+Non-blocking overlay panels backed by `.pi/todos`. Each panel shows todos filtered by tag with progress bars, keyboard navigation, focus management, and animated GIF mascots.
+
+| Feature | Details |
+|---------|--------|
+| Backing store | `.pi/todos` (pi's built-in file-based todos) |
+| Panel display | Non-capturing overlays — persistent, don't steal input |
+| Focus | `Alt+T` cycles focus; `Escape` unfocuses; panels capture keys only when focused |
+| Positioning | 9 anchor positions, percentage or fixed width |
+| GIF mascots | Giphy search by tag name, software animation via Kitty Unicode placeholders |
+| Tag mapping | Smart search queries: "bugs" → "bug fixing coding", "sprint" → "running fast" |
+| Agent tool | `todo_panel` — open, close, focus, suggest_layout |
+| User command | `/todos open/close/focus/status/layout/help` |
+| Auto-refresh | Panels update when the built-in `todo` tool runs |
+| Requirements | Kitty terminal (image protocol), ImageMagick for frame extraction |
+
+📂 [`extensions/todo-lists.ts`](extensions/todo-lists.ts)
 
 </details>
 

@@ -16,6 +16,11 @@
 import { StringEnum, complete, type Context } from "@mariozechner/pi-ai";
 import type { ExtensionAPI, ExtensionContext, Theme } from "@mariozechner/pi-coding-agent";
 import type { Component, OverlayAnchor, OverlayHandle, TUI } from "@mariozechner/pi-tui";
+// ── Panel Manager Access ──
+// Panel manager API is published to globalThis by panel-manager.ts extension.
+// No direct imports — avoids jiti module isolation issues.
+const PANELS_KEY = Symbol.for("dot.panels");
+function getPanels(): any { return (globalThis as any)[PANELS_KEY]; }
 import {
 	matchesKey, Key, Text, truncateToWidth, visibleWidth,
 	calculateImageRows, getCellDimensions, getGifDimensions,
@@ -36,14 +41,6 @@ interface TodoFile {
 	created_at: string;
 	body: string;
 	assigned?: string;
-}
-
-interface PanelState {
-	tag: string;
-	handle: OverlayHandle;
-	component: TodoPanelComponent;
-	anchor: OverlayAnchor;
-	width: number | string;
 }
 
 interface LayoutSuggestion {
@@ -71,7 +68,6 @@ interface MascotState {
 
 // ── Constants ──
 
-const FOCUS_SHORTCUT = "alt+t";
 const DEFAULT_ANCHOR: OverlayAnchor = "right-center";
 const DEFAULT_WIDTH = "30%";
 const DEFAULT_MIN_WIDTH = 30;
@@ -555,8 +551,7 @@ class TodoPanelComponent implements Component {
 	private gifMaxW: number;
 	private gifMaxH: number;
 
-	public onClose?: () => void;
-	public onCycleFocus?: () => void;
+
 
 	constructor(tag: string, theme: Theme, tui: TUI, cwd: string, gifCache: Map<string, GifFrames>, gifSize?: string) {
 		this.tag = tag;
@@ -660,9 +655,6 @@ class TodoPanelComponent implements Component {
 	}
 
 	handleInput(data: string): void {
-		if (matchesKey(data, Key.escape)) { this.handle?.unfocus(); this.invalidate(); this.tui.requestRender(); return; }
-		if (matchesKey(data, "q")) { this.onClose?.(); return; }
-		if (matchesKey(data, FOCUS_SHORTCUT)) { this.onCycleFocus?.(); return; }
 		if (matchesKey(data, Key.up) && this.selectedIndex > 0) { this.selectedIndex--; this.ensureVisible(); this.invalidate(); this.tui.requestRender(); }
 		else if (matchesKey(data, Key.down) && this.selectedIndex < this.todos.length - 1) { this.selectedIndex++; this.ensureVisible(); this.invalidate(); this.tui.requestRender(); }
 		else if (matchesKey(data, Key.space) || matchesKey(data, Key.enter)) {
@@ -803,12 +795,8 @@ const TodoPanelParams = Type.Object({
 // ── Extension ──
 
 export default function (pi: ExtensionAPI) {
-	let tuiRef: TUI | null = null;
-	let themeRef: Theme | null = null;
-	let cwdRef = process.cwd();
-	const panels = new Map<string, PanelState>();
-	const focusOrder: string[] = [];
 	const gifCache = new Map<string, GifFrames>();
+	const todoComponents = new Map<string, TodoPanelComponent>();
 
 	function parseAnchor(s: string | undefined): OverlayAnchor {
 		return s && VALID_ANCHORS.includes(s as OverlayAnchor) ? s as OverlayAnchor : DEFAULT_ANCHOR;
@@ -821,90 +809,72 @@ export default function (pi: ExtensionAPI) {
 	}
 
 	function refreshAllPanels(): void {
-		for (const p of panels.values()) p.component.refresh();
-		tuiRef?.requestRender();
+		for (const c of todoComponents.values()) c.refresh();
+		getPanels()?.requestRender();
 	}
 
+	function panelId(tag: string): string { return `todo:${tag}`; }
+
 	function openPanel(tag: string, anchor?: string, width?: string, offsetX?: number, offsetY?: number, gifSize?: string): string {
-		if (!tuiRef || !themeRef) return "Error: TUI not available (non-interactive mode)";
-		if (panels.has(tag)) { panels.get(tag)!.component.refresh(); tuiRef.requestRender(); return `Panel '${tag}' already open — refreshed`; }
+		const panels = getPanels();
+		const tui = panels?.tui;
+		const theme = panels?.theme;
+		if (!tui || !theme) return "Error: TUI not available (non-interactive mode)";
+
+		const pid = panelId(tag);
+		if (panels.isOpen(pid)) {
+			todoComponents.get(tag)?.refresh();
+			panels.requestRender();
+			return `Panel '${tag}' already open — refreshed`;
+		}
 
 		const parsedAnchor = parseAnchor(anchor);
 		const parsedWidth = parseWidth(width);
-		const component = new TodoPanelComponent(tag, themeRef, tuiRef, cwdRef, gifCache, gifSize);
-		const handle = tuiRef.showOverlay(component, {
+		const component = new TodoPanelComponent(tag, theme, tui, panels.cwd, gifCache, gifSize);
+		const wrapped = panels.wrapComponent(pid, component);
+		const handle = tui.showOverlay(wrapped, {
 			nonCapturing: true, anchor: parsedAnchor, width: parsedWidth,
 			minWidth: DEFAULT_MIN_WIDTH, maxHeight: DEFAULT_MAX_HEIGHT, margin: 1,
 			...(offsetX !== undefined ? { offsetX } : {}),
 			...(offsetY !== undefined ? { offsetY } : {}),
 		});
 		component.setHandle(handle);
-		component.onClose = () => closePanel(tag);
-		component.onCycleFocus = () => cycleFocus();
-		panels.set(tag, { tag, handle, component, anchor: parsedAnchor, width: parsedWidth });
-		if (!focusOrder.includes(tag)) focusOrder.push(tag);
+		todoComponents.set(tag, component);
+		panels.register(pid, {
+			handle,
+			invalidate: () => component.invalidate(),
+			handleInput: (data) => component.handleInput(data),
+			dispose: () => component.disposeMascot(),
+			onClose: () => todoComponents.delete(tag),
+		});
 		return `Opened panel for '${tag}' at ${parsedAnchor}`;
 	}
 
 	function closePanel(tag: string): string {
-		const panel = panels.get(tag);
-		if (!panel) return `No panel open for '${tag}'`;
-		panel.component.disposeMascot();
-		panel.handle.hide();
-		panels.delete(tag);
-		const idx = focusOrder.indexOf(tag);
-		if (idx !== -1) focusOrder.splice(idx, 1);
+		const panels = getPanels();
+		const pid = panelId(tag);
+		if (!panels?.isOpen(pid)) return `No panel open for '${tag}'`;
+		panels.close(pid); // dispose + hide + onClose (clears todoComponents)
 		return `Closed panel '${tag}'`;
 	}
 
-	function closeAllPanels(): string {
-		const count = panels.size;
-		for (const p of panels.values()) { p.component.disposeMascot(); p.handle.hide(); }
-		panels.clear();
-		focusOrder.length = 0;
-		return `Closed ${count} panel(s)`;
-	}
-
-	function focusPanel(tag?: string): string {
-		if (panels.size === 0) return "No panels open";
-		if (tag) {
-			const panel = panels.get(tag);
-			if (!panel) return `No panel open for '${tag}'`;
-			for (const [t, p] of panels) { if (t !== tag) p.handle.unfocus(); }
-			panel.handle.focus(); panel.component.invalidate(); tuiRef?.requestRender();
-			return `Focused panel '${tag}'`;
-		}
-		return cycleFocus();
-	}
-
-	function cycleFocus(): string {
-		if (focusOrder.length === 0) return "No panels open";
-		let currentIdx = -1;
-		for (let i = 0; i < focusOrder.length; i++) {
-			if (panels.get(focusOrder[i]!)?.handle.isFocused()) { currentIdx = i; break; }
-		}
-		for (const p of panels.values()) { p.handle.unfocus(); p.component.invalidate(); }
-		const nextIdx = (currentIdx + 1) % focusOrder.length;
-		const nextTag = focusOrder[nextIdx]!;
-		const next = panels.get(nextTag);
-		if (next) { next.handle.focus(); next.component.invalidate(); tuiRef?.requestRender(); return `Focused panel '${nextTag}'`; }
-		return "No panels to focus";
-	}
-
-	function unfocusAll(): string {
-		for (const p of panels.values()) { p.handle.unfocus(); p.component.invalidate(); }
-		tuiRef?.requestRender();
-		return "All panels unfocused";
+	function closeAllTodoPanels(): string {
+		const panels = getPanels();
+		const tags = [...todoComponents.keys()];
+		for (const tag of tags) panels?.close(panelId(tag));
+		return `Closed ${tags.length} panel(s)`;
 	}
 
 	function listPanels(): string {
-		if (panels.size === 0) return "No panels open";
-		const lines = [`${panels.size} panel(s) open:`];
-		for (const [tag, panel] of panels) {
-			const focused = panel.handle.isFocused() ? " ⚡" : "";
-			const todos = readTodosByTag(cwdRef, tag);
+		if (todoComponents.size === 0) return "No todo panels open";
+		const panels = getPanels();
+		const lines = [`${todoComponents.size} todo panel(s) open:`];
+		for (const [tag] of todoComponents) {
+			const panel = panels?.get(panelId(tag));
+			const focused = panel?.handle.isFocused() ? " ⚡" : "";
+			const todos = readTodosByTag(panels?.cwd ?? process.cwd(), tag);
 			const done = todos.filter(t => t.status === "done").length;
-			lines.push(`  📋 ${tag} (${done}/${todos.length}) at ${panel.anchor}${focused}`);
+			lines.push(`  📋 ${tag} (${done}/${todos.length})${focused}`);
 		}
 		return lines.join("\n");
 	}
@@ -917,30 +887,14 @@ export default function (pi: ExtensionAPI) {
 		return lines.join("\n");
 	}
 
-	// ── TUI Capture ──
-	function captureTui(ctx: ExtensionContext): void {
-		cwdRef = ctx.cwd;
-		extCtxRef = ctx;
-		if (ctx.hasUI) {
-			ctx.ui.setWidget("__todo_panel_capture", (tui, theme) => {
-				tuiRef = tui; themeRef = theme;
-				return { render: () => [], invalidate: () => {} };
-			});
-		}
-	}
-
 	// ── Events ──
-	pi.on("session_start", async (_event, ctx) => captureTui(ctx));
-	pi.on("session_switch", async (_event, ctx) => { closeAllPanels(); captureTui(ctx); });
-	pi.on("session_shutdown", async () => closeAllPanels());
-	process.stdout.on("resize", () => { if (panels.size > 0) { for (const p of panels.values()) p.component.invalidate(); tuiRef?.requestRender(); } });
-	pi.on("tool_result", async (event) => { if (event.toolName === "todo" && panels.size > 0) refreshAllPanels(); });
-
-	// ── Keyboard Shortcut ──
-	pi.registerShortcut(FOCUS_SHORTCUT, { description: "Cycle focus between todo panels", handler: async () => { if (panels.size > 0) cycleFocus(); } });
+	pi.on("session_start", async (_event, ctx) => { extCtxRef = ctx; });
+	pi.on("session_switch", async (_event, ctx) => { todoComponents.clear(); extCtxRef = ctx; });
+	pi.on("session_shutdown", async () => { todoComponents.clear(); });
+	pi.on("tool_result", async (event) => { if (event.toolName === "todo" && todoComponents.size > 0) refreshAllPanels(); });
 
 	// ── Tool ──
-	const makeResult = (text: string, error?: boolean) => ({ content: [{ type: "text" as const, text }], details: { panelCount: panels.size, error } });
+	const makeResult = (text: string, error?: boolean) => ({ content: [{ type: "text" as const, text }], details: { panelCount: todoComponents.size, error } });
 
 	pi.registerTool({
 		name: "todo_panel", label: "Todo Panel",
@@ -959,11 +913,11 @@ export default function (pi: ExtensionAPI) {
 			switch (params.action) {
 				case "open": return params.tag ? makeResult(openPanel(params.tag, params.anchor, params.width, params.offsetX, params.offsetY, params.gifSize)) : makeResult("Error: tag required for open", true);
 				case "close": return params.tag ? makeResult(closePanel(params.tag)) : makeResult("Error: tag required for close", true);
-				case "close_all": return makeResult(closeAllPanels());
-				case "focus": return makeResult(focusPanel(params.tag));
-				case "unfocus": return makeResult(unfocusAll());
+				case "close_all": return makeResult(closeAllTodoPanels());
+				case "focus": { const p = getPanels(); return makeResult(params.tag ? p?.focusPanel(panelId(params.tag)) ?? "Panel manager unavailable" : p?.cycleFocus() ?? "Panel manager unavailable"); }
+				case "unfocus": getPanels()?.unfocusAll(); return makeResult("All panels unfocused");
 				case "list_panels": return makeResult(listPanels());
-				case "suggest_layout": return makeResult(getSuggestedLayout(params.count ?? panels.size + 1));
+				case "suggest_layout": return makeResult(getSuggestedLayout(params.count ?? todoComponents.size + 1));
 				case "refresh": refreshAllPanels(); return makeResult("Refreshed all panels");
 				default: return makeResult(`Unknown action: ${params.action}`, true);
 			}
@@ -1001,12 +955,23 @@ export default function (pi: ExtensionAPI) {
 				}
 				case "close": {
 					const tag = parts[1];
-					if (!tag) { for (const [t, p] of panels) { if (p.handle.isFocused()) { ctx.ui.notify(closePanel(t), "info"); return; } } ctx.ui.notify("No focused panel to close", "warning"); return; }
+					if (!tag) {
+						const pm = getPanels();
+						for (const [t] of todoComponents) {
+							if (pm?.get(panelId(t))?.handle.isFocused()) { ctx.ui.notify(closePanel(t), "info"); return; }
+						}
+						ctx.ui.notify("No focused todo panel to close", "warning"); return;
+					}
 					ctx.ui.notify(closePanel(tag), "info"); return;
 				}
-				case "close-all": ctx.ui.notify(closeAllPanels(), "info"); return;
-				case "focus": ctx.ui.notify(panels.size === 0 ? "No panels open" : focusPanel(parts[1]), "info"); return;
-				case "layout": { const c = parts[1] ? parseInt(parts[1], 10) : panels.size + 1; ctx.ui.notify(getSuggestedLayout(isNaN(c) ? 1 : c), "info"); return; }
+				case "close-all": ctx.ui.notify(closeAllTodoPanels(), "info"); return;
+				case "focus": {
+					if (todoComponents.size === 0) { ctx.ui.notify("No todo panels open", "info"); return; }
+					const fp = getPanels();
+					ctx.ui.notify(parts[1] ? fp?.focusPanel(panelId(parts[1])) ?? "Panel manager unavailable" : fp?.cycleFocus() ?? "Panel manager unavailable", "info");
+					return;
+				}
+				case "layout": { const c = parts[1] ? parseInt(parts[1], 10) : todoComponents.size + 1; ctx.ui.notify(getSuggestedLayout(isNaN(c) ? 1 : c), "info"); return; }
 				case "status": ctx.ui.notify(listPanels(), "info"); return;
 				case "refresh": refreshAllPanels(); ctx.ui.notify("Refreshed all panels", "info"); return;
 				default:

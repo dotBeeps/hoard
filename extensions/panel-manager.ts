@@ -1,0 +1,331 @@
+/**
+ * Panel Manager — Shared infrastructure for floating overlay panels.
+ *
+ * Standalone extension owning:
+ * - Singleton PanelRegistry for panel lifecycle
+ * - Alt+T focus cycling across all panel types
+ * - TUI/theme/cwd capture via invisible widget
+ * - Session lifecycle — auto-closes on switch/shutdown
+ *
+ * Other extensions access the API via globalThis — no imports needed:
+ *
+ *   const panels = (globalThis as any)[Symbol.for("dot.panels")];
+ *   panels.register("my-panel", { handle, invalidate, dispose, onClose });
+ *   panels.close("my-panel");
+ *
+ * The API object is published at extension load time. TUI/theme refs become
+ * available after session_start (when the invisible widget renders).
+ * Listen for pi.events "panels:ready" to react when TUI is captured.
+ *
+ * A small dog and a large dragon made this together.
+ */
+
+import type { ExtensionAPI, Theme } from "@mariozechner/pi-coding-agent";
+import type { OverlayHandle, TUI } from "@mariozechner/pi-tui";
+import { matchesKey, Key } from "@mariozechner/pi-tui";
+
+// ── Types ──
+
+/** Shape of a panel registered with the manager. */
+export interface ManagedPanel {
+	/** Overlay handle from tui.showOverlay() */
+	handle: OverlayHandle;
+	/** Invalidate cached render state (called on focus changes, resize) */
+	invalidate(): void;
+	/**
+	 * Extension-specific input handler. Called AFTER panel-manager handles
+	 * shared keys (Esc=unfocus, q=close, Alt+T=cycle). Return value unused.
+	 */
+	handleInput?(data: string): void;
+	/** Cleanup resources before removal (GIF teardown, intervals, etc.) */
+	dispose?(): void;
+	/** Notification after close completes — for the extension to update its own state */
+	onClose?(): void;
+}
+
+// ── Constants ──
+
+const FOCUS_SHORTCUT = "alt+t";
+const API_KEY = Symbol.for("dot.panels");
+
+// ── Registry (module-private) ──
+
+class PanelRegistry {
+	private panels = new Map<string, ManagedPanel>();
+	private focusOrder: string[] = [];
+	private _tui: TUI | null = null;
+	private _theme: Theme | null = null;
+	private _cwd: string = process.cwd();
+
+	get tui(): TUI | null {
+		return this._tui;
+	}
+	get theme(): Theme | null {
+		return this._theme;
+	}
+	get cwd(): string {
+		return this._cwd;
+	}
+	get size(): number {
+		return this.panels.size;
+	}
+
+	/** @internal Called by widget factory to inject TUI/theme/cwd refs. */
+	_init(tui: TUI | null, theme: Theme | null, cwd: string): void {
+		this._tui = tui;
+		this._theme = theme;
+		this._cwd = cwd;
+	}
+
+	/** @internal Update cwd without touching TUI refs. */
+	_updateCwd(cwd: string): void {
+		this._cwd = cwd;
+	}
+
+	/** Register a panel. Duplicate IDs are silently ignored. */
+	register(id: string, panel: ManagedPanel): void {
+		if (this.panels.has(id)) return;
+		this.panels.set(id, panel);
+		this.focusOrder.push(id);
+	}
+
+	/** Close a panel: dispose → hide → remove → notify. Returns false if not found. */
+	close(id: string): boolean {
+		const panel = this.panels.get(id);
+		if (!panel) return false;
+		panel.dispose?.();
+		panel.handle.hide();
+		this.panels.delete(id);
+		const idx = this.focusOrder.indexOf(id);
+		if (idx !== -1) this.focusOrder.splice(idx, 1);
+		panel.onClose?.();
+		return true;
+	}
+
+	/** Close all panels. Returns count of panels closed. */
+	closeAll(): number {
+		const ids = [...this.panels.keys()];
+		for (const id of ids) this.close(id);
+		return ids.length;
+	}
+
+	isOpen(id: string): boolean {
+		return this.panels.has(id);
+	}
+
+	get(id: string): ManagedPanel | undefined {
+		return this.panels.get(id);
+	}
+
+	/** Cycle focus to the next panel. Returns status message. */
+	cycleFocus(): string {
+		if (this.focusOrder.length === 0) return "No panels open";
+
+		let currentIdx = -1;
+		for (let i = 0; i < this.focusOrder.length; i++) {
+			const panel = this.panels.get(this.focusOrder[i]!);
+			if (panel?.handle.isFocused()) {
+				currentIdx = i;
+				break;
+			}
+		}
+
+		for (const panel of this.panels.values()) {
+			panel.handle.unfocus();
+			panel.invalidate();
+		}
+
+		const nextIdx = (currentIdx + 1) % this.focusOrder.length;
+		const nextId = this.focusOrder[nextIdx]!;
+		const next = this.panels.get(nextId);
+		if (next) {
+			next.handle.focus();
+			next.invalidate();
+			this._tui?.requestRender();
+			return `Focused '${nextId}'`;
+		}
+		return "No panels to focus";
+	}
+
+	/** Focus a specific panel by ID. Returns status message. */
+	focusPanel(id: string): string {
+		const panel = this.panels.get(id);
+		if (!panel) return `No panel '${id}' open`;
+		for (const [oid, p] of this.panels) {
+			if (oid !== id) {
+				p.handle.unfocus();
+				p.invalidate();
+			}
+		}
+		panel.handle.focus();
+		panel.invalidate();
+		this._tui?.requestRender();
+		return `Focused '${id}'`;
+	}
+
+	/** Unfocus all panels. */
+	unfocusAll(): void {
+		for (const panel of this.panels.values()) {
+			panel.handle.unfocus();
+			panel.invalidate();
+		}
+		this._tui?.requestRender();
+	}
+
+	/** List all open panels with focus state. */
+	list(): { id: string; focused: boolean }[] {
+		return [...this.panels.entries()].map(([id, p]) => ({
+			id,
+			focused: p.handle.isFocused(),
+		}));
+	}
+
+	/**
+	 * Handle input for a focused panel. Shared keys are handled first:
+	 *   Esc → unfocus, q → close, Alt+T → cycle focus.
+	 * If none match, delegates to the panel's own handleInput.
+	 * Returns true if input was consumed.
+	 */
+	handlePanelInput(id: string, data: string): boolean {
+		const panel = this.panels.get(id);
+		if (!panel) return false;
+
+		if (matchesKey(data, Key.escape)) {
+			panel.handle.unfocus();
+			panel.invalidate();
+			this._tui?.requestRender();
+			return true;
+		}
+		if (matchesKey(data, "q")) {
+			this.close(id);
+			return true;
+		}
+		if (matchesKey(data, FOCUS_SHORTCUT)) {
+			this.cycleFocus();
+			return true;
+		}
+
+		// Delegate to extension-specific handler
+		panel.handleInput?.(data);
+		return true;
+	}
+
+	requestRender(): void {
+		this._tui?.requestRender();
+	}
+}
+
+// ── Extension ──
+
+export default function (pi: ExtensionAPI) {
+	const registry = new PanelRegistry();
+	let widgetRegistered = false;
+
+	// ── Public API (published to globalThis for cross-extension access) ──
+	const api = {
+		get tui() {
+			return registry.tui;
+		},
+		get theme() {
+			return registry.theme;
+		},
+		get cwd() {
+			return registry.cwd;
+		},
+		get size() {
+			return registry.size;
+		},
+		register: (id: string, panel: ManagedPanel) => registry.register(id, panel),
+		close: (id: string) => registry.close(id),
+		closeAll: () => registry.closeAll(),
+		isOpen: (id: string) => registry.isOpen(id),
+		get: (id: string) => registry.get(id),
+		list: () => registry.list(),
+		focusPanel: (id: string) => registry.focusPanel(id),
+		cycleFocus: () => registry.cycleFocus(),
+		unfocusAll: () => registry.unfocusAll(),
+		requestRender: () => registry.requestRender(),
+		/** Wrap a component so shared keys (Esc, q, Alt+T) route through the registry. */
+		wrapComponent(
+			panelId: string,
+			inner: {
+				render(width: number): string[];
+				invalidate(): void;
+				handleInput?(data: string): void;
+			},
+		): {
+			render(width: number): string[];
+			invalidate(): void;
+			handleInput(data: string): void;
+		} {
+			return {
+				render: (w) => inner.render(w),
+				invalidate: () => inner.invalidate(),
+				handleInput: (data) => registry.handlePanelInput(panelId, data),
+			};
+		},
+	};
+
+	(globalThis as any)[API_KEY] = api;
+
+	// ── Shortcut & Resize (registered once at load) ──
+
+	pi.registerShortcut(FOCUS_SHORTCUT, {
+		description: "Cycle focus between panels",
+		handler: async () => {
+			if (registry.size > 0) registry.cycleFocus();
+		},
+	});
+
+	process.stdout.on("resize", () => {
+		if (registry.size > 0) {
+			for (const { id } of registry.list()) {
+				registry.get(id)?.invalidate();
+			}
+			registry.requestRender();
+		}
+	});
+
+	// ── TUI Capture ──
+
+	function captureUI(ctx: {
+		hasUI: boolean;
+		cwd: string;
+		ui: {
+			setWidget: (
+				id: string,
+				factory: (tui: TUI, theme: Theme) => { render(): string[]; invalidate(): void },
+			) => void;
+		};
+	}): void {
+		registry._updateCwd(ctx.cwd);
+		if (widgetRegistered) return;
+		if (!ctx.hasUI) {
+			registry._init(null, null, ctx.cwd);
+			return;
+		}
+		widgetRegistered = true;
+		ctx.ui.setWidget("__panel_manager_capture", (tui, theme) => {
+			registry._init(tui, theme, ctx.cwd);
+			return { render: () => [], invalidate: () => {} };
+		});
+	}
+
+	// ── Session Lifecycle ──
+
+	pi.on("session_start", async (_event, ctx) => {
+		captureUI(ctx);
+		pi.events.emit("panels:ready");
+	});
+
+	pi.on("session_switch", async (_event, ctx) => {
+		registry.closeAll();
+		widgetRegistered = false;
+		captureUI(ctx);
+		pi.events.emit("panels:ready");
+	});
+
+	pi.on("session_shutdown", async () => {
+		registry.closeAll();
+	});
+}

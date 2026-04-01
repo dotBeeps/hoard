@@ -52,11 +52,20 @@ const DEFAULT_SETTINGS: CompactionSettings = {
 	keepRecentTokens: 20000,
 };
 
+/** Turn a matchesKey-style code into a display label. */
+function keyLabel(code: string): string {
+	return code.split("+").map(p => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join("+");
+}
+
 /** Preset values for reserveTokens — what you want available for the LLM's response */
 const RESERVE_PRESETS = [4096, 8192, 16384, 32768, 65536];
 
 /** Preset values for keepRecentTokens — how much recent context to preserve */
 const KEEP_RECENT_PRESETS = [5000, 10000, 20000, 40000, 80000];
+
+/** Key to copy settings from global config (configurable via dotsPiEnhancements.digestionCopyGlobalKey) */
+const COPY_GLOBAL_KEY = readEnhancementSetting<string>("digestionCopyGlobalKey", "g");
+const COPY_GLOBAL_LABEL = keyLabel(COPY_GLOBAL_KEY);
 
 // ── Settings I/O ──
 
@@ -76,6 +85,17 @@ function readSettingsFile(path: string): Record<string, unknown> {
 	} catch {
 		return {};
 	}
+}
+
+const SETTINGS_NAMESPACE = "dotsPiEnhancements";
+
+function readEnhancementSetting<T>(key: string, fallback: T): T {
+	try {
+		const settings = readSettingsFile(getGlobalSettingsPath());
+		const ns = settings[SETTINGS_NAMESPACE];
+		if (typeof ns !== "object" || ns === null) return fallback;
+		return key in ns ? (ns as Record<string, unknown>)[key] as T : fallback;
+	} catch { return fallback; }
 }
 
 function readCompactionSettings(cwd: string): CompactionSettings {
@@ -231,7 +251,7 @@ class CompactionPanelComponent implements Component {
 	public triggerCompact?: () => void;
 
 	handleInput(data: string): void {
-		if (matchesKey(data, "g")) {
+		if (matchesKey(data, COPY_GLOBAL_KEY)) {
 			this.copyFromGlobal();
 			return;
 		}
@@ -397,7 +417,7 @@ class CompactionPanelComponent implements Component {
 		lines.push(border("│") + padLine("") + border("│"));
 		const kh = getPanels()?.keyHints;
 		const help = focused
-			? th.fg("dim", `↑↓ nav · ←→/Space adjust · g global · ${kh?.focused ?? "q close · Esc unfocus"}`)
+			? th.fg("dim", `↑↓ nav · ←→/Space adjust · ${COPY_GLOBAL_LABEL} global · ${kh?.focused ?? "Q close · Escape unfocus"}`)
 			: th.fg("dim", `${kh?.unfocused ?? "Alt+T focus"} · /digestion help`);
 		lines.push(border("│") + padLine("  " + help) + border("│"));
 
@@ -578,22 +598,25 @@ export default function (pi: ExtensionAPI) {
 					return;
 				}
 				default:
-					ctx.ui.notify(
-						[
-							"🐉 Digestion Settings — compaction tuning for dragons",
-							"",
-							"  /digestion               Toggle panel",
-							"  /digestion open          Open panel",
-							"  /digestion close         Close panel",
-							"  /digestion status        Show current settings",
-							"",
-							"When focused: ↑↓ navigate, ←→ or Space to adjust,",
-							"g to copy from global config,",
-							"Enter on 'Compact Now' to trigger manually,",
-							`${getPanels()?.keyHints?.focusKey ?? "Alt+T"} to cycle focus, q to close, Esc to unfocus`,
-						].join("\n"),
-						"info",
-					);
+					{
+						const kh = getPanels()?.keyHints;
+						ctx.ui.notify(
+							[
+								"🐉 Digestion Settings — compaction tuning for dragons",
+								"",
+								"  /digestion               Toggle panel",
+								"  /digestion open          Open panel",
+								"  /digestion close         Close panel",
+								"  /digestion status        Show current settings",
+								"",
+								"When focused: ↑↓ navigate, ←→ or Space to adjust,",
+								`${COPY_GLOBAL_LABEL} to copy from global config,`,
+								"Enter on 'Compact Now' to trigger manually,",
+								`${kh?.focusKey ?? "Alt+T"} to cycle focus, ${kh?.closeKey ?? "Q"} to close, ${kh?.unfocusKey ?? "Escape"} to unfocus`,
+							].join("\n"),
+							"info",
+						);
+					}
 			}
 		},
 	});

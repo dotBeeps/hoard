@@ -766,7 +766,7 @@ class TodoPanelComponent implements Component {
 
 		// ── Help text ──
 		const kh = getPanels()?.keyHints;
-		const help = focused ? th.fg("dim", `↑↓ nav · Space toggle · ${kh?.focused ?? "q close · Esc unfocus"}`) : th.fg("dim", `${kh?.unfocused ?? "Alt+T focus"} · /todos help`);
+		const help = focused ? th.fg("dim", `↑↓ nav · Space toggle · ${kh?.focused ?? "Q close · Escape unfocus"}`) : th.fg("dim", `${kh?.unfocused ?? "Alt+T focus"} · /todos help`);
 		lines.push(border("│") + padLine("  " + help) + border("│"));
 
 		// ── Bottom border ──

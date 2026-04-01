@@ -37,7 +37,7 @@ export interface ManagedPanel {
 	invalidate(): void;
 	/**
 	 * Extension-specific input handler. Called AFTER panel-manager handles
-	 * shared keys (Esc=unfocus, q=close, Alt+T=cycle). Return value unused.
+	 * shared keys (unfocus, close, cycle-focus). Return value unused.
 	 */
 	handleInput?(data: string): void;
 	/** Cleanup resources before removal (GIF teardown, intervals, etc.) */
@@ -73,9 +73,12 @@ function keyLabel(code: string): string {
 
 // ── Constants ──
 
-const DEFAULT_FOCUS_KEY = "alt+t";
-const FOCUS_SHORTCUT = readSetting<string>("panelFocusKey", DEFAULT_FOCUS_KEY);
-const FOCUS_LABEL = keyLabel(FOCUS_SHORTCUT);
+const FOCUS_KEY = readSetting<string>("panelFocusKey", "alt+t");
+const CLOSE_KEY = readSetting<string>("panelCloseKey", "q");
+const UNFOCUS_KEY = readSetting<string>("panelUnfocusKey", "escape");
+const FOCUS_LABEL = keyLabel(FOCUS_KEY);
+const CLOSE_LABEL = keyLabel(CLOSE_KEY);
+const UNFOCUS_LABEL = keyLabel(UNFOCUS_KEY);
 const API_KEY = Symbol.for("dot.panels");
 
 // ── Registry (module-private) ──
@@ -212,7 +215,7 @@ class PanelRegistry {
 
 	/**
 	 * Handle input for a focused panel. Shared keys are handled first:
-	 *   Esc → unfocus, q → close, Alt+T → cycle focus.
+	 *   Configured keys: unfocus, close, cycle-focus (see panelUnfocusKey, panelCloseKey, panelFocusKey).
 	 * If none match, delegates to the panel's own handleInput.
 	 * Returns true if input was consumed.
 	 */
@@ -220,17 +223,17 @@ class PanelRegistry {
 		const panel = this.panels.get(id);
 		if (!panel) return false;
 
-		if (matchesKey(data, Key.escape)) {
+		if (matchesKey(data, UNFOCUS_KEY)) {
 			panel.handle.unfocus();
 			panel.invalidate();
 			this._tui?.requestRender();
 			return true;
 		}
-		if (matchesKey(data, "q")) {
+		if (matchesKey(data, CLOSE_KEY)) {
 			this.close(id);
 			return true;
 		}
-		if (matchesKey(data, FOCUS_SHORTCUT)) {
+		if (matchesKey(data, FOCUS_KEY)) {
 			this.cycleFocus();
 			return true;
 		}
@@ -277,10 +280,14 @@ export default function (pi: ExtensionAPI) {
 		requestRender: () => registry.requestRender(),
 		/** Display-friendly hints for shared panel keys. */
 		keyHints: {
-			/** Just the focus-cycle key label, e.g. "Alt+T" */
+			/** Focus-cycle key label, e.g. "Alt+T" */
 			focusKey: FOCUS_LABEL,
-			/** Hint fragment for a *focused* panel: "q close · Esc unfocus" */
-			focused: "q close · Esc unfocus",
+			/** Close key label, e.g. "Q" */
+			closeKey: CLOSE_LABEL,
+			/** Unfocus key label, e.g. "Escape" */
+			unfocusKey: UNFOCUS_LABEL,
+			/** Hint fragment for a *focused* panel: "Q close · Escape unfocus" */
+			focused: `${CLOSE_LABEL} close · ${UNFOCUS_LABEL} unfocus`,
 			/** Hint fragment for an *unfocused* panel: "Alt+T focus" */
 			unfocused: `${FOCUS_LABEL} focus`,
 		},
@@ -309,7 +316,7 @@ export default function (pi: ExtensionAPI) {
 
 	// ── Shortcut & Resize (registered once at load) ──
 
-	pi.registerShortcut(FOCUS_SHORTCUT, {
+	pi.registerShortcut(FOCUS_KEY, {
 		description: "Cycle focus between panels",
 		handler: async () => {
 			if (registry.size > 0) registry.cycleFocus();

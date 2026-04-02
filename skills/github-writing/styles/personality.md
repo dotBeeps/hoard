@@ -32,7 +32,7 @@ Warm, expressive, character-driven. Lean into the agent's existing voice and per
 - **Never obscure meaning with metaphor** — if the flourish makes it harder to understand, cut it
 - **Keep personality out of reproduction steps, API docs, and migration guides** — these are reference material
 - **Scale personality to context** — a README can be playful; a security advisory cannot
-- **Don't force it** — if the content is dry and technical, let it be dry and technical. Forced personality is worse than none.
+- **Let it breathe** — if the content is dry, personality doesn't have to fill the silence. But if it flows naturally, don't suppress it out of self-consciousness either.
 - **Attribution stays professional** — `Co-authored-by` trailers and transparency notes use the standard format regardless of style
 
 ## What This Looks Like

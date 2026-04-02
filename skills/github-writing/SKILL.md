@@ -1,11 +1,11 @@
 ---
 name: github-writing
-description: "Write effective pull request descriptions and GitHub issues with proper context, attribution, and structure. Use when drafting PR descriptions, writing issue reports, feature requests, or structuring technical documents for GitHub."
+description: "Write effective GitHub documents: PR descriptions, issues, READMEs, CONTRIBUTING guides, release notes, repo templates, and community docs. Use when drafting any document that lives on GitHub — PRs, issues, READMEs, wikis, releases, or repository setup files."
 ---
 
 # GitHub Writing
 
-Collaboratively draft high-quality PR descriptions, issue reports, and feature requests. **Do not execute any bash or CLI commands until the user explicitly approves the draft.**
+Collaboratively draft high-quality documents for GitHub repositories. **Do not execute any bash or CLI commands until the user explicitly approves the draft.**
 
 ## Workflow
 
@@ -13,13 +13,27 @@ Follow these steps in order. Do not skip the approval gate.
 
 ### 1. Classify
 
-Determine the document type:
-- **PR description** — summarizing code changes for reviewers
-- **Bug report** — reproducing and documenting a defect
-- **Feature request** — proposing new functionality
-- **RFC / design doc** — proposing architectural changes
+Determine the document type. Each links to a structure guide in `references/`:
 
-Ask the user if the type isn't clear from context.
+**Code workflow documents:**
+- **PR description** — summarizing changes for reviewers → [references/pr-template.md](references/pr-template.md)
+- **Bug report** — reproducing and documenting a defect → [references/issue-templates.md](references/issue-templates.md)
+- **Feature request** — proposing new functionality → [references/issue-templates.md](references/issue-templates.md)
+- **RFC / design doc** — proposing architectural changes → [references/issue-templates.md](references/issue-templates.md)
+- **Release notes** — communicating what shipped → [references/release-notes-guide.md](references/release-notes-guide.md)
+
+**Repository documents:**
+- **README** — project introduction and onboarding → [references/readme-guide.md](references/readme-guide.md)
+- **CONTRIBUTING guide** — how to contribute → [references/contributing-guide.md](references/contributing-guide.md)
+- **Community docs** — CODE_OF_CONDUCT, SECURITY, FUNDING, LICENSE → [references/community-docs-guide.md](references/community-docs-guide.md)
+- **Repo templates** — `.github/` issue/PR/discussion templates → [references/repo-templates-guide.md](references/repo-templates-guide.md)
+
+**Other:**
+- **Discussion post** — questions, announcements, show-and-tell → treat as issue with less formality
+- **Wiki page** — extended documentation → treat as README section
+- **Profile README** — personal or org landing page → [references/readme-guide.md](references/readme-guide.md) (profile section)
+
+Ask the user if the type isn't clear from context. Read the appropriate reference file before proceeding.
 
 ### 2. Interview
 
@@ -34,11 +48,12 @@ Keep the interview fast — two focused questions are better than four vague one
 
 ### 3. Research (Read-Only)
 
-Gather context **without executing any commands that modify state**. Allowed actions:
-- Read diffs: `git diff`, `git log`, `git show`
+Gather context **without executing any commands that modify state**. Allowed:
+- Read diffs, logs, file contents: `git diff`, `git log`, `git show`, source files
 - Read issues/PRs: `gh issue view`, `gh pr view`
-- Read files: source code, READMEs, existing templates
+- Read existing docs: READMEs, CONTRIBUTING, templates already in the repo
 - Read CI status: `gh pr checks`, `gh run view`
+- Read repo metadata: `gh repo view`, `package.json`, `Cargo.toml`, etc.
 
 Summarize findings for the user. Note anything that needs clarification.
 
@@ -71,95 +86,11 @@ Write the complete document in a fenced code block for easy review and copying. 
 
 Present the draft and ask: **"Ready to submit?"**
 
-Only after final approval, offer to run the appropriate `gh` command (e.g., `gh pr create --body-file`, `gh issue create --body`).
-
-## PR Description Structure
-
-```markdown
-## Summary
-
-[1–2 sentences: what changed and why]
-
-## Motivation
-
-[Link to issue, explain the problem being solved]
-Fixes #123
-
-## Changes
-
-- [Key change 1 — what and why]
-- [Key change 2]
-- [Key change 3]
-
-## Testing
-
-- [ ] [How this was tested]
-- [ ] [What reviewers should verify]
-
-## Screenshots
-
-[If UI changes — before/after screenshots or recordings]
-
-## Notes
-
-[Breaking changes, migration steps, follow-up work needed]
-```
-
-## Bug Report Structure
-
-```markdown
-## Summary
-
-[1-sentence description of the bug]
-
-## Steps to Reproduce
-
-1. [Step 1]
-2. [Step 2]
-3. [Step 3]
-
-## Expected Behavior
-
-[What should happen]
-
-## Actual Behavior
-
-[What actually happens — include error messages, screenshots]
-
-## Environment
-
-- OS: [e.g., Arch Linux 6.x]
-- Version: [e.g., v1.2.3]
-- [Other relevant context]
-
-## Additional Context
-
-[Logs, stack traces (in collapsible sections), related issues]
-```
-
-## Feature Request Structure
-
-```markdown
-## Summary
-
-[1-sentence description of the feature]
-
-## Motivation
-
-[Why this feature is needed — what problem does it solve?]
-
-## Proposed Solution
-
-[How it should work — API, behavior, UI]
-
-## Alternatives Considered
-
-[What else was considered and why it was rejected]
-
-## Additional Context
-
-[Mockups, examples from other projects, related issues]
-```
+Only after final approval, offer to run the appropriate command:
+- PR: `gh pr create --body-file <file>`
+- Issue: `gh issue create --body-file <file>`
+- Release: `gh release create --notes-file <file>`
+- Repo files: write directly to the repository (README.md, CONTRIBUTING.md, etc.)
 
 ## Attribution
 
@@ -190,20 +121,30 @@ When building on someone else's work, report, or suggestion:
 
 ## Anti-Patterns
 
-❌ **"Fixed stuff"** — No context, no motivation, no testing notes. Reviewers can't understand what changed or why.
+❌ **"Fixed stuff"** — No context, no motivation, no testing notes.
 
-✅ **Instead:** Even a two-line summary ("Fixed null check in panel renderer. The bug caused crashes when panels had no title.") is infinitely better.
+✅ Even a two-line summary is infinitely better than nothing.
 
-❌ **Wall of diff, no explanation** — Pasting the entire diff as the PR body. The diff is already visible in the PR — the description should explain *why*.
+❌ **Wall of diff, no explanation** — The diff is already visible. The description explains *why*.
 
-✅ **Instead:** Summarize the approach, link to the issue, note anything surprising or non-obvious.
+✅ Summarize the approach, link to the issue, note anything non-obvious.
 
-❌ **No testing notes** — "It works" with no evidence. Reviewers don't know what to verify.
+❌ **No testing notes** — "It works" with no evidence.
 
-✅ **Instead:** List what was tested, how to reproduce, and any edge cases checked.
+✅ List what was tested, how to reproduce, edge cases checked.
 
-❌ **Missing issue links** — Changes without traceability. Why was this done? Who asked for it?
+❌ **Missing issue links** — Changes without traceability.
 
-✅ **Instead:** Always link to the motivating issue. If there isn't one, create one first.
+✅ Always link to the motivating issue. Create one first if it doesn't exist.
 
-See [references/pr-template.md](references/pr-template.md) and [references/issue-templates.md](references/issue-templates.md) for copy-paste templates.
+❌ **README with no quick start** — Long explanations before the user can try anything.
+
+✅ Show install + first command in the first 20 lines.
+
+❌ **CONTRIBUTING with no setup steps** — "PRs welcome" with no onboarding.
+
+✅ Clone → install → test → submit flow with real commands.
+
+❌ **Templates that are walls of text** — Nobody fills out 20 required fields.
+
+✅ Keep required fields minimal, use optional sections with comments.

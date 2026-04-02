@@ -36,7 +36,7 @@ skills/                    Agent Skills — each subdirectory has a SKILL.md
   git-auth/                SSH key management, rbw/Bitwarden integration, auth troubleshooting
   github/                  GitHub workflows via gh CLI — PRs, issues, CI, releases, reviews
   github-markdown/         GitHub Flavored Markdown — callouts, task lists, mermaid, tables
-  github-writing/          Interview-driven PR/issue drafting with approval gate
+  github-writing/          Interview-driven drafting for all GitHub documents (PRs, READMEs, issues, etc.)
   pi-events/               Event hooks — intercept tools, transform input, inject context
   pi-sessions/             Sessions, state management, compaction, branching
   pi-tui/                  TUI component building — overlays, widgets, theming, custom editors

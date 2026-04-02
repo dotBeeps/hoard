@@ -190,16 +190,17 @@ Comprehensive `gh` CLI workflows — replaces the default github skill with full
 </details>
 
 <details>
-<summary><strong><code>github-writing</code></strong> — Interview-driven PR and issue drafting</summary>
+<summary><strong><code>github-writing</code></strong> — Interview-driven GitHub document drafting</summary>
 
-Collaboratively write high-quality PR descriptions, bug reports, and feature requests with an approval gate — no CLI commands execute until you say go.
+Collaboratively write any GitHub document — PRs, issues, READMEs, CONTRIBUTING guides, release notes, repo templates, and community docs — with an approval gate. No CLI commands execute until you say go.
 
 - **7-step workflow** — classify → interview → research (read-only) → outline → approval gate → draft → final review
+- **12+ document types** — PRs, bugs, features, RFCs, READMEs, CONTRIBUTING, release notes, repo templates, community docs, discussions, wikis, profile READMEs
 - **Interview-driven** — 2–4 quick questions to determine focus, audience, key points
 - **Manual sections** — mark `[MANUAL]` for parts you want to write yourself
-- **PR/issue/feature templates** — structured formats with attribution patterns
 - **Attribution** — co-authored-by trailers, issue linking keywords, contributor credits
-- **Anti-patterns** — "fixed stuff" PRs, missing context, no testing notes
+- **Anti-patterns** — "fixed stuff" PRs, READMEs with no quick start, templates that are walls of text
+- **Reference guides** for every document type — README structure, CONTRIBUTING flow, release notes, YAML issue forms, community docs (CoC, SECURITY, FUNDING, LICENSE)
 
 📂 [`skills/github-writing/SKILL.md`](skills/github-writing/SKILL.md)
 

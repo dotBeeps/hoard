@@ -434,7 +434,7 @@ All three existing extensions (`ask.ts`, `todo-lists.ts`, `digestion-settings.ts
 
 1. **`globalThis` + `Symbol.for()` for cross-extension communication** — Memory and personality should NOT be on `globalThis`. Only the panel manager API uses this pattern. Memory is private.
 
-2. **Settings namespace `dotsPiEnhancements`** — The tone extension's settings under `dotsPiEnhancements.tone` follows this convention correctly.
+2. **Settings namespace `hoard`** — The tone extension's settings under `hoard.tone` follows this convention correctly.
 
 3. **`/command` + tool registration pattern** — Commands for user interaction, tools for agent interaction. `/tone` is a command, `memory` is a tool. Correct.
 

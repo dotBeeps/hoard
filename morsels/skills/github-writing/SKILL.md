@@ -12,7 +12,7 @@ Collaboratively draft high-quality documents for GitHub repositories. **Do not e
 Before drafting, determine the active writing style. Check settings first, then ask if unclear:
 
 ```json
-// ~/.pi/agent/settings.json → dotsPiEnhancements.writingStyle
+// ~/.pi/agent/settings.json → hoard.tone
 {
   "default": "friendly",
   "overrides": {
@@ -144,7 +144,7 @@ Only after final approval, offer to run the appropriate command:
 Read the contributor identity from settings before writing attribution:
 
 ```json
-// ~/.pi/agent/settings.json → dotsPiEnhancements.contributor
+// ~/.pi/agent/settings.json → hoard.contributor
 {
   "name": "Ember 🐉",
   "email": "ember-ai@dotbeeps.dev",

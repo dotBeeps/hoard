@@ -243,13 +243,13 @@ Dots-panels registers a `/panels` command for managing all open panels:
 
 ## Configurable Hotkeys
 
-All shared panel keys read from `dotsPiEnhancements` in `~/.pi/agent/settings.json`:
+All shared panel keys read from `hoard.panels` in `~/.pi/agent/settings.json`:
 
 | Setting | Default | Action |
 |---------|---------|--------|
-| `panelFocusKey` | `alt+t` | Cycle focus between panels |
-| `panelCloseKey` | `q` | Close focused panel |
-| `panelUnfocusKey` | `escape` | Unfocus panel |
+| `panels.focusKey` | `alt+t` | Cycle focus between panels |
+| `panels.closeKey` | `q` | Close focused panel |
+| `panels.unfocusKey` | `escape` | Unfocus panel |
 
 Extension-specific keys follow the same pattern:
 

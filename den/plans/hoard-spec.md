@@ -743,7 +743,7 @@ See [Ethics §8](./hoard-ethics.md#8-repo-tone-security) for the full security m
 
 ```json
 {
-  "dotsPiEnhancements": {
+  "hoard": {
     "tone": {
       "enabled": true,
       "default": "personality",

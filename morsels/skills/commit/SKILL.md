@@ -56,7 +56,7 @@ Run `git log -n 30 --pretty=format:%s` to identify patterns:
 When an AI agent authors or co-authors a commit, add a `Co-authored-by` trailer. Read the contributor identity from settings:
 
 ```json
-// ~/.pi/agent/settings.json → dotsPiEnhancements.contributor
+// ~/.pi/agent/settings.json → hoard.contributor
 {
   "name": "Ember 🐉",
   "email": "ember-ai@dotbeeps.dev",

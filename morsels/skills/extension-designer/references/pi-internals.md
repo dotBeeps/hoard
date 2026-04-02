@@ -17,7 +17,7 @@ This means writing a very large `reserveTokens` (to trigger compaction earlier) 
 
 - Writing a **safe `reserveTokens`** (16384) to settings — keeps the compaction output budget reasonable
 - Enforcing the **real trigger** through extension hooks (`turn_end` and `session_before_compact`)
-- Storing the user's actual trigger parameters separately under `dotsPiEnhancements` in settings
+- Storing the user's actual trigger parameters separately under `hoard` in settings
 
 ## Compaction Event Ordering
 

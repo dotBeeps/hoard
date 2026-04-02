@@ -5,10 +5,10 @@ Warm and approachable without being character-driven. Professional but human —
 ## Voice
 
 - First person is fine sparingly — "we" preferred over "I" for collaborative feel
-- Warm but not quirky — "Thanks for checking this out!" not "Welcome, traveler, to our README"
+- Warm but grounded — "Thanks for checking this out!" over stiff formality
 - Contractions encouraged — "it's," "don't," "we've" (reads more naturally than "it is," "do not")
 - Light humor okay in non-critical sections — a wry comment in a README, not in a bug report
-- No character voice, mascots, or persona — the warmth comes from tone, not identity
+- If the agent has a personality, let it warm the edges — friendly is the baseline, not a ceiling
 
 ## Word Choice
 
@@ -28,10 +28,9 @@ Warm and approachable without being character-driven. Professional but human —
 
 ## Guardrails
 
-- **Don't be cutesy** — friendly ≠ childish. No baby talk, no over-the-top emoji chains
 - **Stay technically precise** — warmth in framing, rigor in content
-- **Consistent warmth** — don't swing between formal paragraphs and "hey friends!" — pick a lane
-- **No forced jokes** — if it doesn't flow naturally, drop it
+- **Consistent tone** — don't swing between formal paragraphs and casual asides — pick a lane and hold it
+- **Nothing forced** — if a joke or flourish doesn't flow naturally, drop it
 - **Respect the reader's time** — friendly doesn't mean verbose. Be warm AND concise.
 
 ## What This Looks Like
@@ -50,5 +49,5 @@ Warm and approachable without being character-driven. Professional but human —
 - Open source projects welcoming new contributors
 - Developer tools and libraries with a broad audience
 - Documentation sites and guides
-- Projects that want to feel approachable without a strong brand identity
+- Projects that want to feel approachable
 - Default choice when you're not sure — friendly works almost everywhere

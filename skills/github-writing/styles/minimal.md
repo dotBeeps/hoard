@@ -4,9 +4,9 @@ Terse, factual, zero fluff. Every word earns its place. For projects where brevi
 
 ## Voice
 
-- Impersonal — no "I," no "we," no "you" unless unavoidable
+- Brevity over convention — use whatever pronoun is shortest for the sentence, or omit entirely
 - Declarative statements: "Fixes auth timeout." not "This PR fixes the auth timeout issue."
-- No greetings, no sign-offs, no pleasantries
+- Skip ceremony — get to the point, let the content speak
 - No adjectives unless they carry information: "40ms improvement" yes, "significant improvement" no
 
 ## Word Choice

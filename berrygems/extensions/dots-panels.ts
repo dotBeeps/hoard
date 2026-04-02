@@ -19,9 +19,7 @@
 import type { ExtensionAPI, ExtensionContext, Theme } from "@mariozechner/pi-coding-agent";
 import type { OverlayAnchor, OverlayHandle, TUI } from "@mariozechner/pi-tui";
 import { matchesKey, Key } from "@mariozechner/pi-tui";
-import { readFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
-import { homedir } from "node:os";
+import { readHoardSetting, keyLabel } from "../lib/settings.ts";
 
 // ── Public Types ──
 
@@ -146,34 +144,11 @@ interface CellRect {
 
 // ── Settings ──
 
-const SETTINGS_NAMESPACE = "dotsPiEnhancements";
-
-function getSettingsPath(): string {
-	return join(process.env.HOME || process.env.USERPROFILE || homedir(), ".pi", "agent", "settings.json");
-}
-
-function readSetting<T>(key: string, fallback: T): T {
-	try {
-		const path = getSettingsPath();
-		if (!existsSync(path)) return fallback;
-		const settings = JSON.parse(readFileSync(path, "utf-8"));
-		if (typeof settings !== "object" || settings === null) return fallback;
-		const ns = settings[SETTINGS_NAMESPACE];
-		if (typeof ns !== "object" || ns === null) return fallback;
-		return key in ns ? (ns as Record<string, unknown>)[key] as T : fallback;
-	} catch { return fallback; }
-}
-
-/** Turn a matchesKey-style code like "alt+t" into a display label like "Alt+T". */
-function keyLabel(code: string): string {
-	return code.split("+").map(p => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join("+");
-}
-
 // ── Constants ──
 
-const FOCUS_KEY = readSetting<string>("panelFocusKey", "alt+t");
-const CLOSE_KEY = readSetting<string>("panelCloseKey", "q");
-const UNFOCUS_KEY = readSetting<string>("panelUnfocusKey", "escape");
+const FOCUS_KEY = readHoardSetting<string>("panels.focusKey", "alt+t");
+const CLOSE_KEY = readHoardSetting<string>("panels.closeKey", "q");
+const UNFOCUS_KEY = readHoardSetting<string>("panels.unfocusKey", "escape");
 const FOCUS_LABEL = keyLabel(FOCUS_KEY);
 const CLOSE_LABEL = keyLabel(CLOSE_KEY);
 const UNFOCUS_LABEL = keyLabel(UNFOCUS_KEY);
@@ -1099,6 +1074,12 @@ export default function (pi: ExtensionAPI) {
 			unfocusKey: UNFOCUS_LABEL,
 			focused: `${CLOSE_LABEL} close · ${UNFOCUS_LABEL} unfocus`,
 			unfocused: `${FOCUS_LABEL} focus`,
+		},
+		/** Raw matchesKey-compatible key codes for passthrough from overlays. */
+		rawKeys: {
+			focus: FOCUS_KEY,
+			close: CLOSE_KEY,
+			unfocus: UNFOCUS_KEY,
 		},
 	};
 

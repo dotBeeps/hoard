@@ -125,7 +125,7 @@ panels?.register("my-panel", { handle, invalidate, dispose });
 
 ### Settings Namespace
 
-All settings under `dotsPiEnhancements` in `~/.pi/agent/settings.json`:
+All settings under `hoard` in `~/.pi/agent/settings.json`, with tiered nesting (`hoard.guard.*`, `hoard.panels.*`, `hoard.digestion.*`, `hoard.todos.*`, `hoard.contributor.*`, `hoard.tone.*`). Legacy `dotsPiEnhancements` flat keys are still read as fallback:
 
 ### AI Contributor Identity
 

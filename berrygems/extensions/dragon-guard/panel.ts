@@ -158,19 +158,19 @@ export class GuardPanelComponent {
 			case "auto-detect": {
 				const newVal = !getAutoDetect();
 				setAutoDetect(newVal);
-				writeProjectSetting(this.cwd, "guardAutoDetect", newVal);
+				writeProjectSetting(this.cwd, "guard.autoDetect", newVal);
 				break;
 			}
 			case "sensitivity": {
 				const newVal = cyclePreset(getComplexityThreshold(), THRESHOLD_PRESETS, direction);
 				setComplexityThreshold(newVal);
-				writeProjectSetting(this.cwd, "guardComplexityThreshold", newVal);
+				writeProjectSetting(this.cwd, "guard.complexityThreshold", newVal);
 				break;
 			}
 			case "llm-summaries": {
 				const newVal = !getLlmSummaries();
 				setLlmSummaries(newVal);
-				writeProjectSetting(this.cwd, "guardLlmSummaries", newVal);
+				writeProjectSetting(this.cwd, "guard.llmSummaries", newVal);
 				break;
 			}
 		}

@@ -35,8 +35,12 @@ const BORDER_PATTERNS = [
 	"·⸱",   // pawpad dots
 ];
 
-function themedBorder(width: number): string {
-	const pattern = BORDER_PATTERNS[Math.floor(Math.random() * BORDER_PATTERNS.length)];
+/** Pick a random border pattern — call once per component instance, not per render. */
+function pickBorderPattern(): string {
+	return BORDER_PATTERNS[Math.floor(Math.random() * BORDER_PATTERNS.length)]!;
+}
+
+function themedBorder(pattern: string, width: number): string {
 	return pattern.repeat(Math.ceil(width / pattern.length)).slice(0, width);
 }
 
@@ -86,6 +90,25 @@ interface AskDetails {
 	wasCustom?: boolean;
 	index?: number;
 	options?: string[];
+	userNote?: string;
+}
+
+// ── Panel Manager Access (for key passthrough) ──
+
+const PANELS_KEY = Symbol.for("dot.panels");
+function getPanels(): any {
+	return (globalThis as any)[PANELS_KEY];
+}
+
+/** Try to pass a key through to the panel manager. Returns true if handled. */
+function passthroughToPanel(data: string): boolean {
+	const panels = getPanels();
+	if (!panels?.rawKeys) return false;
+	if (matchesKey(data, panels.rawKeys.focus)) {
+		panels.cycleFocus();
+		return true;
+	}
+	return false;
 }
 
 // --- Extension ---
@@ -177,7 +200,10 @@ export default function ask(pi: ExtensionAPI) {
 
 			const display =
 				d.index != null ? `${d.index}. ${d.answer}` : d.answer;
-			return new Text(paw + theme.fg("accent", `fetched: ${display}`), 0, 0);
+			const note = d.userNote
+				? " " + theme.fg("muted", `· ${d.userNote}`)
+				: "";
+			return new Text(paw + theme.fg("accent", `fetched: ${display}`) + note, 0, 0);
 		},
 	});
 }
@@ -202,10 +228,12 @@ async function executeSelect(params: AskInput, ctx: any) {
 		answer: string;
 		wasCustom: boolean;
 		index?: number;
+		userNote?: string;
 	} | null>((tui: any, theme: any, _kb: any, done: any) => {
 		let optionIndex = 0;
-		let editMode = false;
+		let editMode: "off" | "custom" | "note" = "off";
 		let cachedLines: string[] | undefined;
+		const borderPattern = pickBorderPattern();
 
 		const editorTheme: EditorTheme = {
 			borderColor: (s: string) => theme.fg("accent", s),
@@ -221,10 +249,21 @@ async function executeSelect(params: AskInput, ctx: any) {
 
 		editor.onSubmit = (value: string) => {
 			const trimmed = value.trim();
+			if (editMode === "note") {
+				// Submit the selected option with the note attached
+				const selected = allOptions[optionIndex];
+				done({
+					answer: selected.label,
+					wasCustom: false,
+					index: optionIndex + 1,
+					userNote: trimmed || undefined,
+				});
+				return;
+			}
 			if (trimmed) {
 				done({ answer: trimmed, wasCustom: true });
 			} else {
-				editMode = false;
+				editMode = "off";
 				editor.setText("");
 				refresh();
 			}
@@ -236,9 +275,12 @@ async function executeSelect(params: AskInput, ctx: any) {
 		}
 
 		function handleInput(data: string) {
-			if (editMode) {
+			// Panel focus passthrough — always allow cycling panels
+			if (passthroughToPanel(data)) return;
+
+			if (editMode !== "off") {
 				if (matchesKey(data, Key.escape)) {
-					editMode = false;
+					editMode = "off";
 					editor.setText("");
 					refresh();
 					return;
@@ -257,7 +299,7 @@ async function executeSelect(params: AskInput, ctx: any) {
 			} else if (matchesKey(data, Key.enter)) {
 				const selected = allOptions[optionIndex];
 				if (selected.isOther) {
-					editMode = true;
+					editMode = "custom";
 					refresh();
 				} else {
 					done({
@@ -265,6 +307,14 @@ async function executeSelect(params: AskInput, ctx: any) {
 						wasCustom: false,
 						index: optionIndex + 1,
 					});
+				}
+			} else if (matchesKey(data, Key.tab)) {
+				// Tab on a non-"other" option opens note editor
+				const selected = allOptions[optionIndex];
+				if (!selected.isOther) {
+					editMode = "note";
+					editor.setText("");
+					refresh();
 				}
 			} else if (matchesKey(data, Key.escape)) {
 				done(null);
@@ -277,20 +327,20 @@ async function executeSelect(params: AskInput, ctx: any) {
 			const lines: string[] = [];
 			const add = (s: string) => lines.push(truncateToWidth(s, width));
 
-			const border = themedBorder(width);
+			const border = themedBorder(borderPattern, width);
 			add(theme.fg("accent", border));
 			add(theme.fg("text", ` ${params.question}`));
 			lines.push("");
 
 			for (let i = 0; i < allOptions.length; i++) {
 				const opt = allOptions[i];
-				const selected = i === optionIndex;
-				const prefix = selected
+				const isSelected = i === optionIndex;
+				const prefix = isSelected
 					? theme.fg("accent", "> ")
 					: "  ";
-				const color = selected ? "accent" : "text";
+				const color = isSelected ? "accent" : "text";
 
-				if (opt.isOther && editMode) {
+				if (opt.isOther && editMode === "custom") {
 					add(
 						prefix +
 							theme.fg("accent", `${i + 1}. ${opt.label} ✎`),
@@ -305,23 +355,26 @@ async function executeSelect(params: AskInput, ctx: any) {
 				}
 			}
 
-			if (editMode) {
+			if (editMode === "custom") {
 				lines.push("");
 				add(theme.fg("muted", " Your answer:"));
+				for (const line of editor.render(width - 2)) {
+					add(` ${line}`);
+				}
+			} else if (editMode === "note") {
+				lines.push("");
+				const selectedLabel = allOptions[optionIndex]?.label ?? "";
+				add(theme.fg("muted", ` Adding note to: ${theme.fg("accent", selectedLabel)}`));
 				for (const line of editor.render(width - 2)) {
 					add(` ${line}`);
 				}
 			}
 
 			lines.push("");
-			add(
-				theme.fg(
-					"dim",
-					editMode
-						? " Enter to submit • Esc to go back"
-						: " ↑↓ sniff around • Enter to fetch • Esc to wander off",
-				),
-			);
+			const hints = editMode !== "off"
+				? " Enter to submit • Esc to go back"
+				: " ↑↓ sniff around • Enter to fetch • Tab to add note • Esc to wander off";
+			add(theme.fg("dim", hints));
 			add(theme.fg("accent", border));
 
 			cachedLines = lines;
@@ -366,11 +419,12 @@ async function executeSelect(params: AskInput, ctx: any) {
 		};
 	}
 
+	const noteText = result.userNote ? ` (note: ${result.userNote})` : "";
 	return {
 		content: [
 			{
 				type: "text" as const,
-				text: `Pup fetched: ${result.index}. ${result.answer}`,
+				text: `Pup fetched: ${result.index}. ${result.answer}${noteText}`,
 			},
 		],
 		details: {
@@ -380,6 +434,7 @@ async function executeSelect(params: AskInput, ctx: any) {
 			answer: result.answer,
 			wasCustom: false,
 			index: result.index,
+			userNote: result.userNote,
 		} as AskDetails,
 	};
 }
@@ -403,9 +458,76 @@ async function executeConfirm(params: AskInput, ctx: any) {
 }
 
 async function executeText(params: AskInput, ctx: any) {
-	const response = await ctx.ui.input(params.question, params.placeholder);
+	const result = await ctx.ui.custom<string | null>((tui: any, theme: any, _kb: any, done: any) => {
+		let cachedLines: string[] | undefined;
+		const borderPattern = pickBorderPattern();
 
-	if (response === undefined || response === null) {
+		const editorTheme: EditorTheme = {
+			borderColor: (s: string) => theme.fg("accent", s),
+			selectList: {
+				selectedPrefix: (t: string) => theme.fg("accent", t),
+				selectedText: (t: string) => theme.fg("accent", t),
+				description: (t: string) => theme.fg("muted", t),
+				scrollInfo: (t: string) => theme.fg("dim", t),
+				noMatch: (t: string) => theme.fg("warning", t),
+			},
+		};
+		const editor = new Editor(tui, editorTheme);
+		if (params.placeholder) editor.setPlaceholder?.(params.placeholder);
+
+		editor.onSubmit = (value: string) => {
+			const trimmed = value.trim();
+			done(trimmed || null);
+		};
+
+		function refresh() {
+			cachedLines = undefined;
+			tui.requestRender();
+		}
+
+		function handleInput(data: string) {
+			// Panel focus passthrough
+			if (passthroughToPanel(data)) return;
+
+			if (matchesKey(data, Key.escape)) {
+				done(null);
+				return;
+			}
+			editor.handleInput(data);
+			refresh();
+		}
+
+		function render(width: number): string[] {
+			if (cachedLines) return cachedLines;
+
+			const lines: string[] = [];
+			const add = (s: string) => lines.push(truncateToWidth(s, width));
+
+			const border = themedBorder(borderPattern, width);
+			add(theme.fg("accent", border));
+			add(theme.fg("text", ` ${params.question}`));
+			lines.push("");
+
+			for (const line of editor.render(width - 2)) {
+				add(` ${line}`);
+			}
+
+			lines.push("");
+			add(theme.fg("dim", " Enter to submit • Shift+Enter for newline • Esc to wander off"));
+			add(theme.fg("accent", border));
+
+			cachedLines = lines;
+			return lines;
+		}
+
+		return {
+			render,
+			invalidate: () => { cachedLines = undefined; },
+			handleInput,
+		};
+	});
+
+	if (result === null || result === undefined) {
 		return {
 			content: [{ type: "text" as const, text: "Pup got distracted by a squirrel 🐿️" }],
 			details: {
@@ -418,12 +540,12 @@ async function executeText(params: AskInput, ctx: any) {
 
 	return {
 		content: [
-			{ type: "text" as const, text: `Pup barked: ${response}` },
+			{ type: "text" as const, text: `Pup barked: ${result}` },
 		],
 		details: {
 			question: params.question,
 			mode: "text",
-			answer: response,
+			answer: result,
 			wasCustom: true,
 		} as AskDetails,
 	};

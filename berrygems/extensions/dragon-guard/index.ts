@@ -565,33 +565,41 @@ export default function dragonGuardExtension(pi: ExtensionAPI): void {
 		uiCtx = ctx;
 		const promptText = typeof event.prompt === "string" ? event.prompt : "";
 
-		if (getMode() === "none" && shouldAutoPlan(promptText)) {
+		// Skip auto-detect for very short prompts (likely commands, not complex requests)
+		if (getMode() === "none" && promptText.length >= 30 && shouldAutoPlan(promptText)) {
 			setMode("plan", ctx);
 			if (ctx.hasUI) {
 				ctx.ui.notify("Auto-entered Puppy Mode for a higher-complexity request.", "info");
 			}
 		}
 
+		// Dragon Mode: no context injection needed — all tools allowed
+		if (getMode() === "dragon") return;
+
+		// Use systemPrompt (ephemeral per-turn) instead of message injection.
+		// Messages with display:false accumulate in session JSONL and persist
+		// after mode switches, causing stale mode flags.
+		const base = event.systemPrompt ?? ctx.getSystemPrompt();
+
 		if (getMode() === "none") {
 			return {
-				message: {
-					customType: "dog-mode-context",
-					content:
-						"[DOG MODE ACTIVE: PERMISSION-GATED]\\nBefore non-allowlisted tools (including subagent), use guard prompts to ask for allow-once, allow-this-session, switch to Puppy Mode, or switch to Dragon Mode.",
-					display: false,
-				},
+				systemPrompt: base + "\n\n" +
+					"[DOG MODE ACTIVE: PERMISSION-GATED]\n" +
+					"Before non-allowlisted tools (including subagent), the guard will prompt " +
+					"for allow-once, allow-this-session, switch to Puppy Mode, or switch to Dragon Mode.",
 			};
 		}
 
-		if (getMode() !== "plan") return;
-
-		return {
-			message: {
-				customType: "puppy-mode-context",
-				content: `[PUPPY MODE ACTIVE: READ-ONLY PLANNING]\nYou are in Puppy Mode. The project is read-only by default.\nIf a restricted tool is needed (including subagent), use the guard permission flow: allow once, allow this session, or switch to Dragon Mode.\nAnalyze, inspect, ask clarifying questions, and produce a concrete implementation plan.`,
-				display: false,
-			},
-		};
+		if (getMode() === "plan") {
+			return {
+				systemPrompt: base + "\n\n" +
+					"[PUPPY MODE ACTIVE: READ-ONLY PLANNING]\n" +
+					"You are in Puppy Mode. The project is read-only by default.\n" +
+					"If a restricted tool is needed (including subagent), the guard permission flow will trigger: " +
+					"allow once, allow this session, or switch to Dragon Mode.\n" +
+					"Analyze, inspect, ask clarifying questions, and produce a concrete implementation plan.",
+			};
+		}
 	});
 
 	// ── Tool Call Guard ──

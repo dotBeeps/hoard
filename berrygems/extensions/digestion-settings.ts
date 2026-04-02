@@ -33,6 +33,7 @@ function getPanels(): any {
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { homedir } from "node:os";
+import { readHoardSetting, readProjectHoardSetting, writeProjectHoardSetting, keyLabel } from "../lib/settings.ts";
 
 // ── Local Types ──
 
@@ -85,7 +86,7 @@ interface StrategyPreset {
 
 // ── Constants ──
 
-const SETTINGS_NAMESPACE = "dotsPiEnhancements";
+// Settings namespace — migrated to hoard.digestion.* via shared lib
 
 const DEFAULT_SETTINGS: CompactionSettings = {
 	enabled: true,
@@ -163,19 +164,13 @@ const DIGESTION_PHASES: Array<{ emoji: string; text: string }> = [
 ];
 const PHASE_INTERVAL_MS = 2800;
 
-/** Key to copy settings from global config (configurable via dotsPiEnhancements.digestionCopyGlobalKey) */
-const COPY_GLOBAL_KEY = readEnhancementSetting<string>("digestionCopyGlobalKey", "g");
+/** Key to copy settings from global config (configurable via hoard.digestion.copyGlobalKey) */
+const COPY_GLOBAL_KEY = readHoardSetting<string>("digestion.copyGlobalKey", "g");
 const COPY_GLOBAL_LABEL = keyLabel(COPY_GLOBAL_KEY);
 
 // ── Helpers ──
 
-/** Turn a matchesKey-style code into a display label. */
-function keyLabel(code: string): string {
-	return code
-		.split("+")
-		.map((p) => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase())
-		.join("+");
-}
+
 
 function formatTokens(n: number): string {
 	if (n >= 1000) return `${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}k`;
@@ -228,16 +223,7 @@ function readSettingsFile(path: string): Record<string, unknown> {
 	}
 }
 
-function readEnhancementSetting<T>(key: string, fallback: T): T {
-	try {
-		const settings = readSettingsFile(getGlobalSettingsPath());
-		const ns = settings[SETTINGS_NAMESPACE];
-		if (typeof ns !== "object" || ns === null) return fallback;
-		return key in ns ? ((ns as Record<string, unknown>)[key] as T) : fallback;
-	} catch {
-		return fallback;
-	}
-}
+
 
 function readCompactionSettings(cwd: string): CompactionSettings {
 	const global = readSettingsFile(getGlobalSettingsPath());
@@ -264,16 +250,11 @@ function readGlobalCompactionSettings(): CompactionSettings {
 }
 
 function readDigestSettings(cwd: string): DigestSettings {
-	const global = readSettingsFile(getGlobalSettingsPath());
-	const project = readSettingsFile(getProjectSettingsPath(cwd));
-	const globalNs = (global[SETTINGS_NAMESPACE] ?? {}) as Record<string, unknown>;
-	const projectNs = (project[SETTINGS_NAMESPACE] ?? {}) as Record<string, unknown>;
-
 	return {
-		triggerMode: ((projectNs.digestionTriggerMode ?? globalNs.digestionTriggerMode ?? DEFAULT_DIGEST.triggerMode) as TriggerMode),
-		triggerPercentage: ((projectNs.digestionTriggerPercentage ?? globalNs.digestionTriggerPercentage ?? DEFAULT_DIGEST.triggerPercentage) as number),
-		triggerFixed: ((projectNs.digestionTriggerFixed ?? globalNs.digestionTriggerFixed ?? DEFAULT_DIGEST.triggerFixed) as number),
-		strategy: ((projectNs.digestionStrategy ?? globalNs.digestionStrategy ?? DEFAULT_DIGEST.strategy) as string),
+		triggerMode: readProjectHoardSetting(cwd, "digestion.triggerMode", DEFAULT_DIGEST.triggerMode) as TriggerMode,
+		triggerPercentage: readProjectHoardSetting(cwd, "digestion.triggerPercentage", DEFAULT_DIGEST.triggerPercentage) as number,
+		triggerFixed: readProjectHoardSetting(cwd, "digestion.triggerFixed", DEFAULT_DIGEST.triggerFixed) as number,
+		strategy: readProjectHoardSetting(cwd, "digestion.strategy", DEFAULT_DIGEST.strategy) as string,
 	};
 }
 
@@ -309,21 +290,7 @@ function writeAllCompactionSettings(cwd: string, settings: CompactionSettings): 
 }
 
 function writeDigestSetting(cwd: string, key: string, value: unknown): boolean {
-	try {
-		const path = getProjectSettingsPath(cwd);
-		const settings = readSettingsFile(path);
-		const ns =
-			typeof settings[SETTINGS_NAMESPACE] === "object" && settings[SETTINGS_NAMESPACE] !== null
-				? (settings[SETTINGS_NAMESPACE] as Record<string, unknown>)
-				: {};
-		ns[key] = value;
-		settings[SETTINGS_NAMESPACE] = ns;
-		mkdirSync(dirname(path), { recursive: true });
-		writeFileSync(path, JSON.stringify(settings, null, 2) + "\n");
-		return true;
-	} catch {
-		return false;
-	}
+	return writeProjectHoardSetting(cwd, `digestion.${key}`, value);
 }
 
 // ── Panel Component ──
@@ -439,7 +406,7 @@ class CompactionPanelComponent {
 		this.settings = { ...global };
 		// Reset trigger mode to reserve when copying global (global doesn't have trigger modes)
 		this.digestSettings.triggerMode = "reserve";
-		writeDigestSetting(this.cwd, "digestionTriggerMode", "reserve");
+		writeDigestSetting(this.cwd, "triggerMode", "reserve");
 		this.invalidate();
 		this.tui.requestRender();
 	}
@@ -448,7 +415,7 @@ class CompactionPanelComponent {
 		const currentIdx = TRIGGER_MODES.indexOf(this.digestSettings.triggerMode);
 		const nextIdx = (currentIdx + direction + TRIGGER_MODES.length) % TRIGGER_MODES.length;
 		this.digestSettings.triggerMode = TRIGGER_MODES[nextIdx]!;
-		writeDigestSetting(this.cwd, "digestionTriggerMode", this.digestSettings.triggerMode);
+		writeDigestSetting(this.cwd, "triggerMode", this.digestSettings.triggerMode);
 		this.recalculateReserveTokens();
 		this.invalidate();
 		this.tui.requestRender();
@@ -469,7 +436,7 @@ class CompactionPanelComponent {
 		const idx = currentIdx === -1 ? 0 : currentIdx;
 		const nextIdx = (idx + direction + STRATEGY_PRESETS.length) % STRATEGY_PRESETS.length;
 		this.digestSettings.strategy = STRATEGY_PRESETS[nextIdx]!.id;
-		writeDigestSetting(this.cwd, "digestionStrategy", this.digestSettings.strategy);
+		writeDigestSetting(this.cwd, "strategy", this.digestSettings.strategy);
 		this.invalidate();
 		this.tui.requestRender();
 	}
@@ -588,10 +555,10 @@ class CompactionPanelComponent {
 				this.applyChange("reserveTokens", cyclePreset(this.liveSettings.reserveTokens, this.getReservePresets(), direction));
 				break;
 			case "triggerPercentage":
-				this.cycleDigestValue("triggerPercentage", "digestionTriggerPercentage", PERCENTAGE_PRESETS, direction);
+				this.cycleDigestValue("triggerPercentage", "triggerPercentage", PERCENTAGE_PRESETS, direction);
 				break;
 			case "triggerFixed":
-				this.cycleDigestValue("triggerFixed", "digestionTriggerFixed", this.getFixedPresets(), direction);
+				this.cycleDigestValue("triggerFixed", "triggerFixed", this.getFixedPresets(), direction);
 				break;
 			case "keepRecentTokens":
 				this.applyChange("keepRecentTokens", cyclePreset(this.liveSettings.keepRecentTokens, KEEP_RECENT_PRESETS, direction));

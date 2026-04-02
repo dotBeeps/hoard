@@ -71,21 +71,28 @@ pi.on("turn_end", async (_event, ctx) => {
 
 If we manage ALL compaction via `ctx.compact()` from `turn_end`, pi only shows its hardcoded label when **we** fire it — no surprise auto-compaction, no cancel flashes. Keep pi's auto-compaction enabled at a small `reserveTokens` (16384) as an overflow safety net, so the cancel case is extremely rare.
 
-## Panel-Manager globalThis API
+## dots-panels globalThis API
 
-`panel-manager.ts` publishes its API at `Symbol.for("dot.panels")`. Available methods:
+`dots-panels.ts` publishes its API at `Symbol.for("dot.panels")`. Primary method:
 
 ```typescript
 const panels = (globalThis as any)[Symbol.for("dot.panels")];
 
-panels.register(id, { handle, invalidate, dispose })  // Register a panel
-panels.close(id)                                        // Close a panel
-panels.focusPanel(id)                                   // Focus specific panel
-panels.cycleFocus()                                     // Cycle focus between panels
-panels.keyHints                                         // { focus, close } label strings
+// Primary API — handles overlay creation, key routing, geometry tracking
+panels.createPanel(id, (panelCtx) => component, options)  // Create & register
+panels.close(id)                                          // Close a panel
+panels.focusPanel(id)                                     // Focus specific panel
+panels.cycleFocus()                                       // Cycle focus between panels
+panels.suggestLayout(count)                               // Optimal positions for N panels
+panels.getGeometry(id)                                    // Panel position info
+panels.keyHints                                           // { focusKey, closeKey, focused, unfocused }
+
+// Backward compat (prefer createPanel)
+panels.register(id, managedPanel)                         // Low-level registration
+panels.wrapComponent(id, component)                       // Low-level key routing
 ```
 
-Always use optional chaining (`panels?.register(...)`) — panel-manager may not be loaded yet depending on extension load order. Listen for `pi.events.on("panels:ready", ...)` if you need guaranteed availability.
+Always use optional chaining (`panels?.createPanel(...)`) — dots-panels may not be loaded yet depending on extension load order. Listen for `pi.events.on("panels:ready", ...)` if you need guaranteed availability.
 
 ## Trigger Mode Semantics
 

@@ -15,9 +15,9 @@
 
 import { StringEnum, complete, type Context } from "@mariozechner/pi-ai";
 import type { ExtensionAPI, ExtensionContext, Theme } from "@mariozechner/pi-coding-agent";
-import type { Component, OverlayAnchor, OverlayHandle, TUI } from "@mariozechner/pi-tui";
+import type { TUI } from "@mariozechner/pi-tui";
 // ── Panel Manager Access ──
-// Panel manager API is published to globalThis by panel-manager.ts extension.
+// dots-panels API is published to globalThis by dots-panels.ts extension.
 // No direct imports — avoids jiti module isolation issues.
 const PANELS_KEY = Symbol.for("dot.panels");
 function getPanels(): any { return (globalThis as any)[PANELS_KEY]; }
@@ -43,10 +43,11 @@ interface TodoFile {
 	assigned?: string;
 }
 
-interface LayoutSuggestion {
-	anchor: OverlayAnchor;
-	width: string;
-	margin?: { top?: number; right?: number; bottom?: number; left?: number };
+interface PanelContext {
+	tui: TUI;
+	theme: Theme;
+	cwd: string;
+	isFocused: () => boolean;
 }
 
 interface GifFrames {
@@ -68,7 +69,6 @@ interface MascotState {
 
 // ── Constants ──
 
-const DEFAULT_ANCHOR: OverlayAnchor = "right-center";
 const DEFAULT_WIDTH = "30%";
 const DEFAULT_MIN_WIDTH = 30;
 const DEFAULT_MAX_HEIGHT = "90%";
@@ -115,12 +115,6 @@ function writeSetting(key: string, value: unknown): boolean {
 }
 
 
-
-const VALID_ANCHORS: OverlayAnchor[] = [
-	"top-left", "top-center", "top-right",
-	"left-center", "center", "right-center",
-	"bottom-left", "bottom-center", "bottom-right",
-];
 
 // ── GIF Constants ──
 
@@ -507,33 +501,10 @@ function toggleTodoStatus(cwd: string, todoId: string): TodoFile | null {
 	return todo;
 }
 
-// ── Layout Helpers ──
-
-function suggestLayout(panelCount: number): LayoutSuggestion[] {
-	if (panelCount <= 0) return [];
-	if (panelCount === 1) return [{ anchor: "right-center", width: "30%", margin: { right: 1 } }];
-	if (panelCount === 2) return [
-		{ anchor: "top-right", width: "30%", margin: { right: 1, top: 1 } },
-		{ anchor: "bottom-right", width: "30%", margin: { right: 1, bottom: 1 } },
-	];
-	if (panelCount === 3) return [
-		{ anchor: "top-right", width: "28%", margin: { right: 1, top: 0 } },
-		{ anchor: "right-center", width: "28%", margin: { right: 1 } },
-		{ anchor: "bottom-right", width: "28%", margin: { right: 1, bottom: 0 } },
-	];
-	const suggestions: LayoutSuggestion[] = [];
-	const rightCount = Math.ceil(panelCount / 2);
-	const leftCount = panelCount - rightCount;
-	const rightAnchors: OverlayAnchor[] = ["top-right", "right-center", "bottom-right"];
-	const leftAnchors: OverlayAnchor[] = ["top-left", "left-center", "bottom-left"];
-	for (let i = 0; i < rightCount && i < 3; i++) suggestions.push({ anchor: rightAnchors[i]!, width: "28%", margin: { right: 1 } });
-	for (let i = 0; i < leftCount && i < 3; i++) suggestions.push({ anchor: leftAnchors[i]!, width: "28%", margin: { left: 1 } });
-	return suggestions;
-}
-
 // ── Panel Component ──
 
-class TodoPanelComponent implements Component {
+class TodoPanelComponent {
+	private panelCtx: PanelContext;
 	private tag: string;
 	private theme: Theme;
 	private tui: TUI;
@@ -543,7 +514,6 @@ class TodoPanelComponent implements Component {
 	private scrollOffset = 0;
 	private cachedWidth?: number;
 	private cachedLines?: string[];
-	private handle: OverlayHandle | null = null;
 
 	// GIF mascot state
 	private mascot: MascotState | null = null;
@@ -551,13 +521,12 @@ class TodoPanelComponent implements Component {
 	private gifMaxW: number;
 	private gifMaxH: number;
 
-
-
-	constructor(tag: string, theme: Theme, tui: TUI, cwd: string, gifCache: Map<string, GifFrames>, gifSize?: string) {
+	constructor(panelCtx: PanelContext, tag: string, gifCache: Map<string, GifFrames>, gifSize?: string) {
+		this.panelCtx = panelCtx;
 		this.tag = tag;
-		this.theme = theme;
-		this.tui = tui;
-		this.cwd = cwd;
+		this.theme = panelCtx.theme;
+		this.tui = panelCtx.tui;
+		this.cwd = panelCtx.cwd;
 		this.gifCache = gifCache;
 		const [maxW, maxH] = GIF_SIZES[gifSize ?? "medium"] ?? [DEFAULT_GIF_CELLS_W, DEFAULT_GIF_CELLS_H];
 		this.gifMaxW = maxW;
@@ -565,8 +534,6 @@ class TodoPanelComponent implements Component {
 		this.refresh();
 		this.loadMascot();
 	}
-
-	setHandle(handle: OverlayHandle): void { this.handle = handle; }
 
 	// ── Mascot Loading ──
 
@@ -667,7 +634,7 @@ class TodoPanelComponent implements Component {
 		if (this.cachedLines && this.cachedWidth === width) return this.cachedLines;
 
 		const th = this.theme;
-		const focused = this.handle?.isFocused() ?? false;
+		const focused = this.panelCtx.isFocused();
 		const innerW = Math.max(10, width - 2);
 		const lines: string[] = [];
 		const borderColor = focused ? "accent" : "border";
@@ -786,6 +753,8 @@ const TodoPanelParams = Type.Object({
 	action: StringEnum(["open", "close", "close_all", "focus", "unfocus", "list_panels", "suggest_layout", "refresh"] as const),
 	tag: Type.Optional(Type.String({ description: "Tag to filter todos by (use 'all' for all todos)" })),
 	anchor: Type.Optional(Type.String({ description: "Panel position: top-left, top-center, top-right, left-center, center, right-center, bottom-left, bottom-center, bottom-right" })),
+	relativeTo: Type.Optional(Type.String({ description: "Anchor relative to another panel's edge. Panel ID to anchor to (use with relativeEdge)" })),
+	relativeEdge: Type.Optional(Type.String({ description: "Edge of the reference panel to anchor to: top, bottom, left, right, top-left, top-right, bottom-left, bottom-right" })),
 	width: Type.Optional(Type.String({ description: "Panel width as number or percentage (e.g. '30%' or '40')" })),
 	count: Type.Optional(Type.Number({ description: "Number of panels for suggest_layout" })),
 	offsetX: Type.Optional(Type.Number({ description: "Horizontal offset from anchor position" })),
@@ -799,9 +768,6 @@ export default function (pi: ExtensionAPI) {
 	const gifCache = new Map<string, GifFrames>();
 	const todoComponents = new Map<string, TodoPanelComponent>();
 
-	function parseAnchor(s: string | undefined): OverlayAnchor {
-		return s && VALID_ANCHORS.includes(s as OverlayAnchor) ? s as OverlayAnchor : DEFAULT_ANCHOR;
-	}
 	function parseWidth(s: string | undefined): number | string {
 		if (!s) return DEFAULT_WIDTH;
 		if (s.endsWith("%")) return s;
@@ -816,57 +782,39 @@ export default function (pi: ExtensionAPI) {
 
 	function panelId(tag: string): string { return `todo:${tag}`; }
 
-	function openPanel(ctx: ExtensionContext, tag: string, anchor?: string, width?: string, offsetX?: number, offsetY?: number, gifSize?: string): string {
+	function openPanel(tag: string, anchor?: string, width?: string, offsetX?: number, offsetY?: number, gifSize?: string, relativeTo?: string, relativeEdge?: string): string {
 		const panels = getPanels();
 		if (!panels) return "Error: Panel manager not available";
-		if (!ctx.hasUI) return "Error: TUI not available (non-interactive mode)";
-
 		const pid = panelId(tag);
 		if (panels.isOpen(pid)) {
 			todoComponents.get(tag)?.refresh();
 			panels.requestRender();
 			return `Panel '${tag}' already open — refreshed`;
 		}
-
-		const parsedAnchor = parseAnchor(anchor);
-		const parsedWidth = parseWidth(width);
-
-		// Use ctx.ui.custom() so the TUI has the correct viewport context for overlay positioning.
-		// Calling tui.showOverlay() with a stored ref from setWidget offsets the panel by one terminal height.
 		let component: TodoPanelComponent | null = null;
-		ctx.ui.custom(
-			(tui, theme, _kb, _done) => {
-				component = new TodoPanelComponent(tag, theme, tui, panels.cwd, gifCache, gifSize);
-				todoComponents.set(tag, component);
-				return panels.wrapComponent(pid, component);
-			},
-			{
-				overlay: true,
-				overlayOptions: {
-					nonCapturing: true,
-					anchor: parsedAnchor,
-					width: parsedWidth,
-					minWidth: DEFAULT_MIN_WIDTH,
-					maxHeight: DEFAULT_MAX_HEIGHT,
-					margin: 1,
+		const result = panels.createPanel(pid, (panelCtx: any) => {
+			component = new TodoPanelComponent(panelCtx, tag, gifCache, gifSize);
+			todoComponents.set(tag, component);
+			return {
+				render: (w: number) => component!.render(w),
+				invalidate: () => component!.invalidate(),
+				handleInput: (data: string) => component!.handleInput(data),
+				dispose: () => component!.disposeMascot(),
+			};
+		}, {
+			...(relativeTo && relativeEdge
+				? { anchor: { relativeTo, edge: relativeEdge, offsetX: offsetX ?? 0, offsetY: offsetY ?? 0 } }
+				: {
+					...(anchor ? { anchor } : {}),
 					...(offsetX !== undefined ? { offsetX } : {}),
 					...(offsetY !== undefined ? { offsetY } : {}),
-				},
-				onHandle: (handle) => {
-					if (!component) return;
-					component.setHandle(handle);
-					panels.register(pid, {
-						handle,
-						invalidate: () => component!.invalidate(),
-						handleInput: (data) => component!.handleInput(data),
-						dispose: () => component!.disposeMascot(),
-						onClose: () => todoComponents.delete(tag),
-					});
-				},
-			},
-		).catch(() => { todoComponents.delete(tag); });
-
-		return `Opened panel for '${tag}' at ${parsedAnchor}`;
+				}),
+			...(width ? { width: parseWidth(width) } : {}),
+			minWidth: DEFAULT_MIN_WIDTH,
+			maxHeight: DEFAULT_MAX_HEIGHT,
+			onClose: () => { todoComponents.delete(tag); component = null; },
+		});
+		return result.message;
 	}
 
 	function closePanel(tag: string): string {
@@ -899,10 +847,14 @@ export default function (pi: ExtensionAPI) {
 	}
 
 	function getSuggestedLayout(count: number): string {
-		const suggestions = suggestLayout(count);
+		const panels = getPanels();
+		const suggestions = panels?.suggestLayout(count) ?? [];
 		if (!suggestions.length) return "No layout suggestions for 0 panels";
 		const lines = [`Suggested layout for ${count} panel(s):`];
-		for (let i = 0; i < suggestions.length; i++) { const s = suggestions[i]!; lines.push(`  Panel ${i + 1}: /todos open <tag> ${s.anchor} ${s.width}`); }
+		for (let i = 0; i < suggestions.length; i++) {
+			const s = suggestions[i]!;
+			lines.push(`  Panel ${i + 1}: /todos open <tag> ${s.anchor} ${s.width}`);
+		}
 		return lines.join("\n");
 	}
 
@@ -930,7 +882,7 @@ export default function (pi: ExtensionAPI) {
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
 			if (!ctx.hasUI && params.action !== "suggest_layout") return makeResult("Error: panels require interactive mode", true);
 			switch (params.action) {
-				case "open": return params.tag ? makeResult(openPanel(ctx, params.tag, params.anchor, params.width, params.offsetX, params.offsetY, params.gifSize)) : makeResult("Error: tag required for open", true);
+				case "open": return params.tag ? makeResult(openPanel(params.tag, params.anchor, params.width, params.offsetX, params.offsetY, params.gifSize, params.relativeTo, params.relativeEdge)) : makeResult("Error: tag required for open", true);
 				case "close": return params.tag ? makeResult(closePanel(params.tag)) : makeResult("Error: tag required for close", true);
 				case "close_all": return makeResult(closeAllTodoPanels());
 				case "focus": { const p = getPanels(); return makeResult(params.tag ? p?.focusPanel(panelId(params.tag)) ?? "Panel manager unavailable" : p?.cycleFocus() ?? "Panel manager unavailable"); }
@@ -969,7 +921,7 @@ export default function (pi: ExtensionAPI) {
 					// Check if any trailing arg is a known gif size
 					const sizeArg = parts.slice(2).find(p => p.toLowerCase() in GIF_SIZES);
 					const posArgs = parts.slice(2).filter(p => !(p.toLowerCase() in GIF_SIZES));
-					ctx.ui.notify(openPanel(ctx, tag, posArgs[0], posArgs[1], undefined, undefined, sizeArg), "info");
+					ctx.ui.notify(openPanel(tag, posArgs[0], posArgs[1], undefined, undefined, sizeArg), "info");
 					return;
 				}
 				case "close": {

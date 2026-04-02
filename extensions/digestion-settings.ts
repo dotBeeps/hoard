@@ -21,7 +21,7 @@
  */
 
 import type { ExtensionAPI, ExtensionContext, Theme } from "@mariozechner/pi-coding-agent";
-import type { Component, OverlayHandle, TUI } from "@mariozechner/pi-tui";
+import type { TUI } from "@mariozechner/pi-tui";
 import { matchesKey, Key, Text, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
 
 // ── Panel Manager Access ──
@@ -33,6 +33,15 @@ function getPanels(): any {
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { homedir } from "node:os";
+
+// ── Local Types ──
+
+interface PanelContext {
+	tui: TUI;
+	theme: Theme;
+	cwd: string;
+	isFocused: () => boolean;
+}
 
 // ── Types ──
 
@@ -319,7 +328,8 @@ function writeDigestSetting(cwd: string, key: string, value: unknown): boolean {
 
 // ── Panel Component ──
 
-class CompactionPanelComponent implements Component {
+class CompactionPanelComponent {
+	private panelCtx: PanelContext;
 	private theme: Theme;
 	private tui: TUI;
 	private cwd: string;
@@ -328,7 +338,6 @@ class CompactionPanelComponent implements Component {
 	private selectedIndex = 0;
 	private cachedWidth?: number;
 	private cachedLines?: string[];
-	private handle: OverlayHandle | null = null;
 	/** Max output tokens for the current model - caps reserveTokens */
 	private modelMaxTokens: number | null = null;
 
@@ -341,17 +350,14 @@ class CompactionPanelComponent implements Component {
 	/** Reference to ctx.compact - set by the extension after construction */
 	public triggerCompact?: () => void;
 
-	constructor(theme: Theme, tui: TUI, cwd: string) {
-		this.theme = theme;
-		this.tui = tui;
-		this.cwd = cwd;
-		this.settings = readCompactionSettings(cwd);
+	constructor(panelCtx: PanelContext) {
+		this.panelCtx = panelCtx;
+		this.theme = panelCtx.theme;
+		this.tui = panelCtx.tui;
+		this.cwd = panelCtx.cwd;
+		this.settings = readCompactionSettings(panelCtx.cwd);
 		this.liveSettings = { ...this.settings };
-		this.digestSettings = readDigestSettings(cwd);
-	}
-
-	setHandle(handle: OverlayHandle): void {
-		this.handle = handle;
+		this.digestSettings = readDigestSettings(panelCtx.cwd);
 	}
 
 	updateModel(maxTokens: number | null): void {
@@ -602,7 +608,7 @@ class CompactionPanelComponent implements Component {
 		if (this.cachedLines && this.cachedWidth === width) return this.cachedLines;
 
 		const th = this.theme;
-		const focused = this.handle?.isFocused() ?? false;
+		const focused = this.panelCtx.isFocused();
 		const innerW = Math.max(20, width - 2);
 		const lines: string[] = [];
 		const borderColor = focused ? "accent" : "border";
@@ -874,7 +880,6 @@ export default function (pi: ExtensionAPI) {
 	function openPanel(ctx: ExtensionContext): string {
 		const panels = getPanels();
 		if (!panels) return "Error: Panel manager not available";
-		if (!ctx.hasUI) return "Error: TUI not available (non-interactive mode)";
 
 		if (panels.isOpen(PANEL_ID)) {
 			panelComponent?.refresh();
@@ -882,63 +887,48 @@ export default function (pi: ExtensionAPI) {
 			return "Digestion panel refreshed";
 		}
 
-		// Use ctx.ui.custom() so the TUI has the correct viewport context for overlay positioning.
-		// Calling tui.showOverlay() with a stored ref from setWidget offsets the panel by one terminal height.
 		let component: CompactionPanelComponent | null = null;
-		ctx.ui.custom(
-			(tui, theme, _kb, _done) => {
-				component = new CompactionPanelComponent(theme, tui, panels.cwd);
-				panelComponent = component;
-				// ⚡ Compact Now button - manual trigger, always allowed regardless of threshold
-				component.triggerCompact = () => {
-					if (compactionInProgress || pendingCompact) return;
-					pendingCompact = true;
-					const cwd = panels.cwd;
-					const digest = panelComponent?.digestSettings ?? readDigestSettings(cwd);
-					const strategyPreset = STRATEGY_PRESETS.find((s) => s.id === digest.strategy);
-					const instructions = strategyPreset?.instructions || undefined;
-					ctxRef?.compact({
-						...(instructions ? { customInstructions: instructions } : {}),
-						onError: (err: Error) => {
-							pendingCompact = false;
-							ctxRef?.hasUI && ctxRef.ui.notify(`🐉 Digestion failed: ${err.message}`, "error");
-						},
-					});
-				};
-				component.updateModel(ctx.model?.maxTokens ?? null);
-				const usage = ctx.getContextUsage();
-				if (usage) {
-					component.updateContextUsage({
-						tokens: usage.tokens ?? null,
-						contextWindow: usage.contextWindow ?? null,
-						percent: usage.percent ?? null,
-					});
-				}
-				return panels.wrapComponent(PANEL_ID, component);
-			},
-			{
-				overlay: true,
-				overlayOptions: {
-					nonCapturing: true,
-					anchor: "top-right",
-					width: "35%",
-					minWidth: 36,
-					maxHeight: "60%",
-					margin: 1,
-				},
-				onHandle: (handle) => {
-					if (!component) return;
-					component.setHandle(handle);
-					panels.register(PANEL_ID, {
-						handle,
-						invalidate: () => component!.invalidate(),
-						handleInput: (data: string) => component!.handleInput(data),
-						onClose: () => { panelComponent = null; },
-					});
-				},
-			},
-		).catch(() => { panelComponent = null; });
+		const result = panels.createPanel(PANEL_ID, (panelCtx: any) => {
+			component = new CompactionPanelComponent(panelCtx);
+			panelComponent = component;
+			component.triggerCompact = () => {
+				if (compactionInProgress || pendingCompact) return;
+				pendingCompact = true;
+				const cwd = panels.cwd;
+				const digest = panelComponent?.digestSettings ?? readDigestSettings(cwd);
+				const strategyPreset = STRATEGY_PRESETS.find((s) => s.id === digest.strategy);
+				const instructions = strategyPreset?.instructions || undefined;
+				ctxRef?.compact({
+					...(instructions ? { customInstructions: instructions } : {}),
+					onError: (err: Error) => {
+						pendingCompact = false;
+						ctxRef?.hasUI && ctxRef.ui.notify(`🐉 Digestion failed: ${err.message}`, "error");
+					},
+				});
+			};
+			component.updateModel(ctx.model?.maxTokens ?? null);
+			const usage = ctx.getContextUsage();
+			if (usage) {
+				component.updateContextUsage({
+					tokens: usage.tokens ?? null,
+					contextWindow: usage.contextWindow ?? null,
+					percent: usage.percent ?? null,
+				});
+			}
+			return {
+				render: (w: number) => component!.render(w),
+				invalidate: () => component!.invalidate(),
+				handleInput: (data: string) => component!.handleInput(data),
+			};
+		}, {
+			anchor: "top-right",
+			width: "35%",
+			minWidth: 36,
+			maxHeight: "60%",
+			onClose: () => { panelComponent = null; },
+		});
 
+		if (!result.success) return result.message;
 		return "Digestion settings panel opened";
 	}
 

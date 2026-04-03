@@ -1,22 +1,22 @@
 ---
-name: dot-panels
-description: "Build and integrate floating overlay panels using the dots-panels API. Use when creating new panel extensions, adding panels to existing extensions, or working with the globalThis panel infrastructure."
+name: hoard-gallery
+description: "Build and integrate floating overlay panels using the hoard-gallery API. Use when creating new panel extensions, adding panels to existing extensions, or working with the globalThis panel infrastructure."
 ---
 
 # Panel Development
 
-Build floating overlay panels that integrate with dots-panels — the central authority for panel lifecycle, positioning, focus cycling, smart placement, and session management. Focus cycling, configurable hotkeys, and consistent hint bars come free.
+Build floating overlay panels that integrate with hoard-gallery — the central authority for panel lifecycle, positioning, focus cycling, smart placement, and session management. Focus cycling, configurable hotkeys, and consistent hint bars come free.
 
 ## API Access
 
-Dots-panels publishes its API to `globalThis` at extension load time. Access it from any extension:
+Hoard-gallery publishes its API to `globalThis` at extension load time. Access it from any extension:
 
 ```typescript
-const PANELS_KEY = Symbol.for("dot.panels");
+const PANELS_KEY = Symbol.for("hoard.gallery");
 function getPanels(): any { return (globalThis as any)[PANELS_KEY]; }
 ```
 
-Never import `dots-panels.ts` directly — jiti isolates module caches per extension entry point, causing duplicate state.
+Never import `hoard-gallery.ts` directly — jiti isolates module caches per extension entry point, causing duplicate state.
 
 ## API Reference
 
@@ -74,7 +74,7 @@ interface PanelComponent {
 }
 ```
 
-Handle only your extension-specific keys in `handleInput`. Shared keys (Esc / Q / focus cycle) are consumed by dots-panels before your handler runs.
+Handle only your extension-specific keys in `handleInput`. Shared keys (Esc / Q / focus cycle) are consumed by hoard-gallery before your handler runs.
 
 ## keyHints
 
@@ -95,7 +95,7 @@ kh.unfocused   // "Alt+T focus"
 
 ```typescript
 const panels = getPanels();
-if (!panels) return "dots-panels not loaded";
+if (!panels) return "hoard-gallery not loaded";
 ```
 
 ### 2. Create the panel
@@ -122,7 +122,7 @@ panels.createPanel("my-panel", (panelCtx) => {
 
 ### 3. Clean up on session events
 
-Dots-panels calls `closeAll()` on session switch/shutdown, which fires each panel's `onClose`. Update your own component references too:
+Hoard-gallery calls `closeAll()` on session switch/shutdown, which fires each panel's `onClose`. Update your own component references too:
 
 ```typescript
 pi.on("session_switch",  async () => { myComp = null; });
@@ -131,7 +131,7 @@ pi.on("session_shutdown", async () => { myComp = null; });
 
 ## Smart Placement
 
-When no `anchor` is specified, dots-panels picks the best available screen position automatically:
+When no `anchor` is specified, hoard-gallery picks the best available screen position automatically:
 
 - Tries positions in priority order: `right-center`, `top-right`, `bottom-right`, `left-center`, `top-left`, `bottom-left`, `top-center`, `bottom-center`
 - Computes bounding boxes for all open panels and picks the first non-overlapping position
@@ -146,7 +146,7 @@ When an anchor *is* specified, collision avoidance adjusts `offsetY`/`offsetX` t
 
 ### suggestLayout()
 
-Ask dots-panels for curated positions before opening multiple panels at once:
+Ask hoard-gallery for curated positions before opening multiple panels at once:
 
 ```typescript
 const suggestions = panels.suggestLayout(2);
@@ -178,7 +178,7 @@ panels.createPanel("detail-panel", factory, {
 });
 ```
 
-Dots-panels converts the relative position to percentage-based coordinates so the layout is resilient to terminal resizes. Returns an error result if the reference panel isn't open.
+Hoard-gallery converts the relative position to percentage-based coordinates so the layout is resilient to terminal resizes. Returns an error result if the reference panel isn't open.
 
 ## PanelCreateOptions
 
@@ -232,7 +232,7 @@ Use `truncateToWidth()` for any line containing ANSI escapes — never slice str
 
 ## /panels Command
 
-Dots-panels registers a `/panels` command for managing all open panels:
+Hoard-gallery registers a `/panels` command for managing all open panels:
 
 ```
 /panels                  List all open panels with positions
@@ -276,8 +276,8 @@ panels.createPanel(PANEL_ID, (ctx) => new MyComponent(ctx), { anchor: "right-cen
 
 ## Anti-Patterns
 
-- **Don't import dots-panels directly** — use `globalThis[Symbol.for("dot.panels")]`. Direct imports create duplicate state due to jiti module isolation.
+- **Don't import hoard-gallery directly** — use `globalThis[Symbol.for("hoard.gallery")]`. Direct imports create duplicate state due to jiti module isolation.
 - **Don't call `ctx.ui.custom()` yourself for panels** — use `createPanel()`. Direct overlay creation bypasses geometry tracking, smart placement, and collision avoidance.
-- **Don't handle Esc, Q, or the focus key in your component** — dots-panels consumes these before your `handleInput` runs.
-- **Don't register your own focus shortcut** — dots-panels owns `registerShortcut` for the focus key. Adding another causes conflicts.
+- **Don't handle Esc, Q, or the focus key in your component** — hoard-gallery consumes these before your `handleInput` runs.
+- **Don't register your own focus shortcut** — hoard-gallery owns `registerShortcut` for the focus key. Adding another causes conflicts.
 - **Don't hardcode key labels in hints** — use `keyHints` so hints update when the user changes keybindings.

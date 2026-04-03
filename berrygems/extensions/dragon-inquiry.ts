@@ -83,7 +83,7 @@ interface AskDetails {
 
 // ── Panel Manager Access (for key passthrough) ──
 
-const PANELS_KEY = Symbol.for("dot.panels");
+const PANELS_KEY = Symbol.for("hoard.gallery");
 function getPanels(): any {
 	return (globalThis as any)[PANELS_KEY];
 }
@@ -106,7 +106,7 @@ function activateAskMode(): void {
  * Forward keys to panels while an ask prompt is capturing input.
  *
  * The ask prompt is a capturing overlay — pi sends ALL input here.
- * The TUI input listener (in dots-panels) is suppressed via setAskActive(true),
+ * The TUI input listener (in hoard-gallery) is suppressed via setAskActive(true),
  * so we manually route panel keys through this function instead.
  *
  * Focus is unified: cycleFocus/getFocusedId/unfocusAll are the same API

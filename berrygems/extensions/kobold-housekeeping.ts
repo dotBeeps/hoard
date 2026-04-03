@@ -17,9 +17,9 @@ import { StringEnum, complete, type Context } from "@mariozechner/pi-ai";
 import type { ExtensionAPI, ExtensionContext, Theme } from "@mariozechner/pi-coding-agent";
 import type { TUI } from "@mariozechner/pi-tui";
 // ── Panel Manager Access ──
-// dots-panels API is published to globalThis by dots-panels.ts extension.
+// hoard-gallery API is published to globalThis by hoard-gallery.ts extension.
 // No direct imports — avoids jiti module isolation issues.
-const PANELS_KEY = Symbol.for("dot.panels");
+const PANELS_KEY = Symbol.for("hoard.gallery");
 function getPanels(): any { return (globalThis as any)[PANELS_KEY]; }
 import {
 	matchesKey, Key, Text, truncateToWidth, visibleWidth,

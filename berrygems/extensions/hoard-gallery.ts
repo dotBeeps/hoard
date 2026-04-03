@@ -1,5 +1,5 @@
 /**
- * dots-panels — Central authority for floating overlay panels.
+ * hoard-gallery — Central authority for floating overlay panels.
  *
  * Owns ALL panel lifecycle: creation, positioning, focus cycling,
  * smart placement, collision avoidance, and session management.
@@ -9,7 +9,7 @@
  *
  * API published to globalThis at extension load time:
  *
- *   const panels = (globalThis as any)[Symbol.for("dot.panels")];
+ *   const panels = (globalThis as any)[Symbol.for("hoard.gallery")];
  *   panels.createPanel("my-panel", (panelCtx) => myComponent, options);
  *   panels.close("my-panel");
  *
@@ -38,13 +38,13 @@ export interface PanelContext {
 	skin: () => PanelSkin;
 }
 
-/** Shape a component must implement to be hosted by dots-panels. */
+/** Shape a component must implement to be hosted by hoard-gallery. */
 export interface PanelComponent {
 	/** Return rendered lines. Each line MUST NOT exceed `width`. */
 	render(width: number): string[];
 	/** Clear cached render state for fresh output next cycle. */
 	invalidate(): void;
-	/** Handle extension-specific keyboard input. Shared keys (Esc/Q/focus) are routed by dots-panels first. */
+	/** Handle extension-specific keyboard input. Shared keys (Esc/Q/focus) are routed by hoard-gallery first. */
 	handleInput?(data: string): void;
 	/** Clean up resources (intervals, images, etc.) before panel removal. */
 	dispose?(): void;
@@ -165,7 +165,7 @@ const KEYBINDS = {
 };
 const CLOSE_LABEL = keyLabel(KEYBINDS.close);
 const UNFOCUS_LABEL = keyLabel(KEYBINDS.unfocus);
-const API_KEY = Symbol.for("dot.panels");
+const API_KEY = Symbol.for("hoard.gallery");
 
 const VALID_ANCHORS: OverlayAnchor[] = [
 	"top-left", "top-center", "top-right",
@@ -676,7 +676,7 @@ class PanelRegistry {
 	 * Create, position, and register a panel in one call.
 	 *
 	 * The factory receives a PanelContext with tui, theme, cwd, and isFocused().
-	 * dots-panels handles overlay creation, key routing, and geometry tracking.
+	 * hoard-gallery handles overlay creation, key routing, and geometry tracking.
 	 *
 	 * If the panel already exists, it's refreshed instead of recreated.
 	 * If no anchor is specified, the smart placement engine picks the best position.
@@ -1349,7 +1349,7 @@ export default function (pi: ExtensionAPI) {
 				}
 				default:
 					ctx.ui.notify([
-						"🐉 dots-panels — central panel manager",
+						"🐉 hoard-gallery — central panel manager",
 						"",
 						"  /panels                  List all open panels",
 						"  /panels close-all         Close everything",

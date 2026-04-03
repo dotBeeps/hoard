@@ -16,13 +16,13 @@ Installable via `pi install https://github.com/dotBeeps/hoard`. Pi auto-discover
 hoard/
 ├── berrygems/                 Pi extensions (TypeScript)
 │   ├── extensions/
-│   │   ├── ask.ts                 Interactive user input (select/confirm/text)
-│   │   ├── dots-panels.ts        Central panel authority — creation, positioning, focus
-│   │   ├── digestion-settings.ts  Compaction tuning panel
-│   │   ├── popup.ts              Markdown popup panels (scrollable, updatable by ID)
-│   │   ├── todo-lists.ts         Floating todo panels with GIF mascots
-│   │   ├── dragon-guard/         Three-tier permission guard
-│   │   └── lint-panel.ts         Floating diagnostics panel (tsc type errors)
+│   │   ├── dragon-inquiry.ts      Interactive user input (select/confirm/text)
+│   │   ├── hoard-gallery.ts       Central panel authority — creation, positioning, focus
+│   │   ├── dragon-digestion.ts    Compaction tuning panel
+│   │   ├── dragon-scroll.ts       Markdown popup panels (scrollable, updatable by ID)
+│   │   ├── kobold-housekeeping.ts Floating todo panels with GIF mascots
+│   │   ├── dragon-guard/          Three-tier permission guard
+│   │   └── dragon-tongue.ts       Floating diagnostics panel (tsc type errors)
 │   ├── lib/
 │   │   ├── settings.ts            Shared settings reader (hoard.* + legacy fallback)
 │   │   ├── panel-chrome.ts        Shared border/focus/header/footer rendering + 19 panel skins
@@ -40,8 +40,8 @@ hoard/
 │   │   ├── github-markdown/       GFM conventions
 │   │   ├── extension-designer/    Build pi extensions
 │   │   ├── skill-designer/        Build agent skills
-│   │   ├── dot-panels/            Build panel extensions
-│   │   ├── dots-todos/            Task tracking with panels
+│   │   ├── hoard-gallery/         Build panel extensions
+│   │   ├── kobold-housekeeping/   Task tracking with panels
 │   │   ├── pi-events/             Event hooks reference
 │   │   ├── pi-sessions/           Sessions & state management
 │   │   ├── pi-tui/                TUI component building
@@ -182,12 +182,12 @@ Auto-triggers when `tokens > contextWindow - reserveTokens`. `reserveTokens` ser
 ### Inter-Extension Communication
 
 ```typescript
-// Publisher (dots-panels.ts)
-const API_KEY = Symbol.for("dot.panels");
+// Publisher (hoard-gallery.ts)
+const API_KEY = Symbol.for("hoard.gallery");
 (globalThis as any)[API_KEY] = { register, close, focusPanel, ... };
 
 // Consumer (any extension in berrygems)
-const panels = (globalThis as any)[Symbol.for("dot.panels")];
+const panels = (globalThis as any)[Symbol.for("hoard.gallery")];
 panels?.register("my-panel", { handle, invalidate, dispose });
 ```
 

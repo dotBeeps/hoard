@@ -13,7 +13,7 @@ This means writing a very large `reserveTokens` (to trigger compaction earlier) 
 
 ### The Decoupling Pattern
 
-`digestion-settings.ts` decouples these by:
+`dragon-digestion.ts` decouples these by:
 
 - Writing a **safe `reserveTokens`** (16384) to settings — keeps the compaction output budget reasonable
 - Enforcing the **real trigger** through extension hooks (`turn_end` and `session_before_compact`)
@@ -71,12 +71,12 @@ pi.on("turn_end", async (_event, ctx) => {
 
 If we manage ALL compaction via `ctx.compact()` from `turn_end`, pi only shows its hardcoded label when **we** fire it — no surprise auto-compaction, no cancel flashes. Keep pi's auto-compaction enabled at a small `reserveTokens` (16384) as an overflow safety net, so the cancel case is extremely rare.
 
-## dots-panels globalThis API
+## hoard-gallery globalThis API
 
-`dots-panels.ts` publishes its API at `Symbol.for("dot.panels")`. Primary method:
+`hoard-gallery.ts` publishes its API at `Symbol.for("hoard.gallery")`. Primary method:
 
 ```typescript
-const panels = (globalThis as any)[Symbol.for("dot.panels")];
+const panels = (globalThis as any)[Symbol.for("hoard.gallery")];
 
 // Primary API — handles overlay creation, key routing, geometry tracking
 panels.createPanel(id, (panelCtx) => component, options)  // Create & register
@@ -92,7 +92,7 @@ panels.register(id, managedPanel)                         // Low-level registrat
 panels.wrapComponent(id, component)                       // Low-level key routing
 ```
 
-Always use optional chaining (`panels?.createPanel(...)`) — dots-panels may not be loaded yet depending on extension load order. Listen for `pi.events.on("panels:ready", ...)` if you need guaranteed availability.
+Always use optional chaining (`panels?.createPanel(...)`) — hoard-gallery may not be loaded yet depending on extension load order. Listen for `pi.events.on("panels:ready", ...)` if you need guaranteed availability.
 
 ## Trigger Mode Semantics
 

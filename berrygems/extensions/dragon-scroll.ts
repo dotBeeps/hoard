@@ -1,5 +1,5 @@
 /**
- * Popup — Markdown popup panels via dots-panels.
+ * Dragon Scroll — Markdown popup panels via hoard-gallery.
  *
  * Registers a tool + command for showing scrollable markdown content
  * in a floating panel. Good for documentation, summaries, help text,
@@ -21,7 +21,7 @@ import {
 
 // ── Panel Manager Access ──
 
-const PANELS_KEY = Symbol.for("dot.panels");
+const PANELS_KEY = Symbol.for("hoard.gallery");
 function getPanels(): any {
 	return (globalThis as any)[PANELS_KEY];
 }
@@ -46,7 +46,7 @@ const PopupParams = Type.Object({
 interface PopupComponentOptions {
 	title?: string;
 	content: string;
-	panelCtx: any;  // PanelContext from dots-panels
+	panelCtx: any;  // PanelContext from hoard-gallery
 }
 
 class PopupComponent {
@@ -195,7 +195,7 @@ export default function popup(pi: ExtensionAPI): void {
 			const panels = getPanels();
 			if (!panels) {
 				return {
-					content: [{ type: "text" as const, text: "Panel manager not available \u2014 dots-panels extension required" }],
+					content: [{ type: "text" as const, text: "Panel manager not available \u2014 hoard-gallery extension required" }],
 				details: {},
 				};
 			}

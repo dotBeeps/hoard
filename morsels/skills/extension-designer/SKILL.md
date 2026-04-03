@@ -308,7 +308,7 @@ pi.events.emit("my-ext:ready", { version: 1 });
 pi.events.on("my-ext:ready", (data) => { /* react */ });
 ```
 
-For panel extensions specifically, see the `dot-panels` skill.
+For panel extensions specifically, see the `hoard-gallery` skill.
 
 ## Anti-Patterns
 
@@ -346,4 +346,4 @@ For detailed API docs and patterns, read these files:
 - [Extension API](references/extension-api.md) — Full event list, ctx methods, registration APIs
 - [TUI Patterns](references/tui-patterns.md) — Copy-paste patterns for common UI needs
 
-For panel-specific development, load the `dot-panels` skill.
+For panel-specific development, load the `hoard-gallery` skill.

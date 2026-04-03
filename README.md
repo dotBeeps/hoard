@@ -28,7 +28,7 @@ pi install https://github.com/dotBeeps/hoard/morsels
 Pi extensions that add interactive tools, floating panels, permission guards, and tone management.
 
 <details>
-<summary><b>dots-panels</b> — Central panel authority</summary>
+<summary><b>hoard-gallery</b> — Central panel authority</summary>
 
 Owns all floating overlay panel lifecycle: creation, positioning, focus cycling, smart placement, collision avoidance. Other extensions create panels through its globalThis API.
 </details>
@@ -45,31 +45,31 @@ Bash command classification, session state persistence, settings panel.
 </details>
 
 <details>
-<summary><b>digestion-settings</b> — Compaction tuning panel</summary>
+<summary><b>dragon-digestion</b> — Compaction tuning panel</summary>
 
 Live-tweakable compaction settings with three trigger modes (Reserve/Percentage/Fixed), strategy presets, context usage visualization, and proactive compaction triggers.
 </details>
 
 <details>
-<summary><b>todo-lists</b> — Floating todo panels with GIF mascots</summary>
+<summary><b>kobold-housekeeping</b> — Floating todo panels with GIF mascots</summary>
 
-Persistent floating panels showing `.pi/todos` filtered by tag. AI-powered Giphy sticker search for animated mascots. Integrates with dots-panels for positioning and focus management.
+Persistent floating panels showing `.pi/todos` filtered by tag. AI-powered Giphy sticker search for animated mascots. Integrates with hoard-gallery for positioning and focus management.
 </details>
 
 <details>
-<summary><b>ask</b> — Interactive user input tool</summary>
+<summary><b>dragon-inquiry</b> — Interactive user input tool</summary>
 
 Three input modes: select (pick from options), confirm (yes/no), text (free input). TUI overlays with cached rendering and keyboard navigation. Panels persist alongside ask prompts via suspend/resume timing.
 </details>
 
 <details>
-<summary><b>popup</b> — Markdown popup panels</summary>
+<summary><b>dragon-scroll</b> — Markdown popup panels</summary>
 
 Scrollable, updatable-by-ID floating panels for markdown content. Per-popup skin control. Uses shared panel-chrome for consistent rendering.
 </details>
 
 <details>
-<summary><b>lint-panel</b> — Live diagnostics panel</summary>
+<summary><b>dragon-tongue</b> — Live diagnostics panel</summary>
 
 Language-agnostic LSP-powered diagnostics with compiler fallback. Multi-server support, file grouping, expand/collapse navigation. `lint` tool (check/open/close) and `/lint` command.
 </details>
@@ -131,13 +131,13 @@ Guides creation of Agent Skills (agentskills.io spec): frontmatter, naming, body
 </details>
 
 <details>
-<summary><b>dot-panels</b> — Build panel extensions</summary>
+<summary><b>hoard-gallery</b> — Build panel extensions</summary>
 
-How to build and integrate floating overlay panels using the dots-panels API.
+How to build and integrate floating overlay panels using the hoard-gallery API.
 </details>
 
 <details>
-<summary><b>dots-todos</b> — Task tracking with panels</summary>
+<summary><b>kobold-housekeeping</b> — Task tracking with panels</summary>
 
 Tagged todos and floating panels for task management.
 </details>

@@ -11,7 +11,8 @@
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
 import { getMarkdownTheme } from "@mariozechner/pi-coding-agent";
 import { Markdown, Text, matchesKey, Key, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
-import type { TUI, Theme, MarkdownTheme } from "@mariozechner/pi-tui";
+import type { TUI, MarkdownTheme } from "@mariozechner/pi-tui";
+import type { Theme } from "@mariozechner/pi-coding-agent";
 import { Type, type Static } from "@sinclair/typebox";
 import { StringEnum } from "@mariozechner/pi-ai";
 import {
@@ -109,7 +110,7 @@ class PopupComponent {
 			this.scrollOffset = 0;
 			this.cachedLines = undefined;
 			this.panelCtx.tui.requestRender();
-		} else if (matchesKey(data, Key.shift("g")) || matchesKey(data, "G")) {
+		} else if (matchesKey(data, Key.shift("g")) || data === "G") {
 			this.scrollOffset = maxScroll;
 			this.cachedLines = undefined;
 			this.panelCtx.tui.requestRender();
@@ -190,11 +191,12 @@ export default function popup(pi: ExtensionAPI): void {
 		],
 		parameters: PopupParams,
 
-		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+		async execute(_toolCallId: string, params: any, _signal: any, _onUpdate: any, ctx: ExtensionContext): Promise<any> {
 			const panels = getPanels();
 			if (!panels) {
 				return {
 					content: [{ type: "text" as const, text: "Panel manager not available \u2014 dots-panels extension required" }],
+				details: {},
 				};
 			}
 
@@ -240,6 +242,7 @@ export default function popup(pi: ExtensionAPI): void {
 			if (!result.success) {
 				return {
 					content: [{ type: "text" as const, text: `Failed to open popup: ${result.message}` }],
+				details: {},
 				};
 			}
 
@@ -277,10 +280,10 @@ export default function popup(pi: ExtensionAPI): void {
 			id: Type.Optional(Type.String({ description: "Panel ID to close. Omit to close all popups." })),
 		}),
 
-		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+		async execute(_toolCallId: string, params: any, _signal: any, _onUpdate: any, ctx: ExtensionContext): Promise<any> {
 			const panels = getPanels();
 			if (!panels) {
-				return { content: [{ type: "text" as const, text: "Panel manager not available" }] };
+				return { content: [{ type: "text" as const, text: "Panel manager not available" }], details: {} };
 			}
 
 			if (params.id) {
@@ -288,6 +291,7 @@ export default function popup(pi: ExtensionAPI): void {
 					const available = [...activePopups.keys()];
 					return {
 						content: [{ type: "text" as const, text: `No popup with id "${params.id}". Active: ${available.join(", ") || "(none)"}` }],
+					details: {},
 					};
 				}
 				panels.close(params.id);

@@ -36,6 +36,7 @@ interface PanelContext {
 	theme: Theme;
 	cwd: string;
 	isFocused: () => boolean;
+	skin: () => import("../../lib/panel-chrome.ts").PanelSkin;
 }
 
 // ── Panel Manager Access ──

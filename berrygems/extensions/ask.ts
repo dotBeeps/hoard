@@ -258,12 +258,7 @@ async function executeSelect(params: AskInput, ctx: any) {
 			: []),
 	];
 
-	const result = await ctx.ui.custom<{
-		answer: string;
-		wasCustom: boolean;
-		index?: number;
-		userNote?: string;
-	} | null>((tui: any, theme: any, _kb: any, done: any) => {
+	const result = await (ctx.ui.custom as any)((tui: any, theme: any, _kb: any, done: any) => {
 		let optionIndex = 0;
 		let editMode: "off" | "custom" | "note" = "off";
 		let cachedLines: string[] | undefined;
@@ -475,10 +470,7 @@ async function executeSelect(params: AskInput, ctx: any) {
 }
 
 async function executeConfirm(params: AskInput, ctx: any) {
-	const result = await ctx.ui.custom<{
-		answer: boolean;
-		userNote?: string;
-	} | null>((tui: any, theme: any, _kb: any, done: any) => {
+	const result = await (ctx.ui.custom as any)((tui: any, theme: any, _kb: any, done: any) => {
 		let selectedYes = true;
 		let editMode: "off" | "note" = "off";
 		let cachedLines: string[] | undefined;
@@ -616,7 +608,7 @@ async function executeConfirm(params: AskInput, ctx: any) {
 }
 
 async function executeText(params: AskInput, ctx: any) {
-	const result = await ctx.ui.custom<string | null>((tui: any, theme: any, _kb: any, done: any) => {
+	const result = await (ctx.ui.custom as any)((tui: any, theme: any, _kb: any, done: any) => {
 		let cachedLines: string[] | undefined;
 		const skin = getSkin();
 
@@ -631,7 +623,7 @@ async function executeText(params: AskInput, ctx: any) {
 			},
 		};
 		const editor = new Editor(tui, editorTheme);
-		if (params.placeholder) editor.setPlaceholder?.(params.placeholder);
+		if (params.placeholder) (editor as any).setPlaceholder?.(params.placeholder);
 
 		editor.onSubmit = (value: string) => {
 			const trimmed = value.trim();

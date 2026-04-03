@@ -19,7 +19,7 @@
 import type { ExtensionAPI, ExtensionContext, Theme } from "@mariozechner/pi-coding-agent";
 import type { OverlayAnchor, OverlayHandle, TUI } from "@mariozechner/pi-tui";
 import { matchesKey, Key } from "@mariozechner/pi-tui";
-import { readHoardSetting, keyLabel } from "../lib/settings.ts";
+import { readHoardSetting, readHoardKey, keyLabel } from "../lib/settings.ts";
 import { setDefaultSkin, getSkin, listSkins, type SkinName, type PanelSkin } from "../lib/panel-chrome.ts";
 
 // ── Public Types ──
@@ -149,9 +149,9 @@ interface CellRect {
 
 // ── Constants ──
 
-const FOCUS_KEY = readHoardSetting<string>("panels.focusKey", "alt+t");
-const CLOSE_KEY = readHoardSetting<string>("panels.closeKey", "q");
-const UNFOCUS_KEY = readHoardSetting<string>("panels.unfocusKey", "escape");
+const FOCUS_KEY = readHoardKey("panels.focusKey", "alt+t");
+const CLOSE_KEY = readHoardKey("panels.closeKey", "q");
+const UNFOCUS_KEY = readHoardKey("panels.unfocusKey", "escape");
 const DEFAULT_SKIN = readHoardSetting<string>("panels.defaultSkin", "ember");
 const FOCUS_LABEL = keyLabel(FOCUS_KEY);
 const CLOSE_LABEL = keyLabel(CLOSE_KEY);
@@ -1258,14 +1258,14 @@ export default function (pi: ExtensionAPI) {
 
 	pi.on("session_start", async (_event, ctx) => {
 		captureUI(ctx);
-		pi.events.emit("panels:ready");
+		pi.events.emit("panels:ready", {});
 	});
 
 	pi.on("session_switch", async (_event, ctx) => {
 		registry.closeAll();
 		widgetRegistered = false;
 		captureUI(ctx);
-		pi.events.emit("panels:ready");
+		pi.events.emit("panels:ready", {});
 	});
 
 	pi.on("session_shutdown", async () => {

@@ -207,6 +207,14 @@ export function writeProjectHoardSetting(cwd: string, path: string, value: unkno
 
 // ── Utility ──
 
+/**
+ * Read a keyboard shortcut setting, typed as KeyId for matchesKey() compatibility.
+ * Wrapper around readHoardSetting that avoids string → KeyId cast noise everywhere.
+ */
+export function readHoardKey(path: string, fallback: string): any {
+	return readHoardSetting<string>(path, fallback);
+}
+
 /** Turn a matchesKey-style code like "alt+t" into a display label like "Alt+T". */
 export function keyLabel(code: string): string {
 	return code.split("+").map((p) => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase()).join("+");

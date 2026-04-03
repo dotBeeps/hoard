@@ -191,19 +191,19 @@ class LintPanelComponent {
 			this.refresh();
 			return;
 		}
-		if (matchesKey(data, "j") || matchesKey(data, Key.Down)) {
+		if (matchesKey(data, "j") || matchesKey(data, Key.down)) {
 			this.selectedIndex = Math.min(this.selectedIndex + 1, this.getSelectableCount() - 1);
 			this.cache = null;
 			this.tui.requestRender();
 			return;
 		}
-		if (matchesKey(data, "k") || matchesKey(data, Key.Up)) {
+		if (matchesKey(data, "k") || matchesKey(data, Key.up)) {
 			this.selectedIndex = Math.max(this.selectedIndex - 1, 0);
 			this.cache = null;
 			this.tui.requestRender();
 			return;
 		}
-		if (matchesKey(data, Key.Enter) || matchesKey(data, " " as any)) {
+		if (matchesKey(data, Key.enter) || matchesKey(data, Key.space)) {
 			this.toggleExpand();
 			return;
 		}

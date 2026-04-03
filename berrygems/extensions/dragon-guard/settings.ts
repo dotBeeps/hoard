@@ -5,7 +5,7 @@
  * Users can customize via settings.json without editing extension code.
  */
 
-import { readHoardSetting, writeProjectHoardSetting, keyLabel } from "../../lib/settings.ts";
+import { readHoardSetting, readHoardKey, writeProjectHoardSetting, keyLabel } from "../../lib/settings.ts";
 
 export { keyLabel };
 
@@ -24,13 +24,13 @@ export const GUARD_PUPPY_ALLOWED_TOOLS = readHoardSetting<string[]>(
 );
 
 /** Keyboard shortcut to enter Dragon Mode. */
-export const GUARD_DRAGON_KEY = readHoardSetting<string>("guard.dragonKey", "ctrl+alt+d");
+export const GUARD_DRAGON_KEY = readHoardKey("guard.dragonKey", "ctrl+alt+d");
 
 /** Keyboard shortcut to enter Puppy Mode. */
-export const GUARD_PUPPY_KEY = readHoardSetting<string>("guard.puppyKey", "ctrl+alt+p");
+export const GUARD_PUPPY_KEY = readHoardKey("guard.puppyKey", "ctrl+alt+p");
 
 /** Keyboard shortcut to enter Dog Mode. */
-export const GUARD_DOG_KEY = readHoardSetting<string>("guard.dogKey", "ctrl+alt+n");
+export const GUARD_DOG_KEY = readHoardKey("guard.dogKey", "ctrl+alt+n");
 
 // ── Mutable Runtime Settings ──
 // Initialized from settings.json, updatable at runtime via the guard panel.
@@ -53,7 +53,7 @@ export function getLlmSummaries(): boolean { return _llmSummaries; }
 export function setLlmSummaries(v: boolean): void { _llmSummaries = v; }
 
 /** Keyboard shortcut to toggle the Dragon Guard panel. */
-export const GUARD_PANEL_KEY = readHoardSetting<string>("guard.panelKey", "alt+g");
+export const GUARD_PANEL_KEY = readHoardKey("guard.panelKey", "alt+g");
 
 // ── Derived Sets ──
 

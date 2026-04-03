@@ -802,8 +802,7 @@ export default function (pi: ExtensionAPI) {
 		const panels = getPanels();
 		const lines = [`${todoComponents.size} todo panel(s) open:`];
 		for (const [tag] of todoComponents) {
-			const panel = panels?.get(panelId(tag));
-			const focused = panel?.handle.isFocused() ? " ⚡" : "";
+			const focused = panels?.getFocusedId?.() === panelId(tag) ? " ⚡" : "";
 			const todos = readTodosByTag(panels?.cwd ?? process.cwd(), tag);
 			const done = todos.filter(t => t.status === "done").length;
 			lines.push(`  📋 ${tag} (${done}/${todos.length})${focused}`);
@@ -893,8 +892,9 @@ export default function (pi: ExtensionAPI) {
 					const tag = parts[1];
 					if (!tag) {
 						const pm = getPanels();
+						const focId = pm?.getFocusedId?.();
 						for (const [t] of todoComponents) {
-							if (pm?.get(panelId(t))?.handle.isFocused()) { ctx.ui.notify(closePanel(t), "info"); return; }
+							if (focId === panelId(t)) { ctx.ui.notify(closePanel(t), "info"); return; }
 						}
 						ctx.ui.notify("No focused todo panel to close", "warning"); return;
 					}

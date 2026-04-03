@@ -89,57 +89,48 @@ function getPanels(): any {
 }
 
 /**
+ * Tell the panel input listener to stand down — we're handling keys.
+ * Must be called when an ask prompt starts capturing input.
+ */
+function activateAskMode(): void {
+	getPanels()?.setAskActive?.(true);
+}
+
+/**
  * Forward keys to panels while an ask prompt is capturing input.
  *
- * Uses VIRTUAL focus (visual-only) instead of real overlay focus to avoid
- * corrupting pi's overlay capture stack. The ask prompt remains the sole
- * capturing overlay; panels get their keys relayed through here.
+ * The ask prompt is a capturing overlay — pi sends ALL input here.
+ * The TUI input listener (in dots-panels) is suppressed via setAskActive(true),
+ * so we manually route panel keys through this function instead.
+ *
+ * Focus is unified: cycleFocus/getFocusedId/unfocusAll are the same API
+ * whether called from here or from the input listener outside ask prompts.
  */
 function passthroughToPanel(data: string): boolean {
 	const panels = getPanels();
 	if (!panels?.rawKeys) return false;
 
-	// Focus cycle: use virtual focus (no overlay capture changes)
+	// Focus cycle
 	if (matchesKey(data, panels.rawKeys.focus)) {
-		if (panels.cycleVirtualFocus) {
-			panels.cycleVirtualFocus();
-		} else {
-			// Fallback for older dots-panels without virtual focus
-			panels.cycleFocus();
-		}
+		panels.cycleFocus();
 		return true;
 	}
 
-	// If a panel has virtual focus, handle shared keys + forward the rest
-	const virtualId = panels.getVirtualFocusId?.();
-	if (virtualId) {
-		if (matchesKey(data, panels.rawKeys.unfocus)) {
-			panels.setVirtualFocus(null);
-			return true;
-		}
-		if (matchesKey(data, panels.rawKeys.close)) {
-			panels.close(virtualId);
-			return true;
-		}
-		// Skin cycling: ] = next, [ = previous
-		if (data === "]" || data === "[") {
-			panels.cyclePanelSkin?.(virtualId, data === "]" ? 1 : -1);
-			return true;
-		}
-		// Forward to the panel component's input handler
-		const panel = panels.get(virtualId);
-		if (panel?.handleInput) {
-			panel.handleInput(data);
-		}
+	// If a panel has focus, route through handleInput (shared keys + delegate)
+	const focusedId = panels.getFocusedId?.();
+	if (focusedId) {
+		panels.handleInput(focusedId, data);
 		return true;
 	}
 
 	return false;
 }
 
-/** Clear virtual panel focus — call when an ask prompt finishes. */
+/** Clear panel focus and re-enable the input listener. Call when ask prompt finishes. */
 function clearPanelForwarding(): void {
-	getPanels()?.setVirtualFocus?.(null);
+	const panels = getPanels();
+	panels?.unfocusAll?.();
+	panels?.setAskActive?.(false);
 }
 
 // --- Extension ---
@@ -245,6 +236,7 @@ export default function ask(pi: ExtensionAPI) {
 // --- Mode Implementations ---
 
 async function executeSelect(params: AskInput, ctx: any) {
+	activateAskMode();
 	const options: Option[] = params.options ?? [];
 	if (options.length === 0) {
 		return error("No options provided for select mode", params);
@@ -470,6 +462,7 @@ async function executeSelect(params: AskInput, ctx: any) {
 }
 
 async function executeConfirm(params: AskInput, ctx: any) {
+	activateAskMode();
 	const result = await (ctx.ui.custom as any)((tui: any, theme: any, _kb: any, done: any) => {
 		let selectedYes = true;
 		let editMode: "off" | "note" = "off";
@@ -608,6 +601,7 @@ async function executeConfirm(params: AskInput, ctx: any) {
 }
 
 async function executeText(params: AskInput, ctx: any) {
+	activateAskMode();
 	const result = await (ctx.ui.custom as any)((tui: any, theme: any, _kb: any, done: any) => {
 		let cachedLines: string[] | undefined;
 		const skin = getSkin();

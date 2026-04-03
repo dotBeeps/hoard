@@ -18,7 +18,7 @@
 
 import type { ExtensionAPI, ExtensionContext, Theme } from "@mariozechner/pi-coding-agent";
 import type { OverlayAnchor, OverlayHandle, TUI } from "@mariozechner/pi-tui";
-import { matchesKey } from "@mariozechner/pi-tui";
+import { matchesKey, isKeyRelease, isKeyRepeat } from "@mariozechner/pi-tui";
 import { readHoardSetting, readHoardKey, keyLabel } from "../lib/settings.ts";
 import { setDefaultSkin, getSkin, listSkins, type SkinName, type PanelSkin } from "../lib/panel-chrome.ts";
 
@@ -150,12 +150,21 @@ interface CellRect {
 // ── Constants ──
 
 const FOCUS_KEY = readHoardKey("panels.focusKey", "alt+t");
-const CLOSE_KEY = readHoardKey("panels.closeKey", "q");
-const UNFOCUS_KEY = readHoardKey("panels.unfocusKey", "escape");
 const DEFAULT_SKIN = readHoardSetting<string>("panels.defaultSkin", "ember");
 const FOCUS_LABEL = keyLabel(FOCUS_KEY);
-const CLOSE_LABEL = keyLabel(CLOSE_KEY);
-const UNFOCUS_LABEL = keyLabel(UNFOCUS_KEY);
+
+// Panel-specific keybinds — only active when a panel has focus.
+// Read from hoard.panels.keybinds.* in settings, with sane defaults.
+const KEYBINDS = {
+	close: readHoardKey("panels.keybinds.close", "q"),
+	unfocus: readHoardKey("panels.keybinds.unfocus", "escape"),
+	scrollUp: readHoardKey("panels.keybinds.scrollUp", "k"),
+	scrollDown: readHoardKey("panels.keybinds.scrollDown", "j"),
+	skinNext: readHoardKey("panels.keybinds.skinNext", "]"),
+	skinPrev: readHoardKey("panels.keybinds.skinPrev", "["),
+};
+const CLOSE_LABEL = keyLabel(KEYBINDS.close);
+const UNFOCUS_LABEL = keyLabel(KEYBINDS.unfocus);
 const API_KEY = Symbol.for("dot.panels");
 
 const VALID_ANCHORS: OverlayAnchor[] = [
@@ -467,9 +476,14 @@ class PanelRegistry {
 	private _ctx: ExtensionContext | null = null;
 	private _suspended = false;
 	private _suspendTimer: ReturnType<typeof setTimeout> | null = null;
-	/** Virtual focus — visual-only, doesn't change overlay capture state.
-	 *  Used by capturing overlays (like ask prompts) that forward keys manually. */
-	private _virtualFocusId: string | null = null;
+	/** The single focused panel ID. Visual-only — never touches overlay capture state.
+	 *  Input routing is handled by an addInputListener on the TUI. */
+	private _focusedId: string | null = null;
+	/** Remove function for the TUI input listener, or null if not yet attached. */
+	private _removeInputListener: (() => void) | null = null;
+	/** When true, a capturing overlay (like an ask prompt) is handling input.
+	 *  The input listener stands down and lets the overlay route keys instead. */
+	_askActive = false;
 	/** Per-panel skin overrides. If absent, falls back to global default. */
 	private _panelSkins = new Map<string, string>();
 	private _resizeTimer: ReturnType<typeof setTimeout> | null = null;
@@ -513,6 +527,60 @@ class PanelRegistry {
 		return this._resizeVisibleAfter === 0 || Date.now() >= this._resizeVisibleAfter;
 	}
 
+	/**
+	 * Attach (or re-attach) the TUI input listener for panel-specific keybinds.
+	 * The listener only consumes keys when a panel has focus (_focusedId is set).
+	 * Must be called after TUI ref is available.
+	 */
+	attachInputListener(): void {
+		if (!this._tui) return;
+		// Remove previous listener if re-attaching
+		this._removeInputListener?.();
+		this._removeInputListener = this._tui.addInputListener((data: string) => {
+			// Input listeners receive raw Kitty protocol events including
+			// key releases and repeats. Only act on key-down.
+			if (isKeyRelease(data) || isKeyRepeat(data)) return undefined;
+			// Stand down when a capturing overlay (ask prompt) is active —
+			// it handles panel key routing via passthroughToPanel() instead.
+			if (this._askActive) return undefined;
+			// Only intercept when a panel is focused
+			const focusedId = this._focusedId;
+			if (!focusedId || !this.panels.has(focusedId)) {
+				this._focusedId = null;
+				return undefined;
+			}
+
+			// Focus cycle (global key, but also works when focused)
+			if (matchesKey(data, FOCUS_KEY)) {
+				this.cycleFocus();
+				return { consume: true };
+			}
+			// Unfocus
+			if (matchesKey(data, KEYBINDS.unfocus)) {
+				this.unfocusAll();
+				return { consume: true };
+			}
+			// Close focused panel
+			if (matchesKey(data, KEYBINDS.close)) {
+				this.close(focusedId);
+				return { consume: true };
+			}
+			// Skin cycling
+			if (matchesKey(data, KEYBINDS.skinNext)) {
+				this.cyclePanelSkin(focusedId, 1);
+				return { consume: true };
+			}
+			if (matchesKey(data, KEYBINDS.skinPrev)) {
+				this.cyclePanelSkin(focusedId, -1);
+				return { consume: true };
+			}
+			// Forward everything else to the focused panel's handleInput
+			const panel = this.panels.get(focusedId);
+			panel?.handleInput?.(data);
+			return { consume: true };
+		});
+	}
+
 	/** @internal Attach process.stdout resize listener (once). */
 	_attachResizeListener(): void {
 		if (this._resizeListenerAttached) return;
@@ -542,12 +610,12 @@ class PanelRegistry {
 	private _removeAllForResize(): void {
 		for (const [, panel] of this.panels) {
 			panel.dispose?.();
-			panel.handle.unfocus();
 			panel.handle.hide();
 		}
 		this.panels.clear();
 		this.geometries.clear();
 		this.focusOrder = [];
+		this._focusedId = null;
 		// recreateInfo is intentionally preserved
 	}
 
@@ -753,7 +821,7 @@ class PanelRegistry {
 					tui,
 					theme,
 					cwd: this._cwd,
-					isFocused: () => (this.panels.get(id)?.handle.isFocused() ?? false) || this._virtualFocusId === id,
+					isFocused: () => this._focusedId === id,
 					skin: () => getSkin(this._panelSkins.get(id)),
 				};
 				componentRef = factory(panelCtx);
@@ -800,14 +868,13 @@ class PanelRegistry {
 
 	// ── Lifecycle ──
 
-	/** Close a panel: dispose → unfocus → hide → remove → notify. Returns false if not found. */
+	/** Close a panel: dispose → hide → remove → notify. Returns false if not found. */
 	close(id: string): boolean {
 		const panel = this.panels.get(id);
 		if (!panel) return false;
-		if (this._virtualFocusId === id) this._virtualFocusId = null;
+		if (this._focusedId === id) this._focusedId = null;
 		this._panelSkins.delete(id);
 		panel.dispose?.();
-		panel.handle.unfocus();
 		panel.handle.hide();
 		this.panels.delete(id);
 		this.geometries.delete(id);
@@ -861,46 +928,29 @@ class PanelRegistry {
 
 	/** List all open panels with focus state. */
 	list(): { id: string; focused: boolean }[] {
-		return [...this.panels.entries()].map(([id, p]) => ({
+		return [...this.panels.entries()].map(([id]) => ({
 			id,
-			focused: p.handle.isFocused(),
+			focused: this._focusedId === id,
 		}));
 	}
 
 	// ── Focus Management ──
 
-	// ── Virtual Focus (for use by capturing overlays like ask prompts) ──
-
-	/** Set virtual focus (visual-only, no overlay capture change). */
-	setVirtualFocus(id: string | null): void {
-		if (this._virtualFocusId === id) return;
-		if (this._virtualFocusId) this.panels.get(this._virtualFocusId)?.invalidate();
-		this._virtualFocusId = id;
+	/** Set focus to a specific panel (or clear with null). Visual-only. */
+	setFocus(id: string | null): void {
+		if (this._focusedId === id) return;
+		if (this._focusedId) this.panels.get(this._focusedId)?.invalidate();
+		this._focusedId = id;
 		if (id) this.panels.get(id)?.invalidate();
 		this._tui?.requestRender();
 	}
 
-	/** Get current virtual focus ID (auto-clears if panel was closed). */
-	getVirtualFocusId(): string | null {
-		if (this._virtualFocusId && !this.panels.has(this._virtualFocusId)) {
-			this._virtualFocusId = null;
+	/** Get current focused panel ID (auto-clears if panel was closed). */
+	getFocusedId(): string | null {
+		if (this._focusedId && !this.panels.has(this._focusedId)) {
+			this._focusedId = null;
 		}
-		return this._virtualFocusId;
-	}
-
-	/** Cycle virtual focus through open panels. Returns status. */
-	cycleVirtualFocus(): string {
-		if (this.focusOrder.length === 0) return "No panels open";
-		let currentIdx = this._virtualFocusId
-			? this.focusOrder.indexOf(this._virtualFocusId)
-			: -1;
-		if (this._virtualFocusId) this.panels.get(this._virtualFocusId)?.invalidate();
-		const nextIdx = (currentIdx + 1) % this.focusOrder.length;
-		const nextId = this.focusOrder[nextIdx]!;
-		this._virtualFocusId = nextId;
-		this.panels.get(nextId)?.invalidate();
-		this._tui?.requestRender();
-		return `Virtual focus: '${nextId}'`;
+		return this._focusedId;
 	}
 
 	// ── Global Skin Management ──
@@ -957,75 +1007,46 @@ class PanelRegistry {
 
 	/** Cycle focus to the next panel. Returns status message. */
 	cycleFocus(): string {
-		// Clear any virtual focus when using real overlay focus
-		if (this._virtualFocusId) {
-			this.panels.get(this._virtualFocusId)?.invalidate();
-			this._virtualFocusId = null;
-		}
 		if (this.focusOrder.length === 0) return "No panels open";
 
-		let currentIdx = -1;
-		for (let i = 0; i < this.focusOrder.length; i++) {
-			const panel = this.panels.get(this.focusOrder[i]!);
-			if (panel?.handle.isFocused()) { currentIdx = i; break; }
-		}
-
-		for (const panel of this.panels.values()) {
-			panel.handle.unfocus();
-			panel.invalidate();
-		}
+		const currentIdx = this._focusedId
+			? this.focusOrder.indexOf(this._focusedId)
+			: -1;
 
 		const nextIdx = (currentIdx + 1) % this.focusOrder.length;
 		const nextId = this.focusOrder[nextIdx]!;
-		const next = this.panels.get(nextId);
-		if (next) {
-			next.handle.focus();
-			next.invalidate();
-			this._tui?.requestRender();
-			return `Focused '${nextId}'`;
-		}
-		return "No panels to focus";
+		this.setFocus(nextId);
+		return `Focused '${nextId}'`;
 	}
 
 	/** Focus a specific panel by ID. Returns status message. */
 	focusPanel(id: string): string {
-		const panel = this.panels.get(id);
-		if (!panel) return `No panel '${id}' open`;
-		for (const [oid, p] of this.panels) {
-			if (oid !== id) { p.handle.unfocus(); p.invalidate(); }
-		}
-		panel.handle.focus();
-		panel.invalidate();
-		this._tui?.requestRender();
+		if (!this.panels.has(id)) return `No panel '${id}' open`;
+		this.setFocus(id);
 		return `Focused '${id}'`;
 	}
 
 	/** Unfocus all panels. */
 	unfocusAll(): void {
-		for (const panel of this.panels.values()) {
-			panel.handle.unfocus();
-			panel.invalidate();
-		}
-		this._tui?.requestRender();
+		this.setFocus(null);
 	}
 
 	// ── Input Routing ──
 
 	/**
 	 * Handle input for a focused panel. Shared keys first, then delegate.
+	 * Called by the TUI input listener (outside ask) and by ask.ts passthrough (during ask).
 	 * Returns true if input was consumed.
 	 */
 	handlePanelInput(id: string, data: string): boolean {
 		const panel = this.panels.get(id);
 		if (!panel) return false;
 
-		if (matchesKey(data, UNFOCUS_KEY)) {
-			panel.handle.unfocus();
-			panel.invalidate();
-			this._tui?.requestRender();
+		if (matchesKey(data, KEYBINDS.unfocus)) {
+			this.unfocusAll();
 			return true;
 		}
-		if (matchesKey(data, CLOSE_KEY)) {
+		if (matchesKey(data, KEYBINDS.close)) {
 			this.close(id);
 			return true;
 		}
@@ -1034,9 +1055,13 @@ class PanelRegistry {
 			return true;
 		}
 
-		// Skin cycling: ] = next, [ = previous
-		if (data === "]" || data === "[") {
-			this.cyclePanelSkin(id, data === "]" ? 1 : -1);
+		// Skin cycling
+		if (matchesKey(data, KEYBINDS.skinNext)) {
+			this.cyclePanelSkin(id, 1);
+			return true;
+		}
+		if (matchesKey(data, KEYBINDS.skinPrev)) {
+			this.cyclePanelSkin(id, -1);
 			return true;
 		}
 
@@ -1133,16 +1158,20 @@ export default function (pi: ExtensionAPI) {
 		isOpen: (id: string) => registry.isOpen(id),
 		get: (id: string) => registry.get(id),
 		list: () => registry.list(),
-		// Focus
+		// Focus (unified — always visual-only, never touches overlay capture state)
 		focusPanel: (id: string) => registry.focusPanel(id),
 		cycleFocus: () => registry.cycleFocus(),
 		unfocusAll: () => registry.unfocusAll(),
+		getFocusedId: () => registry.getFocusedId(),
+		setFocus: (id: string | null) => registry.setFocus(id),
 		/** Route input to a specific panel, including shared keys (close/unfocus/focus-cycle). */
 		handleInput: (id: string, data: string) => registry.handlePanelInput(id, data),
-		// Virtual focus (visual-only, for capturing overlays that forward keys)
-		setVirtualFocus: (id: string | null) => registry.setVirtualFocus(id),
-		getVirtualFocusId: () => registry.getVirtualFocusId(),
-		cycleVirtualFocus: () => registry.cycleVirtualFocus(),
+		// Ask prompt coordination — when active, the input listener stands down
+		setAskActive: (active: boolean) => { registry._askActive = active; },
+		// Backward compat aliases for virtual focus (now unified)
+		setVirtualFocus: (id: string | null) => registry.setFocus(id),
+		getVirtualFocusId: () => registry.getFocusedId(),
+		cycleVirtualFocus: () => registry.cycleFocus(),
 		// Skin management (global)
 		setSkin: (name: string) => registry.setSkin(name),
 		cycleSkin: () => registry.cycleSkin(),
@@ -1172,9 +1201,11 @@ export default function (pi: ExtensionAPI) {
 		/** Raw matchesKey-compatible key codes for passthrough from overlays. */
 		rawKeys: {
 			focus: FOCUS_KEY,
-			close: CLOSE_KEY,
-			unfocus: UNFOCUS_KEY,
+			close: KEYBINDS.close,
+			unfocus: KEYBINDS.unfocus,
 		},
+		/** All panel-specific keybinds (for reference / passthrough). */
+		keybinds: KEYBINDS,
 	};
 
 	(globalThis as any)[API_KEY] = api;
@@ -1209,6 +1240,10 @@ export default function (pi: ExtensionAPI) {
 		// Widget ID kept as "__panel_manager_capture" for backward compat with active sessions
 		ctx.ui.setWidget("__panel_manager_capture", (tui, theme) => {
 			registry._init(tui, theme, ctx.cwd);
+			// Attach the input listener now that TUI is available.
+			// This listener intercepts keys when a panel has focus, routing them
+			// through handlePanelInput() instead of to pi's editor.
+			registry.attachInputListener();
 			return {
 				// Widget renders nothing — it exists only to capture tui/theme refs.
 				// DO NOT invalidate panels here — render() is called every frame

@@ -25,7 +25,8 @@ hoard/
 │   │   └── lint-panel.ts         Floating diagnostics panel (tsc type errors)
 │   ├── lib/
 │   │   ├── settings.ts            Shared settings reader (hoard.* + legacy fallback)
-│   │   └── panel-chrome.ts        Shared border/focus/header/footer rendering + 19 panel skins
+│   │   ├── panel-chrome.ts        Shared border/focus/header/footer rendering + 19 panel skins
+│   │   └── lsp-client.ts          Minimal LSP client (JSON-RPC over stdio)
 │   ├── styles/                    Writing tone files (formal, friendly, etc.)
 │   ├── tsconfig.json              Type checking config (resolves pi packages via symlinks)
 │   └── package.json

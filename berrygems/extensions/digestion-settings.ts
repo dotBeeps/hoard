@@ -23,6 +23,10 @@
 import type { ExtensionAPI, ExtensionContext, Theme } from "@mariozechner/pi-coding-agent";
 import type { TUI } from "@mariozechner/pi-tui";
 import { matchesKey, Key, Text, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
+import {
+	renderHeader, renderFooter, padContentLine,
+	type ChromeOptions,
+} from "../lib/panel-chrome.ts";
 
 // ── Panel Manager Access ──
 const PANELS_KEY = Symbol.for("dot.panels");
@@ -308,6 +312,7 @@ class CompactionPanelComponent {
 	/** Max output tokens for the current model - caps reserveTokens */
 	private modelMaxTokens: number | null = null;
 
+
 	/** Live override - if set, session_before_compact uses these instead of file */
 	public liveSettings: CompactionSettings;
 	/** Digest-specific settings - trigger mode, percentage, fixed, strategy */
@@ -325,6 +330,7 @@ class CompactionPanelComponent {
 		this.settings = readCompactionSettings(panelCtx.cwd);
 		this.liveSettings = { ...this.settings };
 		this.digestSettings = readDigestSettings(panelCtx.cwd);
+
 	}
 
 	updateModel(maxTokens: number | null): void {
@@ -576,42 +582,38 @@ class CompactionPanelComponent {
 
 		const th = this.theme;
 		const focused = this.panelCtx.isFocused();
-		const innerW = Math.max(20, width - 2);
 		const lines: string[] = [];
-		const borderColor = focused ? "accent" : "border";
-		const border = (c: string) => th.fg(borderColor, c);
-		const padLine = (s: string): string => {
-			const raw = truncateToWidth(s, innerW);
-			return raw + " ".repeat(Math.max(0, innerW - visibleWidth(raw)));
+		const pad = (s: string) => padContentLine(s, width, chromeOpts);
+		const add = (s: string) => lines.push(pad(s));
+
+		const kh = getPanels()?.keyHints;
+		const chromeOpts: ChromeOptions = {
+			title: "🐉 Digestion Settings",
+			focused,
+			theme: th,
+			skin: this.panelCtx.skin(),
+			footerHint: focused
+				? `↑↓ nav · ←→/Space adjust · Tab cycle mode · ${COPY_GLOBAL_LABEL} global · ${kh?.focused ?? "Q close · Escape unfocus"}`
+				: `${kh?.unfocused ?? "Alt+T focus"} · /digestion help`,
 		};
 
-		// ── Title ──
-		const titleText = " 🐉 Digestion Settings ";
-		const titleStyled = focused ? th.fg("accent", th.bold(titleText)) : th.fg("text", th.bold(titleText));
-		const titleW = visibleWidth(titleText);
-		const lp = Math.max(1, Math.floor((innerW - titleW) / 2));
-		const rp = Math.max(1, innerW - titleW - lp);
-		lines.push(border("╭") + border("─".repeat(lp)) + titleStyled + border("─".repeat(rp)) + border("╮"));
+		// ── Header ──
+		lines.push(...renderHeader(width, chromeOpts));
 
 		// ── Context Usage Bar with Threshold Marker ──
-		lines.push(border("│") + padLine("") + border("│"));
 		if (this.contextUsage.tokens !== null && this.contextUsage.contextWindow !== null) {
 			const pct = this.contextUsage.percent ?? 0;
 			const cw = this.contextUsage.contextWindow;
-			const barW = Math.min(20, innerW - 16);
+			const barW = Math.min(20, width - 16);
 			if (barW >= 5) {
 				const filled = Math.round((pct / 100) * barW);
 				const barColor = pct > 80 ? "error" : pct > 60 ? "warning" : "success";
 
-				// Zone overlays anchored to the right of the bar:
-				//   ░ info   = keep-recent (tail that survives compaction verbatim)
-				//   ░ accent = summary budget (space the summary LLM output will occupy)
 				const keepRecentW = Math.round((this.liveSettings.keepRecentTokens / cw) * barW);
 				const summaryW = Math.round((this.liveSettings.reserveTokens / cw) * barW);
 				const keepRecentStart = barW - keepRecentW;
 				const summaryStart = Math.max(0, keepRecentStart - summaryW);
 
-				// Threshold position (foreground marker, takes priority)
 				const thresholdTokens = this.getEffectiveTriggerTokens() ?? (cw - this.liveSettings.reserveTokens);
 				const thresholdPct = Math.max(0, Math.min(100, (thresholdTokens / cw) * 100));
 				const thresholdPos = Math.min(barW - 1, Math.round((thresholdPct / 100) * barW));
@@ -633,24 +635,16 @@ class CompactionPanelComponent {
 					}
 				}
 
-				lines.push(border("│") + padLine(`  Context: ${bar} ${pct}%`) + border("│"));
-				lines.push(
-					border("│") +
-						padLine(th.fg("dim", `  ${formatTokens(this.contextUsage.tokens)} / ${formatTokens(cw)} tokens`)) +
-						border("│"),
-				);
+				add(`  Context: ${bar} ${pct}%`);
+				add(th.fg("dim", `  ${formatTokens(this.contextUsage.tokens)} / ${formatTokens(cw)} tokens`));
 				// Legend
 				const legendKept = th.fg("muted", "█") + th.fg("dim", " kept");
 				const legendBudget = th.fg("accent", "█") + th.fg("dim", " budget");
 				const legendTrigger = th.fg("warning", "▼") + th.fg("dim", " trigger");
-				lines.push(
-					border("│") +
-						padLine(`  ${legendKept}  ${legendBudget}  ${legendTrigger}`) +
-						border("│"),
-				);
+				add(`  ${legendKept}  ${legendBudget}  ${legendTrigger}`);
 			}
 		} else {
-			lines.push(border("│") + padLine(th.fg("dim", "  Context: waiting for data...")) + border("│"));
+			add(th.fg("dim", "  Context: waiting for data..."));
 		}
 
 		// ── Compaction threshold indicator ──
@@ -658,11 +652,7 @@ class CompactionPanelComponent {
 			const cw = this.contextUsage.contextWindow;
 			const threshold = this.getEffectiveTriggerTokens() ?? (cw - this.liveSettings.reserveTokens);
 			const thresholdPct = Math.round((threshold / cw) * 100);
-			lines.push(
-				border("│") +
-					padLine(th.fg("dim", `  Triggers at: ${formatTokens(threshold)} tokens (${thresholdPct}%)`)) +
-					border("│"),
-			);
+			add(th.fg("dim", `  Triggers at: ${formatTokens(threshold)} tokens (${thresholdPct}%)`));
 		}
 
 		// ── Last Compaction Stats ──
@@ -675,12 +665,12 @@ class CompactionPanelComponent {
 				const savedPct = before > 0 ? Math.round(((before - after) / before) * 100) : 0;
 				statsLine += ` · ${formatTokens(before)}→${formatTokens(after)} (${savedPct}% freed)`;
 			}
-			lines.push(border("│") + padLine(th.fg("muted", statsLine)) + border("│"));
+			add(th.fg("muted", statsLine));
 		}
 
-		lines.push(border("│") + padLine("") + border("│"));
-		lines.push(border("│") + padLine(th.fg("dim", "  " + "─".repeat(Math.min(innerW - 4, 30)))) + border("│"));
-		lines.push(border("│") + padLine("") + border("│"));
+		add("");
+		add(th.fg("dim", "  " + "─".repeat(Math.min(width - 4, 30))));
+		add("");
 
 		// ── Settings Items ──
 		const items = this.getItems();
@@ -734,25 +724,14 @@ class CompactionPanelComponent {
 			}
 
 			if (valueStr) {
-				lines.push(border("│") + padLine(`${pointer}${label}  ${valueStr}`) + border("│"));
+				add(` ${pointer}${label}  ${valueStr}`);
 			} else {
-				lines.push(border("│") + padLine(`${pointer}${label}`) + border("│"));
+				add(` ${pointer}${label}`);
 			}
 		}
 
-		// ── Help ──
-		lines.push(border("│") + padLine("") + border("│"));
-		const kh = getPanels()?.keyHints;
-		const help = focused
-			? th.fg(
-					"dim",
-					`↑↓ nav · ←→/Space adjust · Tab cycle mode · ${COPY_GLOBAL_LABEL} global · ${kh?.focused ?? "Q close · Escape unfocus"}`,
-				)
-			: th.fg("dim", `${kh?.unfocused ?? "Alt+T focus"} · /digestion help`);
-		lines.push(border("│") + padLine("  " + help) + border("│"));
-
-		// ── Bottom border ──
-		lines.push(border("╰") + border("─".repeat(innerW)) + border("╯"));
+		// ── Footer ──
+		lines.push(...renderFooter(width, chromeOpts));
 
 		this.cachedWidth = width;
 		this.cachedLines = lines;

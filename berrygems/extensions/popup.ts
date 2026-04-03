@@ -15,8 +15,7 @@ import type { TUI, Theme, MarkdownTheme } from "@mariozechner/pi-tui";
 import { Type, type Static } from "@sinclair/typebox";
 import { StringEnum } from "@mariozechner/pi-ai";
 import {
-	pickBorderPattern, pickFocusPattern,
-	renderHeader, renderFooter, renderBorder,
+	renderHeader, renderFooter, renderBorder, padContentLine,
 } from "../lib/panel-chrome.ts";
 
 // ── Panel Manager Access ──
@@ -37,6 +36,7 @@ const PopupParams = Type.Object({
 	)),
 	width: Type.Optional(Type.String({ description: "Panel width as number or percentage, e.g. '50%' or '60'. Default: 50%" })),
 	id: Type.Optional(Type.String({ description: "Panel ID for updates/closing. Default: auto-generated" })),
+	skin: Type.Optional(Type.String({ description: "Panel skin name (e.g. 'ember', 'curvy', 'box'). Default: from settings" })),
 });
 
 type PopupInput = Static<typeof PopupParams>;
@@ -55,16 +55,14 @@ class PopupComponent {
 	private scrollOffset = 0;
 	private cachedLines: string[] | undefined;
 	private renderedLines: string[] = [];
-	private borderPattern: string;
-	private focusPattern: string;
+
 	private panelCtx: any;
 	private mdTheme: MarkdownTheme;
 
 	constructor(options: PopupComponentOptions) {
 		this.title = options.title ?? "";
 		this.content = options.content;
-		this.borderPattern = pickBorderPattern();
-		this.focusPattern = pickFocusPattern();
+
 		this.panelCtx = options.panelCtx;
 		this.mdTheme = getMarkdownTheme();
 	}
@@ -128,8 +126,7 @@ class PopupComponent {
 			title: this.title || undefined,
 			focused,
 			theme,
-			borderPattern: this.borderPattern,
-			focusPattern: this.focusPattern,
+			skin: this.panelCtx.skin(),
 			footerHint: "",
 			scrollInfo: "",
 		};
@@ -146,7 +143,7 @@ class PopupComponent {
 		this.scrollOffset = Math.min(this.scrollOffset, maxScroll);
 		const visible = this.renderedLines.slice(this.scrollOffset, this.scrollOffset + viewH);
 
-		const contentLines = visible.map(line => truncateToWidth(` ${line}`, width));
+		const contentLines = visible.map(line => padContentLine(` ${line}`, width, chromeOpts));
 
 		// Scroll info for footer
 		const total = this.renderedLines.length;
@@ -207,6 +204,7 @@ export default function popup(pi: ExtensionAPI): void {
 			const existing = activePopups.get(id);
 			if (existing) {
 				existing.setContent(params.content, params.title);
+				if (params.skin) panels.setPanelSkin?.(id, params.skin);
 				panels.requestRender();
 				return {
 					content: [{ type: "text" as const, text: `Updated popup "${params.title ?? id}"` }],
@@ -215,6 +213,9 @@ export default function popup(pi: ExtensionAPI): void {
 			}
 
 			// Create new popup panel
+			// Set per-panel skin if specified
+			if (params.skin) panels.setPanelSkin?.(id, params.skin);
+
 			let component: PopupComponent | null = null;
 			const result = panels.createPanel(id, (panelCtx: any) => {
 				component = new PopupComponent({

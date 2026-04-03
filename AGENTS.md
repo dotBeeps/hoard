@@ -43,7 +43,9 @@ hoard/
 │   │   ├── pi-events/             Event hooks reference
 │   │   ├── pi-sessions/           Sessions & state management
 │   │   ├── pi-tui/                TUI component building
-│   │   └── agent-init/            Generate AGENTS.md files
+│   │   ├── agent-init/            Generate AGENTS.md files
+│   │   ├── typescript-check/      Run tsc/eslint, interpret errors, fix patterns
+│   │   └── go-check/              Run go vet/golangci-lint/go test, interpret output
 │   └── package.json
 ├── den/                       Internal docs (not shipped)
 │   ├── plans/                     Specs, roadmaps

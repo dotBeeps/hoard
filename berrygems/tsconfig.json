@@ -1,0 +1,19 @@
+{
+	"compilerOptions": {
+		"target": "ESNext",
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"strict": true,
+		"noEmit": true,
+		"allowImportingTsExtensions": true,
+		"skipLibCheck": true,
+		"esModuleInterop": true,
+		"paths": {
+			"@mariozechner/pi-tui": ["../node_modules/@mariozechner/pi-tui/dist"],
+			"@mariozechner/pi-coding-agent": ["../node_modules/@mariozechner/pi-coding-agent/dist"],
+			"@mariozechner/pi-ai": ["../node_modules/@mariozechner/pi-ai/dist"],
+			"@sinclair/typebox": ["../node_modules/@sinclair/typebox"]
+		}
+	},
+	"include": ["extensions/**/*.ts", "lib/**/*.ts"]
+}

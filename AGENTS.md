@@ -24,8 +24,9 @@ hoard/
 │   │   └── dragon-guard/         Three-tier permission guard
 │   ├── lib/
 │   │   ├── settings.ts            Shared settings reader (hoard.* + legacy fallback)
-│   │   └── panel-chrome.ts        Shared border/focus/header/footer rendering
+│   │   └── panel-chrome.ts        Shared border/focus/header/footer rendering + 19 panel skins
 │   ├── styles/                    Writing tone files (formal, friendly, etc.)
+│   ├── tsconfig.json              Type checking config (resolves pi packages via symlinks)
 │   └── package.json
 ├── morsels/                   Pi skills (Markdown)
 │   ├── skills/
@@ -73,6 +74,61 @@ cd dragon-daemon && go build -o dragon-daemon .
 - **No build step for morsels** — pi loads Markdown skills directly
 - **Reload after changes** — run `/reload` in pi to pick up extension edits
 - **Settings file** — `~/.pi/agent/settings.json` (global), `.pi/settings.json` (project)
+
+## Verification
+
+Run these checks before committing changes. Each subrepo has its own toolchain.
+
+### berrygems (TypeScript)
+
+```bash
+# Type check — catches type errors, bad imports, missing properties
+cd /home/dot/Development/hoard && tsc --project berrygems/tsconfig.json
+
+# Quick single-file check (useful during development)
+tsc --project berrygems/tsconfig.json 2>&1 | grep "<filename>"
+```
+
+- tsconfig resolves `@mariozechner/pi-*` via symlinks in `node_modules/`
+- Symlinks point to pi's installed packages at `~/.npm/lib/node_modules/mitsupi/node_modules/`
+- If symlinks break after pi updates, recreate them:
+  ```bash
+  PI_MODULES="$HOME/.npm/lib/node_modules/mitsupi/node_modules"
+  mkdir -p node_modules/@mariozechner
+  ln -sf "$PI_MODULES/@mariozechner/pi-tui" node_modules/@mariozechner/pi-tui
+  ln -sf "$PI_MODULES/@mariozechner/pi-coding-agent" node_modules/@mariozechner/pi-coding-agent
+  ln -sf "$PI_MODULES/@mariozechner/pi-ai" node_modules/@mariozechner/pi-ai
+  ln -sf "$PI_MODULES/@mariozechner/pi-agent-core" node_modules/@mariozechner/pi-agent-core
+  ln -sf "$PI_MODULES/@sinclair" node_modules/@sinclair
+  ```
+- No eslint config yet — type checking is the primary gate
+- No test framework yet — manual testing via `/reload` in pi
+
+### dragon-daemon (Go)
+
+```bash
+# Vet — catches suspicious constructs
+cd dragon-daemon && go vet ./...
+
+# Lint — comprehensive static analysis
+cd dragon-daemon && golangci-lint run ./...
+
+# Build — verify compilation
+cd dragon-daemon && go build -o dragon-daemon .
+```
+
+### morsels (Markdown)
+
+- No automated linting — review skill frontmatter manually
+- Required frontmatter fields: `name` (must match directory), `description`
+- Keep SKILL.md under 500 lines; move reference material to `references/`
+
+### Pre-Commit Checklist
+
+1. `tsc --project berrygems/tsconfig.json` — zero errors
+2. `cd dragon-daemon && go vet ./... && golangci-lint run ./...` — zero issues
+3. Test extension changes with `/reload` in pi
+4. Skill frontmatter valid (`name` matches directory, `description` present)
 
 ## Pi Platform
 
@@ -182,8 +238,8 @@ Tone files in `berrygems/styles/`. Controls document writing voice only — does
 
 ## Code Style
 
-- **TypeScript** — tabs for indentation, double quotes, semicolons
-- **Go** — standard `gofmt`, no special conventions
+- **TypeScript** — tabs for indentation, double quotes, semicolons; `satisfies` over `as`; no `any` without comment
+- **Go** — standard `gofmt`, no special conventions beyond golangci-lint defaults
 - **Markdown** — ATX headings (`#`), bullet lists with `-`, fenced code blocks with language tags
 - **Skill frontmatter** — YAML between `---` fences, `name` and `description` required
 

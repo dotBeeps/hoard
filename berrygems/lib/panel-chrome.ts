@@ -10,36 +10,314 @@
 import { truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
 import type { Theme } from "@mariozechner/pi-tui";
 
-// ── Border Patterns ──
+// ── Panel Skins ──
 
-const BORDER_PATTERNS = [
-	"·~",    // tail wag
-	"⋆·",   // hoard sparkle
-	"≈~",   // scales & smoke
-	"~·",   // smoke & paws
-	"⋆~",   // sparkle smoke
-	"·⸱",   // pawpad dots
-];
+/**
+ * A PanelSkin defines the visual frame for a panel:
+ * border characters for each edge, background color, and focused variants.
+ *
+ * Top/bottom are pattern strings repeated to fill width.
+ * Left/right are prepended/appended to each content line.
+ * Background is a theme color name for theme.bg().
+ */
+export interface PanelSkin {
+	/** Display name for the skin. */
+	name: string;
 
-const FOCUS_PATTERNS = [
-	"═·",   // focused: bold rail + dot
-	"━⋆",   // focused: heavy bar + sparkle
-	"▸·",   // focused: arrow + dot
-];
+	// ── Unfocused state ──
+	/** Top border pattern, repeated to fill width. Empty = no top border. */
+	top: string;
+	/** Bottom border pattern, repeated to fill width. Empty = no bottom border. */
+	bottom: string;
+	/** Left edge character(s) prepended to each content line. */
+	left: string;
+	/** Right edge character(s) appended to each content line. */
+	right: string;
+	/** Background color name for theme.bg(). Omit for transparent. */
+	bg?: string;
+	/** Foreground color name for unfocused border characters. Default: "muted". */
+	borderColor?: string;
 
-/** Pick a random border pattern — call once per component instance. */
-export function pickBorderPattern(): string {
-	return BORDER_PATTERNS[Math.floor(Math.random() * BORDER_PATTERNS.length)]!;
+	// ── Corner characters (optional) ──
+	/** Top-left corner (e.g. "╭"). If set, top border fills between corners. */
+	topLeft?: string;
+	/** Top-right corner (e.g. "╮"). */
+	topRight?: string;
+	/** Bottom-left corner (e.g. "╰"). */
+	bottomLeft?: string;
+	/** Bottom-right corner (e.g. "╯"). */
+	bottomRight?: string;
+
+	// ── Focused state overrides (falls back to unfocused if omitted) ──
+	/** Top border pattern when focused. */
+	focusTop?: string;
+	/** Bottom border pattern when focused. */
+	focusBottom?: string;
+	/** Left edge when focused. */
+	focusLeft?: string;
+	/** Right edge when focused. */
+	focusRight?: string;
+	/** Background color when focused. */
+	focusBg?: string;
+	/** Foreground color name for focused border characters. Default: "accent". */
+	focusBorderColor?: string;
+	/** Focused corner overrides. */
+	focusTopLeft?: string;
+	focusTopRight?: string;
+	focusBottomLeft?: string;
+	focusBottomRight?: string;
 }
 
-/** Pick a random focus-mode border pattern — call once per component instance. */
-export function pickFocusPattern(): string {
-	return FOCUS_PATTERNS[Math.floor(Math.random() * FOCUS_PATTERNS.length)]!;
+/** Resolve skin fields for the current focus state. */
+function resolveSkin(skin: PanelSkin, focused: boolean) {
+	const f = focused;
+	return {
+		top: (f ? skin.focusTop ?? skin.top : skin.top),
+		bottom: (f ? skin.focusBottom ?? skin.bottom : skin.bottom),
+		left: (f ? skin.focusLeft ?? skin.left : skin.left),
+		right: (f ? skin.focusRight ?? skin.right : skin.right),
+		bg: (f ? skin.focusBg ?? skin.bg : skin.bg),
+		borderColor: (f ? skin.focusBorderColor ?? "accent" : skin.borderColor ?? "muted"),
+		topLeft: (f ? skin.focusTopLeft ?? skin.topLeft : skin.topLeft) ?? "",
+		topRight: (f ? skin.focusTopRight ?? skin.topRight : skin.topRight) ?? "",
+		bottomLeft: (f ? skin.focusBottomLeft ?? skin.bottomLeft : skin.bottomLeft) ?? "",
+		bottomRight: (f ? skin.focusBottomRight ?? skin.bottomRight : skin.bottomRight) ?? "",
+	};
+}
+
+// ── Preset Skins ──
+
+export const SKINS = {
+
+	/** Thin left bar, subtle background. The default. */
+	ember: {
+		name: "ember",
+		top: "·~", bottom: "·~",
+		left: "▎", right: "",
+		bg: "toolPendingBg",
+		focusTop: "═·", focusBottom: "═·",
+		focusLeft: "▎", focusRight: "",
+	} satisfies PanelSkin,
+
+	/** Full box-drawing frame. Classic terminal panel feel. */
+	box: {
+		name: "box",
+		top: "─", bottom: "─",
+		left: "│ ", right: " │",
+		bg: "toolPendingBg",
+		focusTop: "━", focusBottom: "━",
+		focusLeft: "┃ ", focusRight: " ┃",
+	} satisfies PanelSkin,
+
+	/** Double-line box. Bold and regal — very dragon. */
+	castle: {
+		name: "castle",
+		top: "═", bottom: "═",
+		left: "║ ", right: " ║",
+		bg: "toolPendingBg",
+		borderColor: "border",
+		focusTop: "═", focusBottom: "═",
+		focusLeft: "║ ", focusRight: " ║",
+	} satisfies PanelSkin,
+
+	/** Dots and sparkles. Whimsical hoard vibes. */
+	sparkle: {
+		name: "sparkle",
+		top: "⋆·˚", bottom: "˚·⋆",
+		left: "⋆ ", right: " ⋆",
+		bg: "toolPendingBg",
+		focusTop: "✦·˚", focusBottom: "˚·✦",
+		focusLeft: "✦ ", focusRight: " ✦",
+	} satisfies PanelSkin,
+
+	/** Minimal — background only, no edge characters. */
+	ghost: {
+		name: "ghost",
+		top: "·", bottom: "·",
+		left: " ", right: " ",
+		bg: "toolPendingBg",
+		focusTop: "━", focusBottom: "━",
+		focusLeft: " ", focusRight: " ",
+	} satisfies PanelSkin,
+
+	/** Thick left accent bar. Notion/IDE sidebar feel. */
+	gutter: {
+		name: "gutter",
+		top: "─", bottom: "─",
+		left: "█ ", right: "",
+		bg: "toolPendingBg",
+		focusTop: "━", focusBottom: "━",
+		focusLeft: "█ ", focusRight: "",
+	} satisfies PanelSkin,
+
+	/** Smoke and scales — wavy dragon aesthetic. */
+	scales: {
+		name: "scales",
+		top: "≈~", bottom: "~≈",
+		left: "≋ ", right: "",
+		bg: "toolPendingBg",
+		focusTop: "▓░", focusBottom: "░▓",
+		focusLeft: "▓ ", focusRight: "",
+	} satisfies PanelSkin,
+
+	/** Pawprints — for a very small dog. */
+	paws: {
+		name: "paws",
+		top: "·⸱ ", bottom: " ⸱·",
+		left: "⸱ ", right: " ⸱",
+		bg: "toolPendingBg",
+		focusTop: "•⸱ ", focusBottom: " ⸱•",
+		focusLeft: "• ", focusRight: " •",
+	} satisfies PanelSkin,
+
+	/** Clean and sharp. No frills. */
+	clean: {
+		name: "clean",
+		top: "─", bottom: "─",
+		left: " ", right: " ",
+		bg: "toolPendingBg",
+		focusTop: "━", focusBottom: "━",
+		focusLeft: " ", focusRight: " ",
+	} satisfies PanelSkin,
+
+	/** No background, pattern borders only. The original look. */
+	bare: {
+		name: "bare",
+		top: "·~", bottom: "·~",
+		left: "", right: "",
+		focusTop: "═·", focusBottom: "═·",
+	} satisfies PanelSkin,
+
+	// ── Curvy / Rounded ──
+
+	/** Rounded box-drawing corners. Soft and modern. */
+	curvy: {
+		name: "curvy",
+		top: "─", bottom: "─",
+		left: "│ ", right: " │",
+		bg: "toolPendingBg",
+		topLeft: "╭", topRight: "╮",
+		bottomLeft: "╰", bottomRight: "╯",
+		focusTop: "━", focusBottom: "━",
+		focusLeft: "┃ ", focusRight: " ┃",
+		focusTopLeft: "╭", focusTopRight: "╮",
+		focusBottomLeft: "╰", focusBottomRight: "╯",
+	} satisfies PanelSkin,
+
+	/** Double rounded — curvy corners with double-line sides. Fancy. */
+	curvyCastle: {
+		name: "curvyCastle",
+		top: "═", bottom: "═",
+		left: "║ ", right: " ║",
+		bg: "toolPendingBg",
+		borderColor: "border",
+		topLeft: "╭", topRight: "╮",
+		bottomLeft: "╰", bottomRight: "╯",
+		focusTop: "═", focusBottom: "═",
+		focusLeft: "║ ", focusRight: " ║",
+		focusTopLeft: "╭", focusTopRight: "╮",
+		focusBottomLeft: "╰", focusBottomRight: "╯",
+	} satisfies PanelSkin,
+
+	// ── Nerdfont ──
+
+	/** Powerline edges. Sleek terminal-native look.  /  */
+	powerline: {
+		name: "powerline",
+		top: "─", bottom: "─",
+		left: " ", right: " ",
+		bg: "toolPendingBg",
+		focusTop: "━", focusBottom: "━",
+		focusLeft: " ", focusRight: " ",
+	} satisfies PanelSkin,
+
+	/** Powerline round. Softer variant with rounded powerline glyphs. */
+	powerlineRound: {
+		name: "powerlineRound",
+		top: "─", bottom: "─",
+		left: " ", right: " ",
+		bg: "toolPendingBg",
+		focusTop: "━", focusBottom: "━",
+		focusLeft: " ", focusRight: " ",
+	} satisfies PanelSkin,
+
+	/** Flame edges. Because dragon.  */
+	flame: {
+		name: "flame",
+		top: "", bottom: "",
+		left: " ", right: " ",
+		bg: "toolPendingBg",
+		focusTop: "", focusBottom: "",
+		focusLeft: " ", focusRight: " ",
+	} satisfies PanelSkin,
+
+	/** Pixel/blocky edges. Chunky retro terminal.  /  */
+	pixel: {
+		name: "pixel",
+		top: "▀", bottom: "▄",
+		left: "▌", right: "▐",
+		bg: "toolPendingBg",
+		borderColor: "border",
+		focusTop: "▀", focusBottom: "▄",
+		focusLeft: "▌", focusRight: "▐",
+	} satisfies PanelSkin,
+
+	/** Diagonal slash edges. Nerdfont slant glyphs.  /  */
+	slash: {
+		name: "slash",
+		top: "─", bottom: "─",
+		left: " ", right: " ",
+		bg: "toolPendingBg",
+		focusTop: "━", focusBottom: "━",
+		focusLeft: " ", focusRight: " ",
+	} satisfies PanelSkin,
+
+	/** Ice crystal edges. Frozen hoard aesthetic. ❈ */
+	ice: {
+		name: "ice",
+		top: "❈·", bottom: "·❈",
+		left: "❈ ", right: " ❈",
+		bg: "toolPendingBg",
+		focusTop: "✨·", focusBottom: "·✨",
+		focusLeft: "✨ ", focusRight: " ✨",
+	} satisfies PanelSkin,
+
+	/** Braille dots. Subtle and unique. */
+	braille: {
+		name: "braille",
+		top: "⣿⠀", bottom: "⠀⣿",
+		left: "⣸ ", right: " ⠟",
+		bg: "toolPendingBg",
+		focusTop: "⣿", focusBottom: "⣿",
+		focusLeft: "⣿ ", focusRight: " ⣿",
+	} satisfies PanelSkin,
+
+} as const;
+
+export type SkinName = keyof typeof SKINS;
+
+/** Get a skin by name, with fallback to "ember". */
+/** Active default skin — swap this to preview different skins. */
+let _defaultSkin: SkinName = "ember";
+
+/** Set the default skin used by getSkin() when no name is given. */
+export function setDefaultSkin(name: SkinName): void { _defaultSkin = name; }
+
+/** Get a skin by name, with fallback to the current default. */
+export function getSkin(name?: string): PanelSkin {
+	if (name && name in SKINS) return SKINS[name as SkinName];
+	return SKINS[_defaultSkin];
+}
+
+/** List all available skin names. */
+export function listSkins(): string[] {
+	return Object.keys(SKINS);
 }
 
 /** Repeat a pattern to fill a given width. */
 export function repeatPattern(pattern: string, width: number): string {
 	if (width <= 0) return "";
+	if (pattern.length === 0) return " ".repeat(width);
 	return pattern.repeat(Math.ceil(width / pattern.length)).slice(0, width);
 }
 
@@ -52,52 +330,112 @@ export interface ChromeOptions {
 	focused?: boolean;
 	/** The pi theme for coloring. */
 	theme: Theme;
-	/** Border pattern for unfocused state (from pickBorderPattern). */
-	borderPattern: string;
-	/** Border pattern for focused state (from pickFocusPattern). */
-	focusPattern: string;
+	/** Panel skin — defines borders, edges, background. Default: "ember". */
+	skin?: PanelSkin;
 	/** Footer hint text. If omitted, no footer hints rendered. */
 	footerHint?: string;
 	/** Scroll info text, e.g. "42%". Shown right-aligned in footer. */
 	scrollInfo?: string;
 }
 
-// ── Chrome Rendering ──
+// ── Content Line Helpers ──
 
-/**
- * Render a themed border line, focus-aware.
- * Focused panels get a distinct pattern + accent color.
- * Unfocused panels get the standard pattern + muted color.
- */
-export function renderBorder(width: number, options: ChromeOptions): string {
-	const { focused, theme, borderPattern, focusPattern } = options;
-	if (focused) {
-		return theme.fg("accent", theme.bold(repeatPattern(focusPattern, width)));
-	}
-	return theme.fg("muted", repeatPattern(borderPattern, width));
+/** Get the resolved left/right edge strings and their widths for content lines. */
+function getEdges(options: ChromeOptions): {
+	left: string; leftW: number;
+	right: string; rightW: number;
+	bg?: string;
+} {
+	const skin = options.skin ?? SKINS.ember;
+	const resolved = resolveSkin(skin, !!options.focused);
+	const { theme } = options;
+	const color = resolved.borderColor;
+
+	const leftRaw = resolved.left;
+	const rightRaw = resolved.right;
+
+	return {
+		left: leftRaw ? theme.fg(color, leftRaw) : "",
+		leftW: leftRaw ? visibleWidth(leftRaw) : 0,
+		right: rightRaw ? theme.fg(color, rightRaw) : "",
+		rightW: rightRaw ? visibleWidth(rightRaw) : 0,
+		bg: resolved.bg,
+	};
 }
 
 /**
- * Render a panel header: border + optional title.
+ * Pad a content line to fill the full width with skin edges and background.
+ *
+ * Applies left edge, truncates content, pads with spaces, appends right edge,
+ * then wraps everything in the background color.
+ *
+ * Use this for every content line inside a panel to get consistent
+ * background fill and edge indicators.
+ */
+export function padContentLine(text: string, width: number, options: ChromeOptions): string {
+	const { theme } = options;
+	const edges = getEdges(options);
+	const innerW = width - edges.leftW - edges.rightW;
+	const truncated = truncateToWidth(text, innerW);
+	const padding = Math.max(0, innerW - visibleWidth(truncated));
+	const line = edges.left + truncated + " ".repeat(padding) + edges.right;
+	return edges.bg ? theme.bg(edges.bg, line) : line;
+}
+
+// ── Chrome Rendering ──
+
+/**
+ * Render a themed border line (top or bottom), focus-aware.
+ * Uses the skin's top/bottom pattern + border color.
+ */
+export function renderBorder(width: number, options: ChromeOptions, position: "top" | "bottom" = "top"): string {
+	const skin = options.skin ?? SKINS.ember;
+	const resolved = resolveSkin(skin, !!options.focused);
+	const pattern = position === "top" ? resolved.top : resolved.bottom;
+	const color = resolved.borderColor;
+	const { theme } = options;
+
+	if (!pattern) return "";
+
+	// Corner characters
+	const cornerL = position === "top" ? resolved.topLeft : resolved.bottomLeft;
+	const cornerR = position === "top" ? resolved.topRight : resolved.bottomRight;
+	const cornerLW = cornerL ? visibleWidth(cornerL) : 0;
+	const cornerRW = cornerR ? visibleWidth(cornerR) : 0;
+	const fillW = Math.max(0, width - cornerLW - cornerRW);
+
+	const border = cornerL + repeatPattern(pattern, fillW) + cornerR;
+	const styled = options.focused
+		? theme.fg(color, theme.bold(border))
+		: theme.fg(color, border);
+	// Extend background color to border rows for visual continuity
+	return resolved.bg ? theme.bg(resolved.bg, styled) : styled;
+}
+
+/**
+ * Render a panel header: top border + optional title.
  * Returns an array of lines to prepend to panel content.
  */
 export function renderHeader(width: number, options: ChromeOptions): string[] {
 	const lines: string[] = [];
-	lines.push(renderBorder(width, options));
+	const topBorder = renderBorder(width, options, "top");
+	if (topBorder) lines.push(topBorder);
+
 	if (options.title) {
 		const titleColor = options.focused ? "accent" : "text";
 		const focusMarker = options.focused ? " ⚡" : "";
-		lines.push(truncateToWidth(
+		lines.push(padContentLine(
 			options.theme.fg(titleColor, options.theme.bold(` ${options.title}${focusMarker}`)),
 			width,
+			options,
 		));
-		lines.push("");
+		lines.push(padContentLine("", width, options));
 	}
 	return lines;
 }
 
 /**
- * Render a panel footer: optional hints + border.
+ * Render a panel footer: optional hints + bottom border.
  * Returns an array of lines to append to panel content.
  */
 export function renderFooter(width: number, options: ChromeOptions): string[] {
@@ -105,21 +443,22 @@ export function renderFooter(width: number, options: ChromeOptions): string[] {
 	const { theme, footerHint, scrollInfo } = options;
 
 	if (footerHint || scrollInfo) {
-		lines.push("");
+		lines.push(padContentLine("", width, options));
 		const left = footerHint ? ` ${footerHint}` : "";
 		const right = scrollInfo ? `${scrollInfo} ` : "";
 		if (left && right) {
-			const padding = Math.max(1, width - visibleWidth(left) - visibleWidth(right));
-			lines.push(truncateToWidth(
-				theme.fg("dim", left) + " ".repeat(padding) + theme.fg("dim", right),
-				width,
-			));
+			const edges = getEdges(options);
+			const innerW = width - edges.leftW - edges.rightW;
+			const pad = Math.max(1, innerW - visibleWidth(left) - visibleWidth(right));
+			const content = edges.left + theme.fg("dim", left) + " ".repeat(pad) + theme.fg("dim", right) + edges.right;
+			lines.push(edges.bg ? theme.bg(edges.bg, content) : content);
 		} else {
-			lines.push(truncateToWidth(theme.fg("dim", left || right), width));
+			lines.push(padContentLine(theme.fg("dim", left || right), width, options));
 		}
 	}
 
-	lines.push(renderBorder(width, options));
+	const bottomBorder = renderBorder(width, options, "bottom");
+	if (bottomBorder) lines.push(bottomBorder);
 	return lines;
 }
 
@@ -130,7 +469,7 @@ export function renderFooter(width: number, options: ChromeOptions): string[] {
 export function wrapInChrome(contentLines: string[], width: number, options: ChromeOptions): string[] {
 	return [
 		...renderHeader(width, options),
-		...contentLines,
+		...contentLines.map(line => padContentLine(line, width, options)),
 		...renderFooter(width, options),
 	];
 }

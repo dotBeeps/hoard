@@ -11,6 +11,10 @@
 import type { Theme } from "@mariozechner/pi-coding-agent";
 import type { TUI } from "@mariozechner/pi-tui";
 import { matchesKey, Key, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
+import {
+	renderHeader, renderFooter, padContentLine,
+	type ChromeOptions,
+} from "../../lib/panel-chrome.ts";
 
 import {
 	getMode,
@@ -84,12 +88,14 @@ export class GuardPanelComponent {
 	private cachedWidth?: number;
 	private cachedLines?: string[];
 
+
 	constructor(panelCtx: PanelContext, callbacks: GuardPanelCallbacks) {
 		this.panelCtx = panelCtx;
 		this.theme = panelCtx.theme;
 		this.tui = panelCtx.tui;
 		this.cwd = panelCtx.cwd;
 		this.callbacks = callbacks;
+
 	}
 
 	// ── Items ──
@@ -186,26 +192,26 @@ export class GuardPanelComponent {
 
 		const th = this.theme;
 		const focused = this.panelCtx.isFocused();
-		const innerW = Math.max(20, width - 2);
 		const lines: string[] = [];
-		const borderColor = focused ? "accent" : "border";
-		const border = (c: string) => th.fg(borderColor, c);
-		const padLine = (s: string): string => {
-			const raw = truncateToWidth(s, innerW);
-			return raw + " ".repeat(Math.max(0, innerW - visibleWidth(raw)));
-		};
+		const pad = (s: string) => padContentLine(s, width, chromeOpts);
+		const add = (s: string) => lines.push(pad(s));
 
-		// ── Title ──
 		const mode = getMode();
 		const modeEmoji = mode === "dragon" ? "🐉" : mode === "plan" ? "🐶" : "🐕";
-		const titleText = ` ${modeEmoji} Dragon Guard `;
-		const titleStyled = focused ? th.fg("accent", th.bold(titleText)) : th.fg("text", th.bold(titleText));
-		const titleW = visibleWidth(titleText);
-		const lp = Math.max(1, Math.floor((innerW - titleW) / 2));
-		const rp = Math.max(1, innerW - titleW - lp);
-		lines.push(border("╭") + border("─".repeat(lp)) + titleStyled + border("─".repeat(rp)) + border("╮"));
 
-		lines.push(border("│") + padLine("") + border("│"));
+		const kh = getPanels()?.keyHints;
+		const chromeOpts: ChromeOptions = {
+			title: `${modeEmoji} Dragon Guard`,
+			focused,
+			theme: th,
+			skin: this.panelCtx.skin(),
+			footerHint: focused
+				? `↑↓ nav · ←→/Space adjust · ${kh?.focused ?? "Q close · Escape unfocus"}`
+				: `${kh?.unfocused ?? "Alt+T focus"} · /guard help`,
+		};
+
+		// ── Header ──
+		lines.push(...renderHeader(width, chromeOpts));
 
 		// ── Settings Items ──
 		const items = this.getItems();
@@ -218,34 +224,22 @@ export class GuardPanelComponent {
 
 			// Insert separator + session override info before the reset action
 			if (item.id === "reset") {
-				lines.push(border("│") + padLine("") + border("│"));
-				lines.push(border("│") + padLine(th.fg("dim", "  " + "─".repeat(Math.min(innerW - 4, 30)))) + border("│"));
+				add("");
+				add(th.fg("dim", "  " + "─".repeat(Math.min(width - 4, 30))));
 
 				if (mode === "dragon") {
-					lines.push(border("│") + padLine(th.fg("success", "  All tools allowed")) + border("│"));
+					add(th.fg("success", "  All tools allowed"));
 				} else if (mode === "plan") {
 					const allowed = [...puppyModeSessionAllowedTools].sort().join(", ") || "(defaults)";
-					lines.push(
-						border("│") +
-						padLine(th.fg("dim", "  Session allows: ") + th.fg("text", truncateToWidth(allowed, Math.max(4, innerW - 20)))) +
-						border("│"),
-					);
+					add(th.fg("dim", "  Session allows: ") + th.fg("text", truncateToWidth(allowed, Math.max(4, width - 20))));
 				} else {
 					const allowed = [...dogModeSessionAllowedTools].sort().join(", ") || "(none)";
 					const blocked = [...dogModeSessionBlockedTools].sort().join(", ") || "(none)";
-					lines.push(
-						border("│") +
-						padLine(th.fg("dim", "  + allowed: ") + th.fg("success", truncateToWidth(allowed, Math.max(4, innerW - 16)))) +
-						border("│"),
-					);
-					lines.push(
-						border("│") +
-						padLine(th.fg("dim", "  − blocked: ") + th.fg("error", truncateToWidth(blocked, Math.max(4, innerW - 16)))) +
-						border("│"),
-					);
+					add(th.fg("dim", "  + allowed: ") + th.fg("success", truncateToWidth(allowed, Math.max(4, width - 16))));
+					add(th.fg("dim", "  − blocked: ") + th.fg("error", truncateToWidth(blocked, Math.max(4, width - 16))));
 				}
 
-				lines.push(border("│") + padLine("") + border("│"));
+				add("");
 			}
 
 			let valueStr: string;
@@ -273,22 +267,14 @@ export class GuardPanelComponent {
 			}
 
 			if (valueStr) {
-				lines.push(border("│") + padLine(`${pointer}${label}  ${valueStr}`) + border("│"));
+				add(` ${pointer}${label}  ${valueStr}`);
 			} else {
-				lines.push(border("│") + padLine(`${pointer}${label}`) + border("│"));
+				add(` ${pointer}${label}`);
 			}
 		}
 
-		// ── Help ──
-		lines.push(border("│") + padLine("") + border("│"));
-		const kh = getPanels()?.keyHints;
-		const help = focused
-			? th.fg("dim", `↑↓ nav · ←→/Space adjust · ${kh?.focused ?? "Q close · Escape unfocus"}`)
-			: th.fg("dim", `${kh?.unfocused ?? "Alt+T focus"} · /guard help`);
-		lines.push(border("│") + padLine("  " + help) + border("│"));
-
-		// ── Bottom border ──
-		lines.push(border("╰") + border("─".repeat(innerW)) + border("╯"));
+		// ── Footer ──
+		lines.push(...renderFooter(width, chromeOpts));
 
 		this.cachedWidth = width;
 		this.cachedLines = lines;

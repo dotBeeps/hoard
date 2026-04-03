@@ -24,7 +24,7 @@ import { StringEnum } from "@mariozechner/pi-ai";
 import { Type, type Static } from "@sinclair/typebox";
 
 import {
-	pickBorderPattern, pickFocusPattern,
+	getSkin,
 	renderBorder, repeatPattern,
 	type ChromeOptions,
 } from "../lib/panel-chrome.ts";
@@ -88,15 +88,58 @@ function getPanels(): any {
 	return (globalThis as any)[PANELS_KEY];
 }
 
-/** Try to pass a key through to the panel manager. Returns true if handled. */
+/**
+ * Forward keys to panels while an ask prompt is capturing input.
+ *
+ * Uses VIRTUAL focus (visual-only) instead of real overlay focus to avoid
+ * corrupting pi's overlay capture stack. The ask prompt remains the sole
+ * capturing overlay; panels get their keys relayed through here.
+ */
 function passthroughToPanel(data: string): boolean {
 	const panels = getPanels();
 	if (!panels?.rawKeys) return false;
+
+	// Focus cycle: use virtual focus (no overlay capture changes)
 	if (matchesKey(data, panels.rawKeys.focus)) {
-		panels.cycleFocus();
+		if (panels.cycleVirtualFocus) {
+			panels.cycleVirtualFocus();
+		} else {
+			// Fallback for older dots-panels without virtual focus
+			panels.cycleFocus();
+		}
 		return true;
 	}
+
+	// If a panel has virtual focus, handle shared keys + forward the rest
+	const virtualId = panels.getVirtualFocusId?.();
+	if (virtualId) {
+		if (matchesKey(data, panels.rawKeys.unfocus)) {
+			panels.setVirtualFocus(null);
+			return true;
+		}
+		if (matchesKey(data, panels.rawKeys.close)) {
+			panels.close(virtualId);
+			return true;
+		}
+		// Skin cycling: ] = next, [ = previous
+		if (data === "]" || data === "[") {
+			panels.cyclePanelSkin?.(virtualId, data === "]" ? 1 : -1);
+			return true;
+		}
+		// Forward to the panel component's input handler
+		const panel = panels.get(virtualId);
+		if (panel?.handleInput) {
+			panel.handleInput(data);
+		}
+		return true;
+	}
+
 	return false;
+}
+
+/** Clear virtual panel focus — call when an ask prompt finishes. */
+function clearPanelForwarding(): void {
+	getPanels()?.setVirtualFocus?.(null);
 }
 
 // --- Extension ---
@@ -170,10 +213,13 @@ export default function ask(pi: ExtensionAPI) {
 			const paw = "🐾 ";
 
 			if (d.mode === "confirm") {
+				const note = d.userNote
+					? " " + theme.fg("muted", `\u00b7 ${d.userNote}`)
+					: "";
 				if (d.answer === "yes") {
-					return new Text(paw + theme.fg("success", "good girl chose yes"), 0, 0);
+					return new Text(paw + theme.fg("success", "good girl chose yes") + note, 0, 0);
 				}
-				return new Text(paw + theme.fg("muted", "nuh uh"), 0, 0);
+				return new Text(paw + theme.fg("muted", "nuh uh") + note, 0, 0);
 			}
 
 			if (d.wasCustom) {
@@ -221,8 +267,7 @@ async function executeSelect(params: AskInput, ctx: any) {
 		let optionIndex = 0;
 		let editMode: "off" | "custom" | "note" = "off";
 		let cachedLines: string[] | undefined;
-		const borderPattern = pickBorderPattern();
-		const focusPattern = pickFocusPattern();
+		const skin = getSkin();
 
 		const editorTheme: EditorTheme = {
 			borderColor: (s: string) => theme.fg("accent", s),
@@ -316,7 +361,7 @@ async function executeSelect(params: AskInput, ctx: any) {
 			const lines: string[] = [];
 			const add = (s: string) => lines.push(truncateToWidth(s, width));
 
-			const chromeOpts: ChromeOptions = { focused: true, theme, borderPattern, focusPattern };
+			const chromeOpts: ChromeOptions = { focused: true, theme, skin };
 			add(renderBorder(width, chromeOpts));
 			add(theme.fg("text", ` ${params.question}`));
 			lines.push("");
@@ -378,6 +423,7 @@ async function executeSelect(params: AskInput, ctx: any) {
 			handleInput,
 		};
 	});
+	clearPanelForwarding();
 
 	const simpleOptions = options.map((o) => o.label);
 
@@ -429,19 +475,142 @@ async function executeSelect(params: AskInput, ctx: any) {
 }
 
 async function executeConfirm(params: AskInput, ctx: any) {
-	const confirmed = await ctx.ui.confirm("🐾", params.question);
+	const result = await ctx.ui.custom<{
+		answer: boolean;
+		userNote?: string;
+	} | null>((tui: any, theme: any, _kb: any, done: any) => {
+		let selectedYes = true;
+		let editMode: "off" | "note" = "off";
+		let cachedLines: string[] | undefined;
+		const skin = getSkin();
 
+		const editorTheme: EditorTheme = {
+			borderColor: (s: string) => theme.fg("accent", s),
+			selectList: {
+				selectedPrefix: (t: string) => theme.fg("accent", t),
+				selectedText: (t: string) => theme.fg("accent", t),
+				description: (t: string) => theme.fg("muted", t),
+				scrollInfo: (t: string) => theme.fg("dim", t),
+				noMatch: (t: string) => theme.fg("warning", t),
+			},
+		};
+		const editor = new Editor(tui, editorTheme);
+
+		editor.onSubmit = (value: string) => {
+			const trimmed = value.trim();
+			done({
+				answer: selectedYes,
+				userNote: trimmed || undefined,
+			});
+		};
+
+		function refresh() {
+			cachedLines = undefined;
+			tui.requestRender();
+		}
+
+		function handleInput(data: string) {
+			if (passthroughToPanel(data)) return;
+
+			if (editMode === "note") {
+				if (matchesKey(data, Key.escape)) {
+					editMode = "off";
+					editor.setText("");
+					refresh();
+					return;
+				}
+				editor.handleInput(data);
+				refresh();
+				return;
+			}
+
+			if (matchesKey(data, Key.left) || matchesKey(data, Key.right) ||
+				matchesKey(data, Key.up) || matchesKey(data, Key.down)) {
+				selectedYes = !selectedYes;
+				refresh();
+			} else if (matchesKey(data, Key.enter)) {
+				done({ answer: selectedYes });
+			} else if (matchesKey(data, Key.tab)) {
+				editMode = "note";
+				editor.setText("");
+				refresh();
+			} else if (matchesKey(data, Key.escape)) {
+				done(null);
+			}
+		}
+
+		function render(width: number): string[] {
+			if (cachedLines) return cachedLines;
+
+			const lines: string[] = [];
+			const add = (s: string) => lines.push(truncateToWidth(s, width));
+
+			const chromeOpts: ChromeOptions = { focused: true, theme, skin };
+			add(renderBorder(width, chromeOpts));
+			add(theme.fg("text", ` ${params.question}`));
+			lines.push("");
+
+			// Yes / No options
+			const yesPrefix = selectedYes ? theme.fg("accent", "> ") : "  ";
+			const noPrefix = !selectedYes ? theme.fg("accent", "> ") : "  ";
+			const yesColor = selectedYes ? "accent" : "text";
+			const noColor = !selectedYes ? "accent" : "text";
+			add(`${yesPrefix}${theme.fg(yesColor, "Yes")}    ${noPrefix}${theme.fg(noColor, "No")}`);
+
+			if (editMode === "note") {
+				lines.push("");
+				const choice = selectedYes ? "Yes" : "No";
+				add(theme.fg("muted", ` Adding note to: ${theme.fg("accent", choice)}`));
+				for (const line of editor.render(width - 2)) {
+					add(` ${line}`);
+				}
+			}
+
+			lines.push("");
+			const hints = editMode === "note"
+				? " Enter to submit \u2022 Esc to go back"
+				: " \u2190\u2192 toggle \u2022 Enter to confirm \u2022 Tab to add note \u2022 Esc to wander off";
+			add(theme.fg("dim", hints));
+			add(renderBorder(width, chromeOpts));
+
+			cachedLines = lines;
+			return lines;
+		}
+
+		return {
+			render,
+			invalidate: () => { cachedLines = undefined; },
+			handleInput,
+		};
+	});
+	clearPanelForwarding();
+
+	if (!result) {
+		return {
+			content: [{ type: "text" as const, text: "Pup got distracted by a squirrel \uD83D\uDC3F\uFE0F" }],
+			details: {
+				question: params.question,
+				mode: "confirm",
+				answer: null,
+			} as AskDetails,
+		};
+	}
+
+	const noteText = result.userNote ? ` (note: ${result.userNote})` : "";
 	return {
 		content: [
 			{
 				type: "text" as const,
-				text: confirmed ? "Pup nodded enthusiastically 🐾" : "Pup shook her head",
+				text: result.answer
+					? `Pup nodded enthusiastically \uD83D\uDC3E${noteText}`
+					: `Pup shook her head${noteText}`,
 			},
 		],
 		details: {
 			question: params.question,
 			mode: "confirm",
-			answer: confirmed ? "yes" : "no",
+			answer: result.answer ? "yes" : "no",
+			userNote: result.userNote,
 		} as AskDetails,
 	};
 }
@@ -449,8 +618,7 @@ async function executeConfirm(params: AskInput, ctx: any) {
 async function executeText(params: AskInput, ctx: any) {
 	const result = await ctx.ui.custom<string | null>((tui: any, theme: any, _kb: any, done: any) => {
 		let cachedLines: string[] | undefined;
-		const borderPattern = pickBorderPattern();
-		const focusPattern = pickFocusPattern();
+		const skin = getSkin();
 
 		const editorTheme: EditorTheme = {
 			borderColor: (s: string) => theme.fg("accent", s),
@@ -493,7 +661,7 @@ async function executeText(params: AskInput, ctx: any) {
 			const lines: string[] = [];
 			const add = (s: string) => lines.push(truncateToWidth(s, width));
 
-			const chromeOpts: ChromeOptions = { focused: true, theme, borderPattern, focusPattern };
+			const chromeOpts: ChromeOptions = { focused: true, theme, skin };
 			add(renderBorder(width, chromeOpts));
 			add(theme.fg("text", ` ${params.question}`));
 			lines.push("");
@@ -516,6 +684,7 @@ async function executeText(params: AskInput, ctx: any) {
 			handleInput,
 		};
 	});
+	clearPanelForwarding();
 
 	if (result === null || result === undefined) {
 		return {

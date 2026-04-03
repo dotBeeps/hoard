@@ -59,7 +59,19 @@ Persistent floating panels showing `.pi/todos` filtered by tag. AI-powered Giphy
 <details>
 <summary><b>ask</b> — Interactive user input tool</summary>
 
-Three input modes: select (pick from options), confirm (yes/no), text (free input). TUI overlays with cached rendering and keyboard navigation.
+Three input modes: select (pick from options), confirm (yes/no), text (free input). TUI overlays with cached rendering and keyboard navigation. Panels persist alongside ask prompts via suspend/resume timing.
+</details>
+
+<details>
+<summary><b>popup</b> — Markdown popup panels</summary>
+
+Scrollable, updatable-by-ID floating panels for markdown content. Per-popup skin control. Uses shared panel-chrome for consistent rendering.
+</details>
+
+<details>
+<summary><b>lint-panel</b> — Live diagnostics panel</summary>
+
+Language-agnostic LSP-powered diagnostics with compiler fallback. Multi-server support, file grouping, expand/collapse navigation. `lint` tool (check/open/close) and `/lint` command.
 </details>
 
 ## Morsels (Skills)

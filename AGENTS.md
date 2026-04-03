@@ -197,7 +197,7 @@ All settings under `hoard` in `~/.pi/agent/settings.json`, with tiered nesting. 
 
 ```
 hoard.guard.*        Dragon Guard (autoDetect, dogAllowedTools, keys)
-hoard.panels.*       Panel system (focusKey, closeKey, unfocusKey)
+hoard.panels.*       Panel system (focusKey, defaultSkin, keybinds.*)
 hoard.digestion.*    Compaction tuning (triggerMode, strategy)
 hoard.todos.*        Todo panels (gifVibePrompt, gifRating)
 hoard.contributor.*  AI attribution (name, email, trailerFormat)

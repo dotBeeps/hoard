@@ -16,7 +16,7 @@ import type { Theme } from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 import { StringEnum } from "@mariozechner/pi-ai";
 import {
-	renderHeader, renderFooter, padContentLine,
+	renderHeader, renderFooter, padContentLine, contentWidth,
 } from "../lib/panel-chrome.ts";
 
 // ── Panel Manager Access ──
@@ -134,7 +134,8 @@ class PopupComponent {
 		// Render markdown content (full, then slice for scroll)
 		if (this.renderedLines.length === 0) {
 			const md = new Markdown(this.content, 1, 0, this.mdTheme);
-			this.renderedLines = md.render(width - 2);
+			// Render markdown at the actual inner width minus 1 col for the leading space prefix
+			this.renderedLines = md.render(contentWidth(width, chromeOpts) - 1);
 		}
 
 		// Viewport slicing

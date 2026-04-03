@@ -898,6 +898,11 @@ class PanelRegistry {
 
 	suspend(): void {
 		this._suspended = true;
+		// Hide overlays from pi's compositor so they don't render stale content
+		for (const panel of this.panels.values()) {
+			panel.handle.setHidden(true);
+		}
+		this._tui?.requestRender();
 		if (this._suspendTimer) clearTimeout(this._suspendTimer);
 		this._suspendTimer = setTimeout(() => this.resume(), 60_000);
 	}
@@ -906,7 +911,10 @@ class PanelRegistry {
 		this._clearSuspend();
 		if (!this._suspended) return;
 		this._suspended = false;
-		for (const panel of this.panels.values()) panel.invalidate();
+		for (const panel of this.panels.values()) {
+			panel.handle.setHidden(false);
+			panel.invalidate();
+		}
 		this._tui?.requestRender();
 	}
 

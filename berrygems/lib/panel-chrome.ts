@@ -378,6 +378,16 @@ function getEdges(options: ChromeOptions): {
 }
 
 /**
+ * Get the usable content width inside a panel, accounting for skin edges.
+ * Use this to pre-render content (e.g. markdown) at the correct width
+ * before passing it to padContentLine().
+ */
+export function contentWidth(width: number, options: ChromeOptions): number {
+	const edges = getEdges(options);
+	return width - edges.leftW - edges.rightW;
+}
+
+/**
  * Pad a content line to fill the full width with skin edges and background.
  *
  * Applies left edge, truncates content, pads with spaces, appends right edge,

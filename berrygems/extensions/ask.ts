@@ -93,7 +93,13 @@ function getPanels(): any {
  * Must be called when an ask prompt starts capturing input.
  */
 function activateAskMode(): void {
-	getPanels()?.setAskActive?.(true);
+	const panels = getPanels();
+	panels?.setAskActive?.(true);
+	// Hide panels briefly to prevent compositor bleed during the frame
+	// where the capturing widget is being set up. Bring them back on the
+	// next macrotask after pi's .then() microtask has finished.
+	panels?.suspend?.();
+	setTimeout(() => panels?.resume?.(), 0);
 }
 
 /**

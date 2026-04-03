@@ -19,8 +19,12 @@ hoard/
 │   │   ├── ask.ts                 Interactive user input (select/confirm/text)
 │   │   ├── dots-panels.ts        Central panel authority — creation, positioning, focus
 │   │   ├── digestion-settings.ts  Compaction tuning panel
+│   │   ├── popup.ts              Markdown popup panels (scrollable, updatable by ID)
 │   │   ├── todo-lists.ts         Floating todo panels with GIF mascots
 │   │   └── dragon-guard/         Three-tier permission guard
+│   ├── lib/
+│   │   ├── settings.ts            Shared settings reader (hoard.* + legacy fallback)
+│   │   └── panel-chrome.ts        Shared border/focus/header/footer rendering
 │   ├── styles/                    Writing tone files (formal, friendly, etc.)
 │   └── package.json
 ├── morsels/                   Pi skills (Markdown)
@@ -40,6 +44,10 @@ hoard/
 │   │   ├── pi-tui/                TUI component building
 │   │   └── agent-init/            Generate AGENTS.md files
 │   └── package.json
+├── den/                       Internal docs (not shipped)
+│   ├── plans/                     Specs, roadmaps
+│   ├── research/                  Design reviews, explorations
+│   └── moments/                   Test session logs, interaction captures
 ├── dragon-daemon/             Go daemon (planned)
 │   ├── main.go
 │   └── go.mod
@@ -125,18 +133,29 @@ panels?.register("my-panel", { handle, invalidate, dispose });
 
 ### Settings Namespace
 
-All settings under `hoard` in `~/.pi/agent/settings.json`, with tiered nesting (`hoard.guard.*`, `hoard.panels.*`, `hoard.digestion.*`, `hoard.todos.*`, `hoard.contributor.*`, `hoard.tone.*`). Legacy `dotsPiEnhancements` flat keys are still read as fallback:
+All settings under `hoard` in `~/.pi/agent/settings.json`, with tiered nesting. Legacy `dotsPiEnhancements` flat keys are still read as fallback via `berrygems/lib/settings.ts`.
+
+```
+hoard.guard.*        Dragon Guard (autoDetect, dogAllowedTools, keys)
+hoard.panels.*       Panel system (focusKey, closeKey, unfocusKey)
+hoard.digestion.*    Compaction tuning (triggerMode, strategy)
+hoard.todos.*        Todo panels (gifVibePrompt, gifRating)
+hoard.contributor.*  AI attribution (name, email, trailerFormat)
+hoard.tone.*         Writing style (default, overrides)
+```
 
 ### AI Contributor Identity
 
 ```json
 {
-  "contributor": {
-    "name": "Ember 🐉",
-    "email": "ember-ai@dotbeeps.dev",
-    "trailerFormat": "Co-authored-by: Ember 🐉 <ember-ai@dotbeeps.dev>",
-    "transparencyFormat": "Authored with Ember 🐉 [{model}]",
-    "includeModel": true
+  "hoard": {
+    "contributor": {
+      "name": "Ember 🐉",
+      "email": "ember-ai@dotbeeps.dev",
+      "trailerFormat": "Co-authored-by: Ember 🐉 <ember-ai@dotbeeps.dev>",
+      "transparencyFormat": "Authored with Ember 🐉 [{model}]",
+      "includeModel": true
+    }
   }
 }
 ```
@@ -147,11 +166,13 @@ Skills reference this for `Co-authored-by` trailers and transparency notes. If a
 
 ```json
 {
-  "writingStyle": {
-    "default": "personality",
-    "overrides": {
-      "security": "formal",
-      "coc": "formal"
+  "hoard": {
+    "tone": {
+      "default": "personality",
+      "overrides": {
+        "security": "formal",
+        "coc": "formal"
+      }
     }
   }
 }

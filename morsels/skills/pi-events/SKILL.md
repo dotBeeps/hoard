@@ -25,6 +25,17 @@ For the full event reference, read `/opt/pi-coding-agent/docs/extensions.md` (Ev
 | React when compaction happens | `session_compact` | (no return) |
 | Cancel compaction | `session_before_compact` | `{ cancel: true }` |
 | React to model change | `model_select` | (no return) |
+| React to session load | `session_start` | (no return) |
+| React to session switch/new | `session_switch` | (no return) |
+| React to fork | `session_fork` | (no return) |
+| React to tree navigation | `session_tree` | (no return) |
+| Cancel session switch | `session_before_switch` | `{ cancel: true }` |
+| Cancel fork | `session_before_fork` | `{ cancel: true }` |
+| Cancel tree navigation | `session_before_tree` | `{ cancel: true, summary? }` |
+| React when agent turn starts | `agent_start` | (no return) |
+| React when agent turn ends | `agent_end` | (no return) |
+| React per LLM call | `turn_start` / `turn_end` | (no return) |
+| Gracefully shut down pi | `ctx.shutdown()` | — |
 | Clean up on exit | `session_shutdown` | (no return) |
 
 ## Tool Call Interception
@@ -249,6 +260,117 @@ pi.on("user_bash", (event, ctx) => {
 
 	// Or return result directly
 	return { result: { output: "...", exitCode: 0, cancelled: false, truncated: false } };
+});
+```
+
+## Session Lifecycle Events
+
+React to session changes. Reconstruct extension state from session entries:
+
+```typescript
+const handleSessionChange = async (_event: any, ctx: ExtensionContext) => {
+	// Rebuild in-memory state from the current branch
+	for (const entry of ctx.sessionManager.getBranch()) {
+		if (entry.type === "custom" && entry.customType === "my-state") {
+			// Restore from entry.data
+		}
+	}
+};
+
+pi.on("session_start", handleSessionChange);
+pi.on("session_switch", handleSessionChange);
+pi.on("session_fork", handleSessionChange);
+pi.on("session_tree", handleSessionChange);
+
+// Cancel a switch before it happens
+pi.on("session_before_switch", async (event, ctx) => {
+	if (hasUnsavedWork()) {
+		const ok = await ctx.ui.confirm("Switch?", "You have unsaved work.");
+		if (!ok) return { cancel: true };
+	}
+});
+```
+
+## Agent & Turn Events
+
+`agent_start`/`agent_end` fire once per user prompt. `turn_start`/`turn_end` fire per LLM call within that prompt (multiple turns when tools are called):
+
+```typescript
+pi.on("agent_start", async (_event, ctx) => {
+	// Agent loop beginning for this prompt
+});
+
+pi.on("agent_end", async (event, ctx) => {
+	// event.messages — all messages from this prompt
+});
+
+pi.on("turn_start", async (event, ctx) => {
+	// event.turnIndex, event.timestamp
+});
+
+pi.on("turn_end", async (event, ctx) => {
+	// event.turnIndex, event.message, event.toolResults
+});
+```
+
+## Transient Context Injection
+
+Use the `context` event to inject per-turn context that is **not persisted** to the session JSONL. This is the correct pattern when you need the LLM to see mode/state information every turn without accumulating stale messages:
+
+```typescript
+pi.on("context", async (event, ctx) => {
+	// Inject a transient system-like message that the LLM sees but isn't stored
+	const modeMessage = {
+		role: "user" as const,
+		content: [{ type: "text" as const, text: `[CURRENT MODE: ${getMode()}]` }],
+		timestamp: Date.now(),
+	};
+	return { messages: [...event.messages, modeMessage] };
+});
+```
+
+**When to use which:**
+- `before_agent_start` + `systemPrompt` — ephemeral system prompt modification, reset each turn
+- `before_agent_start` + `message` — **persistent** context stored in session JSONL (accumulates!)
+- `context` event — transient message injection, never stored, rebuilt each LLM call
+
+## Graceful Shutdown
+
+Request pi to exit cleanly from any context (event handler, tool, command, shortcut):
+
+```typescript
+pi.on("tool_call", (event, ctx) => {
+	if (isFatalCondition(event.input)) {
+		ctx.shutdown();  // Emits session_shutdown, then exits
+	}
+});
+
+pi.on("session_shutdown", async (_event, ctx) => {
+	// Cleanup: close connections, save state, etc.
+});
+```
+
+`ctx.shutdown()` is deferred in interactive mode (waits for idle). No-op in print mode.
+
+## ExtensionCommandContext
+
+Command handlers receive `ExtensionCommandContext`, which extends `ExtensionContext` with session control methods. These are **only safe in commands** — calling them from event handlers can deadlock:
+
+```typescript
+pi.registerCommand("mycommand", {
+	handler: async (args, ctx) => {
+		// ctx.waitForIdle() — wait until agent finishes current work
+		await ctx.waitForIdle();
+
+		// ctx.reload() — hot-reload all extensions
+		await ctx.reload();  // Emits session_shutdown → session_start
+
+		// ctx.compact() — trigger compaction manually
+		await ctx.compact({ customInstructions: "Focus on code changes" });
+
+		// ctx.sendUserMessage() — inject a user message
+		await ctx.sendUserMessage("Continue with the plan");
+	},
 });
 ```
 

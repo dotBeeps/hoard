@@ -95,7 +95,92 @@ pi.registerTool({
 - Use `onUpdate?.()` for streaming progress
 - Check `signal?.aborted` for cancellation
 - Store full state in `details` for branch-correct reconstruction
-- Use `withFileMutationQueue()` if mutating files
+- Use `withFileMutationQueue()` if mutating files (see below)
+- Use `prepareArguments()` for backward-compatible schema migration (see below)
+- Truncate large output with `truncateHead`/`truncateTail` (see below)
+
+### File Mutation Queue
+
+Tools run in parallel by default. If your tool mutates files, wrap the read-modify-write in `withFileMutationQueue()` so it shares a per-file queue with built-in `edit` and `write`:
+
+```typescript
+import { withFileMutationQueue } from "@mariozechner/pi-coding-agent";
+import { resolve } from "node:path";
+import { readFile, writeFile, mkdir } from "node:fs/promises";
+
+async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+  const absolutePath = resolve(ctx.cwd, params.path);
+
+  return withFileMutationQueue(absolutePath, async () => {
+    await mkdir(dirname(absolutePath), { recursive: true });
+    const current = await readFile(absolutePath, "utf8");
+    const next = transform(current);
+    await writeFile(absolutePath, next, "utf8");
+    return { content: [{ type: "text", text: `Updated ${params.path}` }] };
+  });
+}
+```
+
+**Key points:**
+- Pass the resolved **absolute path**, not the raw user argument
+- Queue the **entire** read-modify-write window, not just the write
+- Without this, two parallel tool calls editing the same file will race
+
+### Argument Preparation
+
+`prepareArguments(args)` runs before schema validation. Use it to migrate old stored tool calls when resuming sessions after schema changes:
+
+```typescript
+pi.registerTool({
+  parameters: Type.Object({
+    edits: Type.Array(Type.Object({
+      oldText: Type.String(),
+      newText: Type.String(),
+    })),
+  }),
+  prepareArguments(args) {
+    if (!args || typeof args !== "object") return args;
+    const input = args as any;
+    // Migrate old flat format → new array format
+    if (input.oldText && !input.edits) {
+      return { ...input, edits: [{ oldText: input.oldText, newText: input.newText }] };
+    }
+    return args;
+  },
+  // ...
+});
+```
+
+Keep the public schema strict — don't add deprecated fields to `parameters`.
+
+### Output Truncation
+
+Built-in limit: **50KB / 2000 lines**. For tools that produce large output, use the truncation utilities:
+
+```typescript
+import {
+  truncateHead,       // Keep first N lines/bytes (search results, file reads)
+  truncateTail,       // Keep last N lines/bytes (logs, command output)
+  DEFAULT_MAX_BYTES,  // 50KB
+  DEFAULT_MAX_LINES,  // 2000
+} from "@mariozechner/pi-coding-agent";
+
+async execute(toolCallId, params, signal, onUpdate, ctx) {
+  const output = await runCommand();
+  const truncation = truncateHead(output, {
+    maxLines: DEFAULT_MAX_LINES,
+    maxBytes: DEFAULT_MAX_BYTES,
+  });
+
+  let text = truncation.text;
+  if (truncation.truncated) {
+    text += `\n\n[Truncated: showed ${truncation.keptLines} of ${truncation.totalLines} lines]`;
+  }
+  return { content: [{ type: "text", text }] };
+}
+```
+
+Always tell the LLM when output is truncated and where to find the full version.
 
 ## TUI Components
 

@@ -37,7 +37,7 @@ function getPanels(): any {
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { homedir } from "node:os";
-import { readHoardSetting, readProjectHoardSetting, writeProjectHoardSetting, keyLabel } from "../lib/settings.ts";
+import { readHoardSetting, readHoardKey, readProjectHoardSetting, writeProjectHoardSetting, keyLabel } from "../lib/settings.ts";
 
 // ── Local Types ──
 
@@ -46,6 +46,7 @@ interface PanelContext {
 	theme: Theme;
 	cwd: string;
 	isFocused: () => boolean;
+	skin: () => import("../lib/panel-chrome.ts").PanelSkin;
 }
 
 // ── Types ──
@@ -169,7 +170,7 @@ const DIGESTION_PHASES: Array<{ emoji: string; text: string }> = [
 const PHASE_INTERVAL_MS = 2800;
 
 /** Key to copy settings from global config (configurable via hoard.digestion.copyGlobalKey) */
-const COPY_GLOBAL_KEY = readHoardSetting<string>("digestion.copyGlobalKey", "g");
+const COPY_GLOBAL_KEY = readHoardKey("digestion.copyGlobalKey", "g");
 const COPY_GLOBAL_LABEL = keyLabel(COPY_GLOBAL_KEY);
 
 // ── Helpers ──
@@ -398,7 +399,7 @@ class CompactionPanelComponent {
 	// ── Settings Changes ──
 
 	private applyChange(key: keyof CompactionSettings, value: unknown): void {
-		(this.liveSettings as Record<string, unknown>)[key] = value;
+		(this.liveSettings as unknown as Record<string, unknown>)[key] = value;
 		writeCompactionSetting(this.cwd, key, value);
 		this.settings = { ...this.liveSettings };
 		this.invalidate();
@@ -430,7 +431,7 @@ class CompactionPanelComponent {
 	private cycleDigestValue(field: keyof DigestSettings, settingsKey: string, presets: number[], direction: 1 | -1): void {
 		const current = this.digestSettings[field] as number;
 		const newVal = cyclePreset(current, presets, direction);
-		(this.digestSettings as Record<string, unknown>)[field] = newVal;
+		(this.digestSettings as unknown as Record<string, unknown>)[field] = newVal;
 		writeDigestSetting(this.cwd, settingsKey, newVal);
 		this.recalculateReserveTokens();
 		this.invalidate();

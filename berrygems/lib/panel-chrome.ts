@@ -8,7 +8,7 @@
  */
 
 import { truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
-import type { Theme } from "@mariozechner/pi-tui";
+import type { Theme } from "@mariozechner/pi-coding-agent";
 
 // ── Panel Skins ──
 
@@ -355,9 +355,9 @@ function getEdges(options: ChromeOptions): {
 	const rightRaw = resolved.right;
 
 	return {
-		left: leftRaw ? theme.fg(color, leftRaw) : "",
+		left: leftRaw ? theme.fg(color as any, leftRaw) : "",
 		leftW: leftRaw ? visibleWidth(leftRaw) : 0,
-		right: rightRaw ? theme.fg(color, rightRaw) : "",
+		right: rightRaw ? theme.fg(color as any, rightRaw) : "",
 		rightW: rightRaw ? visibleWidth(rightRaw) : 0,
 		bg: resolved.bg,
 	};
@@ -379,7 +379,7 @@ export function padContentLine(text: string, width: number, options: ChromeOptio
 	const truncated = truncateToWidth(text, innerW);
 	const padding = Math.max(0, innerW - visibleWidth(truncated));
 	const line = edges.left + truncated + " ".repeat(padding) + edges.right;
-	return edges.bg ? theme.bg(edges.bg, line) : line;
+	return edges.bg ? theme.bg(edges.bg as any, line) : line;
 }
 
 // ── Chrome Rendering ──
@@ -406,10 +406,10 @@ export function renderBorder(width: number, options: ChromeOptions, position: "t
 
 	const border = cornerL + repeatPattern(pattern, fillW) + cornerR;
 	const styled = options.focused
-		? theme.fg(color, theme.bold(border))
-		: theme.fg(color, border);
+		? theme.fg(color as any, theme.bold(border))
+		: theme.fg(color as any, border);
 	// Extend background color to border rows for visual continuity
-	return resolved.bg ? theme.bg(resolved.bg, styled) : styled;
+	return resolved.bg ? theme.bg(resolved.bg as any, styled) : styled;
 }
 
 /**
@@ -451,7 +451,7 @@ export function renderFooter(width: number, options: ChromeOptions): string[] {
 			const innerW = width - edges.leftW - edges.rightW;
 			const pad = Math.max(1, innerW - visibleWidth(left) - visibleWidth(right));
 			const content = edges.left + theme.fg("dim", left) + " ".repeat(pad) + theme.fg("dim", right) + edges.right;
-			lines.push(edges.bg ? theme.bg(edges.bg, content) : content);
+			lines.push(edges.bg ? theme.bg(edges.bg as any, content) : content);
 		} else {
 			lines.push(padContentLine(theme.fg("dim", left || right), width, options));
 		}

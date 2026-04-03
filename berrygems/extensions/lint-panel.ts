@@ -540,6 +540,43 @@ export default function lintPanel(pi: ExtensionAPI): void {
 		return lspManager;
 	}
 
+	function openPanel(cwd: string): boolean {
+		const panels = getPanels();
+		if (!panels) return false;
+
+		if (panelComponent) {
+			panels.close(PANEL_ID);
+			panelComponent = null;
+		}
+
+		const lsp = ensureLsp(cwd);
+
+		panels.createPanel(PANEL_ID, (panelCtx: any) => {
+			panelComponent = new LintPanelComponent({ panelCtx, cwd, lsp });
+			return {
+				render: (w: number) => panelComponent!.render(w),
+				invalidate: () => panelComponent!.invalidate(),
+				handleInput: (data: string) => panelComponent!.handleInput(data),
+				dispose: () => panelComponent!.dispose(),
+			};
+		}, {
+			anchor: "top-right",
+			width: "45%",
+		});
+
+		return true;
+	}
+
+	function closePanel(): boolean {
+		const panels = getPanels();
+		if (panels && panelComponent) {
+			panels.close(PANEL_ID);
+			panelComponent = null;
+			return true;
+		}
+		return false;
+	}
+
 	pi.registerTool({
 		name: "lint",
 		label: "Lint",
@@ -599,51 +636,18 @@ export default function lintPanel(pi: ExtensionAPI): void {
 			}
 
 			if (params.action === "open") {
-				if (!panels) {
-					return {
-						content: [{ type: "text" as const, text: "Panel manager not available — dots-panels extension required" }],
-						details: { action: "open", success: false },
-					};
-				}
-
-				if (panelComponent) {
-					panels.close(PANEL_ID);
-					panelComponent = null;
-				}
-
-				const lsp = ensureLsp(cwd);
-
-				panels.createPanel(PANEL_ID, (panelCtx: any) => {
-					panelComponent = new LintPanelComponent({ panelCtx, cwd, lsp });
-					return {
-						render: (w: number) => panelComponent!.render(w),
-						invalidate: () => panelComponent!.invalidate(),
-						handleInput: (data: string) => panelComponent!.handleInput(data),
-						dispose: () => panelComponent!.dispose(),
-					};
-				}, {
-					anchor: "top-right",
-					width: "45%",
-				});
-
+				const success = openPanel(cwd);
 				return {
-					content: [{ type: "text" as const, text: "Opened lint panel — LSP connecting..." }],
-					details: { action: "open", success: true, mode: "lsp" },
+					content: [{ type: "text" as const, text: success ? "Opened lint panel — LSP connecting..." : "Panel manager not available" }],
+					details: { action: "open", success, mode: "lsp" },
 				};
 			}
 
 			if (params.action === "close") {
-				if (panels && panelComponent) {
-					panels.close(PANEL_ID);
-					panelComponent = null;
-					return {
-						content: [{ type: "text" as const, text: "Closed lint panel" }],
-						details: { action: "close", success: true },
-					};
-				}
+				const success = closePanel();
 				return {
-					content: [{ type: "text" as const, text: "No lint panel open" }],
-					details: { action: "close", success: false },
+					content: [{ type: "text" as const, text: success ? "Closed lint panel" : "No lint panel open" }],
+					details: { action: "close", success },
 				};
 			}
 
@@ -660,13 +664,11 @@ export default function lintPanel(pi: ExtensionAPI): void {
 		handler: async (args, ctx) => {
 			const action = (args ?? "").trim() || "check";
 			if (action === "open") {
-				ctx.ui.notify("Opening lint panel...", "info");
+				const ok = openPanel(ctx.cwd);
+				ctx.ui.notify(ok ? "Lint panel opened — LSP connecting..." : "Panel manager not available", ok ? "info" : "warning");
 			} else if (action === "close") {
-				if (panelComponent) {
-					getPanels()?.close(PANEL_ID);
-					panelComponent = null;
-					ctx.ui.notify("Closed lint panel", "info");
-				}
+				const ok = closePanel();
+				ctx.ui.notify(ok ? "Closed lint panel" : "No lint panel open", "info");
 			} else {
 				const tsconfig = findTsconfig(ctx.cwd);
 				if (!tsconfig) {

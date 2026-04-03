@@ -21,7 +21,8 @@ hoard/
 │   │   ├── digestion-settings.ts  Compaction tuning panel
 │   │   ├── popup.ts              Markdown popup panels (scrollable, updatable by ID)
 │   │   ├── todo-lists.ts         Floating todo panels with GIF mascots
-│   │   └── dragon-guard/         Three-tier permission guard
+│   │   ├── dragon-guard/         Three-tier permission guard
+│   │   └── lint-panel.ts         Floating diagnostics panel (tsc type errors)
 │   ├── lib/
 │   │   ├── settings.ts            Shared settings reader (hoard.* + legacy fallback)
 │   │   └── panel-chrome.ts        Shared border/focus/header/footer rendering + 19 panel skins

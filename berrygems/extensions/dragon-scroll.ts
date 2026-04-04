@@ -10,7 +10,7 @@
 
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
 import { getMarkdownTheme } from "@mariozechner/pi-coding-agent";
-import { Markdown, Text, matchesKey, Key } from "@mariozechner/pi-tui";
+import { Markdown, Text, matchesKey, Key, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
 import type { MarkdownTheme } from "@mariozechner/pi-tui";
 import type { Theme } from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
@@ -18,6 +18,9 @@ import { StringEnum } from "@mariozechner/pi-ai";
 import {
 	renderHeader, renderFooter, padContentLine, contentWidth,
 } from "../lib/panel-chrome.ts";
+import { AnimatedImagePlayer } from "../lib/animated-image-player.ts";
+import { resolveImageSize, type ImageFrames } from "../lib/animated-image.ts";
+import { fetchGiphyImage } from "../lib/giphy-source.ts";
 
 // ── Panel Manager Access ──
 
@@ -38,6 +41,11 @@ const PopupParams = Type.Object({
 	width: Type.Optional(Type.String({ description: "Panel width as number or percentage, e.g. '50%' or '60'. Default: 50%" })),
 	id: Type.Optional(Type.String({ description: "Panel ID for updates/closing. Default: auto-generated" })),
 	skin: Type.Optional(Type.String({ description: "Panel skin name (e.g. 'ember', 'curvy', 'box'). Default: from settings" })),
+	gif: Type.Optional(Type.String({ description: "GIF search query or vibe keyword for an animated mascot (e.g. 'furry coding', 'dragon sleeping'). Searches Giphy for a matching animated sticker." })),
+	gifSize: Type.Optional(StringEnum(
+		["tiny", "small", "medium", "large", "huge"] as const,
+		{ description: "GIF size: tiny, small, medium (default), large, huge" },
+	)),
 });
 
 
@@ -47,7 +55,12 @@ interface PopupComponentOptions {
 	title?: string;
 	content: string;
 	panelCtx: any;  // PanelContext from hoard-gallery
+	gifQuery?: string;
+	gifSize?: string;
 }
+
+// Shared image cache across popups — avoids re-fetching the same GIF.
+const imageCache = new Map<string, ImageFrames>();
 
 class PopupComponent {
 	private title: string;
@@ -59,12 +72,60 @@ class PopupComponent {
 	private panelCtx: any;
 	private mdTheme: MarkdownTheme;
 
+	// GIF mascot
+	private mascot: AnimatedImagePlayer | null = null;
+	private gifMaxW: number;
+	private gifMaxH: number;
+
 	constructor(options: PopupComponentOptions) {
 		this.title = options.title ?? "";
 		this.content = options.content;
 
 		this.panelCtx = options.panelCtx;
 		this.mdTheme = getMarkdownTheme();
+
+		const [maxW, maxH] = resolveImageSize(options.gifSize);
+		this.gifMaxW = maxW;
+		this.gifMaxH = maxH;
+
+		if (options.gifQuery) {
+			this.loadGif(options.gifQuery);
+		}
+	}
+
+	// ── GIF Loading ──
+
+	private async loadGif(query: string): Promise<void> {
+		const cached = imageCache.get(query);
+		if (cached) { this.setupGif(cached); return; }
+
+		const imageData = await fetchGiphyImage(query);
+		if (!imageData) return;
+		imageCache.set(query, imageData);
+		this.setupGif(imageData);
+	}
+
+	private setupGif(imageData: ImageFrames): void {
+		this.disposeGif();
+		const player = new AnimatedImagePlayer(imageData, { maxCols: this.gifMaxW, maxRows: this.gifMaxH });
+		this.mascot = player;
+
+		setTimeout(() => {
+			if (this.mascot !== player) return;
+			player.play(() => {
+				this.invalidate();
+				this.panelCtx.tui.requestRender();
+			});
+			this.invalidate();
+			this.panelCtx.tui.requestRender();
+		}, 0);
+	}
+
+	disposeGif(): void {
+		if (this.mascot) {
+			this.mascot.dispose();
+			this.mascot = null;
+		}
 	}
 
 	/** Update content (for live-updating popups). */
@@ -132,10 +193,11 @@ class PopupComponent {
 		};
 
 		// Render markdown content (full, then slice for scroll)
+		const innerW = contentWidth(width, chromeOpts);
 		if (this.renderedLines.length === 0) {
 			const md = new Markdown(this.content, 1, 0, this.mdTheme);
 			// Render markdown at the actual inner width minus 1 col for the leading space prefix
-			this.renderedLines = md.render(contentWidth(width, chromeOpts) - 1);
+			this.renderedLines = md.render(innerW - 1);
 		}
 
 		// Viewport slicing
@@ -144,7 +206,33 @@ class PopupComponent {
 		this.scrollOffset = Math.min(this.scrollOffset, maxScroll);
 		const visible = this.renderedLines.slice(this.scrollOffset, this.scrollOffset + viewH);
 
-		const contentLines = visible.map(line => padContentLine(` ${line}`, width, chromeOpts));
+		// Build mascot placeholder lines if we have a GIF
+		const mascotLines = this.mascot ? this.mascot.getPlaceholderLines() : [];
+		const mascotW = this.mascot?.cols ?? 0;
+		let mascotRow = 0;
+
+		// Merge content lines with GIF mascot (top-right aligned)
+		const contentLines = visible.map(line => {
+			const padded = ` ${line}`;
+			if (mascotRow < mascotLines.length && mascotW > 0) {
+				// Reserve space: [content] [gap] [mascot]
+				const textW = innerW - mascotW - 1;
+				const truncated = truncateToWidth(padded, Math.max(4, textW));
+				const gap = Math.max(0, innerW - visibleWidth(truncated) - mascotW);
+				const merged = truncated + " ".repeat(gap) + mascotLines[mascotRow]!;
+				mascotRow++;
+				return padContentLine(merged, width, chromeOpts);
+			}
+			return padContentLine(padded, width, chromeOpts);
+		});
+
+		// Flush remaining mascot rows if mascot is taller than visible content
+		while (mascotRow < mascotLines.length) {
+			const gap = Math.max(0, innerW - mascotW);
+			const line = " ".repeat(gap) + mascotLines[mascotRow]!;
+			contentLines.push(padContentLine(line, width, chromeOpts));
+			mascotRow++;
+		}
 
 		// Scroll info for footer
 		const total = this.renderedLines.length;
@@ -224,12 +312,15 @@ export default function popup(pi: ExtensionAPI): void {
 					title: params.title,
 					content: params.content,
 					panelCtx,
+					gifQuery: params.gif,
+					gifSize: params.gifSize,
 				});
 				activePopups.set(id, component);
 				return {
 					render: (w: number) => component!.render(w),
 					invalidate: () => component!.invalidate(),
 					handleInput: (data: string) => component!.handleInput(data),
+					dispose: () => component!.disposeGif(),
 				};
 			}, {
 				anchor: params.anchor ?? "center",
@@ -326,6 +417,11 @@ export default function popup(pi: ExtensionAPI): void {
 			return new Text(first?.type === "text" ? first.text : "", 0, 0);
 		},
 	});
+
+	// ── Events ──
+
+	pi.on("session_switch", async () => { activePopups.clear(); imageCache.clear(); });
+	pi.on("session_shutdown", async () => { activePopups.clear(); imageCache.clear(); });
 
 	// ── Commands ──
 

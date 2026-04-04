@@ -110,12 +110,18 @@ class PopupComponent {
 		const player = new AnimatedImagePlayer(imageData, { maxCols: this.gifMaxW, maxRows: this.gifMaxH });
 		this.mascot = player;
 
+		// Microtask delay avoids racing with the TUI's current render cycle.
+		// Transmit first frame explicitly, then start playback for animation.
 		setTimeout(() => {
 			if (this.mascot !== player) return;
+			// Transmit initial frame to Kitty memory
+			player.transmit();
+			// Start auto-advance for animated images
 			player.play(() => {
 				this.invalidate();
 				this.panelCtx.tui.requestRender();
 			});
+			// Re-render to show placeholder characters
 			this.invalidate();
 			this.panelCtx.tui.requestRender();
 		}, 0);

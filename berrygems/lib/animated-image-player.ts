@@ -41,10 +41,11 @@ export class AnimatedImagePlayer extends AnimatedImage {
 
 	/**
 	 * Start auto-advancing frames. Transmits each frame to Kitty on tick.
+	 * For single-frame images, transmits once without starting an interval.
 	 * @param onFrame Optional callback fired after each frame advance — use to invalidate/re-render panels.
 	 */
 	play(onFrame?: () => void): void {
-		if (this.isDisposed() || !this.isAnimated()) return;
+		if (this.isDisposed()) return;
 		if (onFrame) this.onFrame = onFrame;
 
 		this.stopInterval();
@@ -52,6 +53,9 @@ export class AnimatedImagePlayer extends AnimatedImage {
 
 		// Transmit initial frame immediately
 		this.transmit();
+
+		// Only start auto-advance interval for multi-frame images
+		if (!this.isAnimated()) return;
 
 		const delay = this.getAverageDelay() / this.speed;
 		this.interval = setInterval(() => {

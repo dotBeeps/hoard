@@ -10,7 +10,7 @@
 
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
 import { getMarkdownTheme } from "@mariozechner/pi-coding-agent";
-import { Markdown, Text, matchesKey, Key, visibleWidth } from "@mariozechner/pi-tui";
+import { Markdown, Text, matchesKey, Key, visibleWidth, truncateToWidth } from "@mariozechner/pi-tui";
 import type { MarkdownTheme } from "@mariozechner/pi-tui";
 import type { Theme } from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
@@ -32,8 +32,6 @@ function getImageFetch(): { fetch: (query: string, size?: string) => Promise<any
 	return (globalThis as any)[IMAGE_FETCH_KEY];
 }
 
-/** Shape of a LoadedImage as returned by kitty.loadImage(). Local mirror — no cross-extension import. */
-interface LoadedImage { player: { getPlaceholderLines(): string[]; cols: number; dispose(): void }; cols: number; rows: number; }
 function getPanels(): any {
 	return (globalThis as any)[PANELS_KEY];
 }
@@ -50,12 +48,9 @@ const PopupParams = Type.Object({
 	width: Type.Optional(Type.String({ description: "Panel width as number or percentage, e.g. '50%' or '60'. Default: 50%" })),
 	id: Type.Optional(Type.String({ description: "Panel ID for updates/closing. Default: auto-generated" })),
 	skin: Type.Optional(Type.String({ description: "Panel skin name (e.g. 'ember', 'curvy', 'box'). Default: from settings" })),
-	gif: Type.Optional(Type.String({ description: "GIF search query or vibe keyword for an animated mascot (e.g. 'furry coding', 'dragon sleeping'). Searches Giphy for a matching animated sticker." })),
-	gifSize: Type.Optional(StringEnum(
-		["tiny", "small", "medium", "large", "huge"] as const,
-		{ description: "GIF size: tiny, small, medium (default), large, huge" },
-	)),
 });
+// Note: gif + gifSize params removed. Embed images inline using markdown syntax:
+//   ![alt](giphy:query|size|float)  e.g. ![dragon](giphy:dragon coding|small|right)
 
 
 // ── Inline Image Support ──
@@ -75,10 +70,17 @@ function escapeRegex(s: string): string {
 	return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/** How an inline image is positioned relative to surrounding text. */
+type FloatMode = "center" | "left" | "right" | "inline";
+
+const FLOAT_QUALIFIERS: FloatMode[] = ["center", "left", "right", "inline"];
+const SIZE_QUALIFIERS = ["tiny", "small", "medium", "large", "huge"];
+
 interface ImageRef {
 	alt: string;
-	source: string;  // giphy:query, http://..., or file path
+	source: string;  // giphy:query, tenor:query, http://..., or file path
 	size: string;
+	float: FloatMode;
 	idx: number;
 }
 
@@ -88,6 +90,24 @@ interface InlineImage {
 	/** Number of placeholder rows this image occupies. Before load: estimated. After: actual. */
 	rows: number;
 	cols: number;
+}
+
+/**
+ * Split an ANSI-decorated line into [left, right] at a visible character boundary.
+ * Adds a color reset at the split point to prevent ANSI bleed between columns.
+ */
+function splitAtVisibleWidth(line: string, leftW: number): [string, string] {
+	let visible = 0;
+	let i = 0;
+	while (i < line.length && visible < leftW) {
+		if (line[i] === "\x1b") {
+			const end = line.indexOf("m", i);
+			if (end !== -1) { i = end + 1; continue; }
+		}
+		visible++;
+		i++;
+	}
+	return [line.slice(0, i) + "\x1b[0m", line.slice(i)];
 }
 
 /**
@@ -109,23 +129,32 @@ function extractInlineImages(content: string): { processed: string; refs: ImageR
 		}
 		if (inCodeBlock) continue;
 
-		// Match block-level image: ![alt](source) or ![alt](source|size)
+		// Match block-level image: ![alt](source) or ![alt](source|qualifiers)
+		// Standard markdown: ![alt](url) — no qualifiers, centered full-width block.
+		// Extended: ![alt](url|size) | ![alt](url|float) | ![alt](url|size|float)
+		// size: tiny | small | medium | large | huge
+		// float: left | right | inline | center
 		const match = line.match(/^!\[([^\]]*)\]\(([^)]+)\)\s*$/);
 		if (!match) continue;
 
 		const [, alt, url] = match;
 		const idx = refs.length;
 		let size = "medium";
+		let float: FloatMode = "center";
 		let source = url!;
-		const pipeIdx = url!.lastIndexOf("|");
+
+		// Parse | qualifiers — source ends at first |, remaining are qualifiers in any order
+		const pipeIdx = url!.indexOf("|");
 		if (pipeIdx !== -1) {
-			const sizePart = url!.slice(pipeIdx + 1).trim().toLowerCase();
-			if (["tiny", "small", "medium", "large", "huge"].includes(sizePart)) {
-				size = sizePart;
-				source = url!.slice(0, pipeIdx);
+			source = url!.slice(0, pipeIdx);
+			const qualifiers = url!.slice(pipeIdx + 1).split("|").map(q => q.trim().toLowerCase());
+			for (const q of qualifiers) {
+				if (SIZE_QUALIFIERS.includes(q)) size = q;
+				else if (FLOAT_QUALIFIERS.includes(q as FloatMode)) float = q as FloatMode;
 			}
 		}
-		refs.push({ alt: alt!, source, size, idx });
+
+		refs.push({ alt: alt!, source, size, float, idx });
 		lines[i] = `${IMG_MARKER_PREFIX}${idx}${IMG_MARKER_SUFFIX}`;
 	}
 
@@ -138,8 +167,6 @@ interface PopupComponentOptions {
 	title?: string;
 	content: string;
 	panelCtx: any;  // PanelContext from dragon-parchment
-	gifQuery?: string;
-	gifSize?: string;
 }
 
 // Shared image cache across popups — avoids re-fetching the same GIF.
@@ -155,12 +182,7 @@ class PopupComponent {
 	private panelCtx: any;
 	private mdTheme: MarkdownTheme;
 
-	// GIF mascot (top-right corner image from tool params)
-	private mascot: LoadedImage | null = null;
-	private gifMaxW: number;
-	private gifMaxH: number;
-
-	// Inline images from markdown ![alt](source) syntax
+	// Inline images from markdown ![alt](source|size|float) syntax
 	private inlineImages: InlineImage[] = [];
 	private processedContent: string = "";
 
@@ -171,58 +193,12 @@ class PopupComponent {
 		this.panelCtx = options.panelCtx;
 		this.mdTheme = getMarkdownTheme();
 
-		const [maxW, maxH] = resolveImageSize(options.gifSize);
-		this.gifMaxW = maxW;
-		this.gifMaxH = maxH;
-
-		if (options.gifQuery) {
-			this.loadGif(options.gifQuery);
-		}
-
 		// Extract and start loading inline images
 		this.parseInlineImages();
 	}
 
-	// ── GIF Loading ──
-
-	private async loadGif(query: string): Promise<void> {
-		const cached = imageCache.get(query);
-		if (cached) { this.setupGif(cached); return; }
-
-		const imageFetch = getImageFetch();
-		const imageData = imageFetch ? await imageFetch.fetch(`giphy:${query}`) : null;
-		if (!imageData) return;
-		imageCache.set(query, imageData);
-		this.setupGif(imageData);
-	}
-
-	private setupGif(imageData: ImageFrames): void {
-		this.disposeGif();
-		const kitty = getKitty();
-		if (!kitty) return; // kitty-gif-renderer not loaded — skip silently
-		const loaded = kitty.loadImage(imageData, {
-			maxCols: this.gifMaxW,
-			maxRows: this.gifMaxH,
-			onReady: () => {
-				if (this.mascot !== loaded) return; // disposed before ready
-				this.invalidate();
-				this.panelCtx.tui.requestRender();
-			},
-		}) as LoadedImage;
-		this.mascot = loaded;
-	}
-
-	disposeGif(): void {
-		if (this.mascot) {
-			const kitty = getKitty();
-			kitty ? kitty.disposeImage(this.mascot) : this.mascot.player.dispose();
-			this.mascot = null;
-		}
-	}
-
-	/** Dispose all image resources (mascot + inline). */
+	/** Dispose all image resources (inline images). */
 	disposeAll(): void {
-		this.disposeGif();
 		this.disposeInlineImages();
 	}
 
@@ -287,46 +263,107 @@ class PopupComponent {
 
 	/**
 	 * Scan rendered markdown lines for image markers and expand them into
-	 * placeholder rows. If the image isn't loaded yet, inserts a loading
-	 * placeholder. If loaded, inserts the Kitty placeholder lines centered.
+	 * placeholder rows, respecting each image's float mode:
+	 *
+	 * - center (default): centered full-width block, text above/below.
+	 * - right: image floats right, following text lines wrap on the left.
+	 * - left: image floats left, following text lines wrap on the right.
+	 * - inline: image centered, text fills both left and right columns
+	 *           simultaneously (bilateral wrap / newspaper column effect).
 	 */
-	private expandImageMarkers(lines: string[], innerW: number): string[] {
+	private expandImageMarkers(allLines: string[], innerW: number): string[] {
 		const result: string[] = [];
 		const theme = this.panelCtx.theme as Theme;
+		const kitty = getKitty();
+		const markerRe = new RegExp(`${escapeRegex(IMG_MARKER_PREFIX)}(\\d+)${escapeRegex(IMG_MARKER_SUFFIX)}`);
 
-		for (const line of lines) {
-			// Strip ANSI to detect marker in rendered text
+		const isMarkerLine = (l: string) => markerRe.test(l.replace(ANSI_RE, ""));
+
+		let i = 0;
+		while (i < allLines.length) {
+			const line = allLines[i]!;
 			const stripped = line.replace(ANSI_RE, "");
-			const markerMatch = stripped.match(new RegExp(`${escapeRegex(IMG_MARKER_PREFIX)}(\\d+)${escapeRegex(IMG_MARKER_SUFFIX)}`));
+			const markerMatch = stripped.match(markerRe);
 
-			if (!markerMatch) {
-				result.push(line);
-				continue;
-			}
+			if (!markerMatch) { result.push(line); i++; continue; }
 
 			const idx = parseInt(markerMatch[1]!, 10);
 			const entry = this.inlineImages[idx];
-			if (!entry) {
-				result.push(line);
+			if (!entry) { result.push(line); i++; continue; }
+
+			i++; // advance past marker line
+
+			if (!entry.player) {
+				// Not yet loaded — loading placeholder
+				result.push(theme.fg("dim", `⏳ Loading image${entry.ref.alt ? `: ${entry.ref.alt}` : ""}...`));
+				for (let r = 1; r < entry.rows; r++) result.push("");
 				continue;
 			}
 
-			if (entry.player) {
-				// Image loaded — insert centered placeholder rows tagged for special rendering
-				const placeholderLines = entry.player.getPlaceholderLines();
-				const imgW = entry.cols;
-				const leftPad = Math.max(0, Math.floor((innerW - imgW) / 2));
-				const rightPad = Math.max(0, innerW - imgW - leftPad);
+			const placeholderLines = entry.player.getPlaceholderLines();
+			const imgCols = entry.cols;
+			const float = entry.ref.float;
+
+			if (float === "center") {
+				// Centered full-width block — unchanged behavior
+				const leftPad = Math.max(0, Math.floor((innerW - imgCols) / 2));
+				const rightPad = Math.max(0, innerW - imgCols - leftPad);
 				for (const pLine of placeholderLines) {
-					// Tag with IMG_LINE_TAG so render() bypasses padContentLine
 					result.push(IMG_LINE_TAG + " ".repeat(leftPad) + pLine + " ".repeat(rightPad));
 				}
-			} else {
-				// Image still loading — show loading indicator
-				const loadingText = theme.fg("dim", `⏳ Loading image${entry.ref.alt ? `: ${entry.ref.alt}` : ""}...`);
-				result.push(loadingText);
-				// Reserve space for the image (estimated rows)
-				for (let r = 1; r < entry.rows; r++) result.push("");
+
+			} else if (float === "right" || float === "left") {
+				// Float: image anchored to one edge, text wraps on the opposite side.
+				const loaded = { player: entry.player, cols: imgCols, rows: entry.rows };
+				const merger = kitty?.createMerger(loaded, innerW);
+				if (!merger) {
+					// No kitty renderer — fallback to centered block
+					const leftPad = Math.max(0, Math.floor((innerW - imgCols) / 2));
+					const rightPad = Math.max(0, innerW - imgCols - leftPad);
+					for (const pLine of placeholderLines) result.push(IMG_LINE_TAG + " ".repeat(leftPad) + pLine + " ".repeat(rightPad));
+					continue;
+				}
+
+				// Consume following lines until image rows exhausted or next marker
+				while (merger.hasMore && i < allLines.length) {
+					if (isMarkerLine(allLines[i]!)) break;
+					const { content, gap, mascot } = merger.nextLine(allLines[i]!);
+					result.push(IMG_LINE_TAG + (
+						float === "right"
+							? content + " ".repeat(gap) + mascot!
+							: mascot! + " ".repeat(gap) + content
+					));
+					i++;
+				}
+				// Flush remaining image rows
+				for (const { gap, mascot } of merger.flushLines()) {
+					result.push(IMG_LINE_TAG + (
+						float === "right"
+							? " ".repeat(gap) + mascot!
+							: mascot! + " ".repeat(innerW - imgCols)
+					));
+				}
+
+			} else if (float === "inline") {
+				// Bilateral wrap: image centered, text fills both sides simultaneously.
+				// Each following rendered line is split at the left column boundary.
+				// The left portion appears left of the image, right portion appears right.
+				// This produces the newspaper-column effect for the image's row span.
+				const leftW = Math.max(1, Math.floor((innerW - imgCols) / 2));
+				const rightW = Math.max(1, innerW - leftW - imgCols);
+
+				for (let pr = 0; pr < placeholderLines.length; pr++) {
+					if (i < allLines.length && !isMarkerLine(allLines[i]!)) {
+						const [leftPart, rightPart] = splitAtVisibleWidth(allLines[i]!, leftW);
+						const leftFill = " ".repeat(Math.max(0, leftW - visibleWidth(leftPart.replace(ANSI_RE, ""))));
+						const rightTrunc = truncateToWidth(rightPart, rightW);
+						result.push(IMG_LINE_TAG + leftPart + leftFill + placeholderLines[pr]! + rightTrunc);
+						i++;
+					} else {
+						// No more content — empty columns around image
+						result.push(IMG_LINE_TAG + " ".repeat(leftW) + placeholderLines[pr]! + " ".repeat(rightW));
+					}
+				}
 			}
 		}
 		return result;
@@ -401,12 +438,15 @@ class PopupComponent {
 		// Render markdown content (full, then slice for scroll)
 		const innerW = contentWidth(width, chromeOpts);
 		if (this.renderedLines.length === 0) {
-			const mascotReserve = this.mascot ? (this.mascot.cols + 1) : 0; // +1 for gap column
+			// For right/left float images, narrow the render width so text wraps
+			// naturally around the image area. Inline images use full width (split in post-processing).
+			// Use pre-load col estimate (resolveImageSize) so width is stable before images arrive.
+			const floatReserve = this.inlineImages
+				.filter(img => img.ref.float === "right" || img.ref.float === "left")
+				.reduce((max, img) => Math.max(max, img.cols + 1), 0);
 			const mdContent = this.inlineImages.length > 0 ? this.processedContent : this.content;
 			const md = new Markdown(mdContent, 1, 0, this.mdTheme);
-			// Render markdown at inner width minus leading-space prefix, minus mascot reserve.
-			// This lets text wrap naturally around the GIF area instead of being truncated.
-			const rawLines = md.render(innerW - 1 - mascotReserve);
+			const rawLines = md.render(innerW - 1 - floatReserve);
 
 			// Expand inline image markers into placeholder rows
 			if (this.inlineImages.length > 0) {
@@ -422,37 +462,19 @@ class PopupComponent {
 		this.scrollOffset = Math.min(this.scrollOffset, maxScroll);
 		const visible = this.renderedLines.slice(this.scrollOffset, this.scrollOffset + viewH);
 
-		// Merge content lines with GIF mascot (top-right aligned) via kitty-gif-renderer.
-		// Build merged lines manually with edges + bg wrapping instead of padContentLine —
-		// padContentLine truncates in ways that break Kitty placeholder escape sequences.
-		// Bg and fg are independent SGR attributes; wrapping the whole line in bg is safe.
-		const kitty = getKitty();
-		const merger = (this.mascot && kitty) ? kitty.createMerger(this.mascot, innerW) : null;
+		// Render content lines. Inline image placeholder lines (tagged with IMG_LINE_TAG)
+		// bypass padContentLine to preserve Kitty placeholder escape sequences intact.
+		// Bg and fg are independent SGR attributes — wrapping in bg is safe for Kitty.
 		const edges = getEdges(chromeOpts);
 		const bgWrap = (s: string) => edges.bg ? theme.bg(edges.bg as any, s) : s;
 		const contentLines = visible.map(line => {
-			// Inline image placeholder lines: tagged with IMG_LINE_TAG, already correct width.
-			// Build manually with edges + bg to avoid padContentLine breaking escape sequences.
 			if (line.startsWith(IMG_LINE_TAG)) {
 				const imgContent = line.slice(IMG_LINE_TAG.length);
 				const padding = Math.max(0, innerW - visibleWidth(imgContent));
 				return bgWrap(edges.left + imgContent + " ".repeat(padding) + edges.right);
 			}
-
-			const padded = ` ${line}`;
-			if (merger?.hasMore) {
-				const { content, gap, mascot } = merger.nextLine(padded);
-				return bgWrap(edges.left + content + " ".repeat(gap) + mascot! + edges.right);
-			}
-			return padContentLine(padded, width, chromeOpts);
+			return padContentLine(` ${line}`, width, chromeOpts);
 		});
-
-		// Flush remaining mascot rows if image is taller than visible content
-		if (merger) {
-			for (const { gap, mascot } of merger.flushLines()) {
-				contentLines.push(bgWrap(edges.left + " ".repeat(gap) + mascot! + edges.right));
-			}
-		}
 
 		// Scroll info for footer
 		const total = this.renderedLines.length;
@@ -536,8 +558,6 @@ export default function popup(pi: ExtensionAPI): void {
 					title: params.title,
 					content: params.content,
 					panelCtx,
-					gifQuery: params.gif,
-					gifSize: params.gifSize,
 				});
 				activePopups.set(id, component);
 				return {

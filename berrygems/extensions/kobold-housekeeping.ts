@@ -14,30 +14,20 @@
  */
 
 import { StringEnum } from "@mariozechner/pi-ai";
-import type { ExtensionAPI, ExtensionContext, Theme } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI, Theme } from "@mariozechner/pi-coding-agent";
 import type { TUI } from "@mariozechner/pi-tui";
 import { matchesKey, Key, Text, truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
 import { Type } from "@sinclair/typebox";
 import { readFileSync, readdirSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { IMAGE_SIZES, resolveImageSize, type ImageFrames } from "../lib/animated-image.ts";
-const IMAGE_FETCH_KEY = Symbol.for("hoard.imageFetch");
-function getImageFetch(): { fetch: Function; vibeQuery: Function; clearCache: Function } | undefined {
-	return (globalThis as any)[IMAGE_FETCH_KEY];
-}
+import { IMAGE_SIZES } from "../lib/animated-image.ts";
+
 
 // ── Panel Manager Access ──
 // dragon-parchment API is published to globalThis by dragon-parchment.ts extension.
 // No direct imports — avoids jiti module isolation issues.
 const PANELS_KEY = Symbol.for("hoard.parchment");
-const KITTY_KEY = Symbol.for("hoard.kitty");
 function getPanels(): any { return (globalThis as any)[PANELS_KEY]; }
-function getKitty(): { loadImage: Function; disposeImage: Function; createMerger: Function } | undefined {
-	return (globalThis as any)[KITTY_KEY];
-}
-
-/** Local mirror of LoadedImage shape — no cross-extension import. */
-interface LoadedImage { player: { dispose(): void }; cols: number; rows: number; }
 
 // ── Types ──
 
@@ -59,17 +49,14 @@ interface PanelContext {
 	focusIndex: () => { index: number; total: number } | null;
 }
 
-
-
 // ── Constants ──
 
 const DEFAULT_WIDTH = "30%";
 const DEFAULT_MIN_WIDTH = 30;
 const DEFAULT_MAX_HEIGHT = "90%";
-// ── Module-level ExtensionContext ref ──
 // Set once during session_start — dragon-image-fetch also tracks this internally,
 // but kobold-housekeeping keeps a ref for direct vibeQuery() calls.
-let extCtxRef: ExtensionContext | null = null;
+
 
 // ── Todo File I/O ──
 
@@ -153,69 +140,13 @@ class TodoPanelComponent {
 	private cachedWidth?: number;
 	private cachedLines?: string[];
 
-	// GIF mascot state
-	private mascot: LoadedImage | null = null;
-	private imageCache: Map<string, ImageFrames>;
-	private gifMaxW: number;
-	private gifMaxH: number;
-
-	constructor(panelCtx: PanelContext, tag: string, imageCache: Map<string, ImageFrames>, gifSize?: string) {
+	constructor(panelCtx: PanelContext, tag: string) {
 		this.panelCtx = panelCtx;
 		this.tag = tag;
 		this.theme = panelCtx.theme;
 		this.tui = panelCtx.tui;
 		this.cwd = panelCtx.cwd;
-		this.imageCache = imageCache;
-		const [maxW, maxH] = resolveImageSize(gifSize);
-		this.gifMaxW = maxW;
-		this.gifMaxH = maxH;
 		this.refresh();
-		this.loadMascot();
-	}
-
-	// ── Mascot Loading ──
-
-	private async loadMascot(): Promise<void> {
-		const cached = this.imageCache.get(this.tag);
-		if (cached) { this.setupMascot(cached); return; }
-
-		// Ask a lightweight model to pick a vibe-matched search query,
-		// falling back to static map if the model isn't available.
-		const todoSummary = this.todos.length > 0
-			? this.todos.slice(0, 8).map(t => `- [${t.status === "done" ? "x" : " "}] ${t.title}`).join("\n")
-			: "(empty \u2014 no todos yet)";
-		const imageFetch = getImageFetch();
-		const query = imageFetch
-			? await imageFetch.vibeQuery(todoSummary, { tag: this.tag, extCtx: extCtxRef })
-			: this.tag;
-		const imageData = imageFetch ? await imageFetch.fetch(`giphy:${query}`) : null;
-		if (!imageData) return;
-		this.imageCache.set(this.tag, imageData);
-		this.setupMascot(imageData);
-	}
-
-	private setupMascot(imageData: ImageFrames): void {
-		this.disposeMascot();
-		const kitty = getKitty();
-		if (!kitty) return; // kitty-gif-renderer not loaded — skip silently
-		const loaded = kitty.loadImage(imageData, {
-			maxCols: this.gifMaxW,
-			maxRows: this.gifMaxH,
-			onReady: () => {
-				if (this.mascot !== loaded) return; // disposed before ready
-				this.invalidate();
-				this.tui.requestRender();
-			},
-		}) as LoadedImage;
-		this.mascot = loaded;
-	}
-
-	disposeMascot(): void {
-		if (this.mascot) {
-			const kitty = getKitty();
-			kitty ? kitty.disposeImage(this.mascot) : this.mascot.player.dispose();
-			this.mascot = null;
-		}
 	}
 
 	// ── Todo Panel Logic ──
@@ -267,21 +198,9 @@ class TodoPanelComponent {
 		const rp = Math.max(1, innerW - titleW - lp);
 		lines.push(border("╭") + border("─".repeat(lp)) + titleStyled + border("─".repeat(rp)) + border("╮"));
 
-		// ── Float merger for mascot placeholder lines (via kitty-gif-renderer) ──
-		const kitty = getKitty();
-		const merger = (this.mascot && kitty) ? kitty.createMerger(this.mascot, innerW) : null;
-
-		/** Append a content line, merging mascot placeholder into the right side if rows remain. */
-		const pushLine = (content: string, contentMaxW?: number): void => {
-			if (merger?.hasMore) {
-				// Reserve space: [content...] [1 gap] [mascot] [border]
-				const textW = (contentMaxW ?? innerW) - merger.mascotWidth - 1;
-				const truncated = truncateToWidth(content, Math.max(4, textW));
-				const { gap, mascot } = merger.nextLine(truncated);
-				lines.push(border("│") + truncated + " ".repeat(gap) + mascot! + border("│"));
-			} else {
-				lines.push(border("│") + padLine(content) + border("│"));
-			}
+		/** Append a content line with borders. */
+		const pushLine = (content: string, _contentMaxW?: number): void => {
+			lines.push(border("│") + padLine(content) + border("│"));
 		};
 
 		// ── Todo list ──
@@ -292,7 +211,7 @@ class TodoPanelComponent {
 			pushLine("");
 		} else {
 			pushLine("");
-			const barWidth = Math.min(20, innerW - (merger?.mascotWidth ?? 0) - 12);
+			const barWidth = Math.min(20, innerW - 12);
 			if (barWidth >= 5) {
 				const filled = totalCount > 0 ? Math.round((doneCount / totalCount) * barWidth) : 0;
 				const pct = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
@@ -323,13 +242,6 @@ class TodoPanelComponent {
 
 			if (visibleEnd < this.todos.length) pushLine(th.fg("dim", `  ↓ ${this.todos.length - visibleEnd} more`));
 			pushLine("");
-		}
-
-		// ── Flush remaining mascot rows (if image is taller than content) ──
-		if (merger) {
-			for (const { gap, mascot } of merger.flushLines()) {
-				lines.push(border("│") + " ".repeat(gap) + mascot! + border("│"));
-			}
 		}
 
 		// ── Help text ──
@@ -364,14 +276,12 @@ const TodoPanelParams = Type.Object({
 	count: Type.Optional(Type.Number({ description: "Number of panels for suggest_layout" })),
 	offsetX: Type.Optional(Type.Number({ description: "Horizontal offset from anchor position" })),
 	offsetY: Type.Optional(Type.Number({ description: "Vertical offset from anchor position" })),
-	gifSize: Type.Optional(Type.String({ description: "GIF mascot size: tiny, small, medium (default), large, huge" })),
 	focus: Type.Optional(Type.Boolean({ description: "If true, immediately focus this panel after opening. Default: false" })),
 });
 
 // ── Extension ──
 
 export default function (pi: ExtensionAPI) {
-	const imageCache = new Map<string, ImageFrames>();
 	const todoComponents = new Map<string, TodoPanelComponent>();
 
 	function parseWidth(s: string | undefined): number | string {
@@ -388,7 +298,7 @@ export default function (pi: ExtensionAPI) {
 
 	function panelId(tag: string): string { return `todo:${tag}`; }
 
-	function openPanel(tag: string, anchor?: string, width?: string, offsetX?: number, offsetY?: number, gifSize?: string, relativeTo?: string, relativeEdge?: string, focusOnOpen?: boolean): string {
+	function openPanel(tag: string, anchor?: string, width?: string, offsetX?: number, offsetY?: number, relativeTo?: string, relativeEdge?: string, focusOnOpen?: boolean): string {
 		const panels = getPanels();
 		if (!panels) return "Error: Panel manager not available";
 		const pid = panelId(tag);
@@ -399,13 +309,13 @@ export default function (pi: ExtensionAPI) {
 		}
 		let component: TodoPanelComponent | null = null;
 		const result = panels.createPanel(pid, (panelCtx: any) => {
-			component = new TodoPanelComponent(panelCtx, tag, imageCache, gifSize);
+			component = new TodoPanelComponent(panelCtx, tag);
 			todoComponents.set(tag, component);
 			return {
 				render: (w: number) => component!.render(w),
 				invalidate: () => component!.invalidate(),
 				handleInput: (data: string) => component!.handleInput(data),
-				dispose: () => component!.disposeMascot(),
+				dispose: () => {},
 			};
 		}, {
 			...(relativeTo && relativeEdge
@@ -465,9 +375,9 @@ export default function (pi: ExtensionAPI) {
 	}
 
 	// ── Events ──
-	pi.on("session_start", async (_event, ctx) => { extCtxRef = ctx; });
-	pi.on("session_switch" as any, async (_event: any, ctx: any) => { todoComponents.clear(); getImageFetch()?.clearCache(); extCtxRef = ctx; });
-	pi.on("session_shutdown" as any, async () => { todoComponents.clear(); getImageFetch()?.clearCache(); extCtxRef = null; });
+	pi.on("session_start", async () => {});
+	pi.on("session_switch" as any, async () => { todoComponents.clear(); });
+	pi.on("session_shutdown" as any, async () => { todoComponents.clear(); });
 	pi.on("tool_result", async (event) => { if (event.toolName === "todo" && todoComponents.size > 0) refreshAllPanels(); });
 
 	// ── Tool ──
@@ -488,7 +398,7 @@ export default function (pi: ExtensionAPI) {
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
 			if (!ctx.hasUI && params.action !== "suggest_layout") return makeResult("Error: panels require interactive mode", true);
 			switch (params.action) {
-				case "open": return params.tag ? makeResult(openPanel(params.tag, params.anchor, params.width, params.offsetX, params.offsetY, params.gifSize, params.relativeTo, params.relativeEdge, params.focus)) : makeResult("Error: tag required for open", true);
+				case "open": return params.tag ? makeResult(openPanel(params.tag, params.anchor, params.width, params.offsetX, params.offsetY, params.relativeTo, params.relativeEdge, params.focus)) : makeResult("Error: tag required for open", true);
 				case "close": return params.tag ? makeResult(closePanel(params.tag)) : makeResult("Error: tag required for close", true);
 				case "close_all": return makeResult(closeAllTodoPanels());
 				case "focus": { const p = getPanels(); return makeResult(params.tag ? p?.focusPanel(panelId(params.tag)) ?? "Panel manager unavailable" : p?.cycleFocus() ?? "Panel manager unavailable"); }
@@ -523,7 +433,7 @@ export default function (pi: ExtensionAPI) {
 			switch (subcmd) {
 				case "open": {
 					const tag = parts[1];
-					if (!tag) { ctx.ui.notify("Usage: /todos open <tag> [anchor] [width] [gifSize]", "warning"); return; }
+					if (!tag) { ctx.ui.notify("Usage: /todos open <tag> [anchor] [width]", "warning"); return; }
 					// Check if any trailing arg is a known gif size
 					const sizeArg = parts.slice(2).find(p => p.toLowerCase() in IMAGE_SIZES);
 					const posArgs = parts.slice(2).filter(p => !(p.toLowerCase() in IMAGE_SIZES));
@@ -555,7 +465,7 @@ export default function (pi: ExtensionAPI) {
 				default:
 					ctx.ui.notify([
 						"Todo Panels — floating .pi/todos viewers",
-						"", "  /todos open <tag> [anchor] [width] [gifSize]",
+						"", "  /todos open <tag> [anchor] [width]",
 						"  /todos close [tag]                  Close panel",
 						"  /todos close-all                    Close all",
 						`  /todos focus [tag]                  Focus / cycle (${getPanels()?.keyHints?.focusKey ?? "Alt+T"})`,

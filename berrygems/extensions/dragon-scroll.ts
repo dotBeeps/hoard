@@ -10,7 +10,7 @@
 
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
 import { getMarkdownTheme } from "@mariozechner/pi-coding-agent";
-import { Markdown, Text, matchesKey, Key } from "@mariozechner/pi-tui";
+import { Markdown, Text, matchesKey, Key, visibleWidth } from "@mariozechner/pi-tui";
 import type { MarkdownTheme } from "@mariozechner/pi-tui";
 import type { Theme } from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
@@ -133,9 +133,10 @@ function splitAtWordBoundary(line: string, leftW: number): [string, string, numb
 }
 
 /**
- * Truncate ANSI-decorated text to maxW visible chars without any indicator.
+ * Truncate ANSI-decorated text to exactly maxW visible chars.
  * Unlike truncateToWidth (which appends \x1b[0m...\x1b[0m), this silently
- * cuts and adds only a fg-reset to preserve background colour.
+ * cuts and pads with spaces to reach exact width. Uses \x1b[39m (fg-only
+ * reset) to preserve the background colour set by bgWrap().
  */
 function truncateSilent(str: string, maxW: number): string {
 	let visible = 0;
@@ -148,7 +149,7 @@ function truncateSilent(str: string, maxW: number): string {
 		visible++;
 		i++;
 	}
-	return str.slice(0, i) + "\x1b[39m";
+	return str.slice(0, i) + "\x1b[39m" + " ".repeat(Math.max(0, maxW - visible));
 }
 
 /**
@@ -523,10 +524,13 @@ class PopupComponent {
 		const contentLines = visible.map(line => {
 			if (line.startsWith(IMG_LINE_TAG)) {
 				// Strip the IMG_LINE_TAG (and optional width+sep from earlier encoding).
-				// Content is pre-assembled to exactly innerW terminal columns.
+				// Pad to innerW as a safety net — truncateSilent pads its column, but
+				// short source lines (e.g. last line of a paragraph) can still leave
+				// the assembled content narrower than innerW.
 				const sepIdx = line.indexOf(IMG_WIDTH_SEP, IMG_LINE_TAG.length);
 				const imgContent = sepIdx !== -1 ? line.slice(sepIdx + IMG_WIDTH_SEP.length) : line.slice(IMG_LINE_TAG.length);
-				return bgWrap(edges.left + imgContent + edges.right);
+				const padding = Math.max(0, innerW - visibleWidth(imgContent));
+				return bgWrap(edges.left + imgContent + " ".repeat(padding) + edges.right);
 			}
 			return padContentLine(` ${line}`, width, chromeOpts);
 		});

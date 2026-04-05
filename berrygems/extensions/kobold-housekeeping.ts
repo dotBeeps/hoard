@@ -20,7 +20,6 @@ import { matchesKey, Key, Text, truncateToWidth, visibleWidth } from "@mariozech
 import { Type } from "@sinclair/typebox";
 import { readFileSync, readdirSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { AnimatedImagePlayer } from "../lib/animated-image-player.ts";
 import { IMAGE_SIZES, resolveImageSize, type ImageFrames } from "../lib/animated-image.ts";
 import { fetchGiphyImage, generateVibeQuery, clearVibeCache } from "../lib/giphy-source.ts";
 
@@ -28,7 +27,14 @@ import { fetchGiphyImage, generateVibeQuery, clearVibeCache } from "../lib/giphy
 // dragon-parchment API is published to globalThis by dragon-parchment.ts extension.
 // No direct imports — avoids jiti module isolation issues.
 const PANELS_KEY = Symbol.for("hoard.parchment");
+const KITTY_KEY = Symbol.for("hoard.kitty");
 function getPanels(): any { return (globalThis as any)[PANELS_KEY]; }
+function getKitty(): { loadImage: Function; disposeImage: Function; createMerger: Function } | undefined {
+	return (globalThis as any)[KITTY_KEY];
+}
+
+/** Local mirror of LoadedImage shape — no cross-extension import. */
+interface LoadedImage { player: { dispose(): void }; cols: number; rows: number; }
 
 // ── Types ──
 
@@ -144,7 +150,7 @@ class TodoPanelComponent {
 	private cachedLines?: string[];
 
 	// GIF mascot state
-	private mascot: AnimatedImagePlayer | null = null;
+	private mascot: LoadedImage | null = null;
 	private imageCache: Map<string, ImageFrames>;
 	private gifMaxW: number;
 	private gifMaxH: number;
@@ -183,27 +189,24 @@ class TodoPanelComponent {
 
 	private setupMascot(imageData: ImageFrames): void {
 		this.disposeMascot();
-
-		const player = new AnimatedImagePlayer(imageData, { maxCols: this.gifMaxW, maxRows: this.gifMaxH });
-		this.mascot = player;
-
-		// Start playback after a microtask delay to avoid racing with
-		// the TUI's current render cycle.
-		setTimeout(() => {
-			if (this.mascot !== player) return; // disposed before we got here
-			player.play(() => {
+		const kitty = getKitty();
+		if (!kitty) return; // kitty-gif-renderer not loaded — skip silently
+		const loaded = kitty.loadImage(imageData, {
+			maxCols: this.gifMaxW,
+			maxRows: this.gifMaxH,
+			onReady: () => {
+				if (this.mascot !== loaded) return; // disposed before ready
 				this.invalidate();
 				this.tui.requestRender();
-			});
-			// Trigger initial render to show placeholders
-			this.invalidate();
-			this.tui.requestRender();
-		}, 0);
+			},
+		}) as LoadedImage;
+		this.mascot = loaded;
 	}
 
 	disposeMascot(): void {
 		if (this.mascot) {
-			this.mascot.dispose();
+			const kitty = getKitty();
+			kitty ? kitty.disposeImage(this.mascot) : this.mascot.player.dispose();
 			this.mascot = null;
 		}
 	}
@@ -257,28 +260,18 @@ class TodoPanelComponent {
 		const rp = Math.max(1, innerW - titleW - lp);
 		lines.push(border("╭") + border("─".repeat(lp)) + titleStyled + border("─".repeat(rp)) + border("╮"));
 
-		// ── Build mascot placeholder lines (rendered inline, top-right) ──
-		// The image data is transmitted to Kitty via process.stdout.write() in
-		// setupMascot/setInterval — NOT in render(). Kitty stores it in memory
-		// with a=T,U=1 (virtual placement). The placeholder characters here
-		// tell Kitty where to display the image. The foreground color encodes
-		// the image ID. This is compositor-safe: Intl.Segmenter keeps the
-		// grapheme clusters intact, and visibleWidth() measures each as width 1.
-		const mascotLines = this.mascot
-			? this.mascot.getPlaceholderLines()
-			: [];
-		const mascotW = this.mascot?.cols ?? 0;
-		let mascotRow = 0; // tracks which mascot row to render next
+		// ── Float merger for mascot placeholder lines (via kitty-gif-renderer) ──
+		const kitty = getKitty();
+		const merger = (this.mascot && kitty) ? kitty.createMerger(this.mascot, innerW) : null;
 
 		/** Append a content line, merging mascot placeholder into the right side if rows remain. */
 		const pushLine = (content: string, contentMaxW?: number): void => {
-			if (mascotRow < mascotLines.length && mascotW > 0) {
+			if (merger?.hasMore) {
 				// Reserve space: [content...] [1 gap] [mascot] [border]
-				const textW = (contentMaxW ?? innerW) - mascotW - 1;
+				const textW = (contentMaxW ?? innerW) - merger.mascotWidth - 1;
 				const truncated = truncateToWidth(content, Math.max(4, textW));
-				const gap = Math.max(0, innerW - visibleWidth(truncated) - mascotW);
-				lines.push(border("│") + truncated + " ".repeat(gap) + mascotLines[mascotRow]! + border("│"));
-				mascotRow++;
+				const { gap, mascot } = merger.nextLine(truncated);
+				lines.push(border("│") + truncated + " ".repeat(gap) + mascot! + border("│"));
 			} else {
 				lines.push(border("│") + padLine(content) + border("│"));
 			}
@@ -292,7 +285,7 @@ class TodoPanelComponent {
 			pushLine("");
 		} else {
 			pushLine("");
-			const barWidth = Math.min(20, innerW - mascotW - 12);
+			const barWidth = Math.min(20, innerW - (merger?.mascotWidth ?? 0) - 12);
 			if (barWidth >= 5) {
 				const filled = totalCount > 0 ? Math.round((doneCount / totalCount) * barWidth) : 0;
 				const pct = totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
@@ -325,11 +318,11 @@ class TodoPanelComponent {
 			pushLine("");
 		}
 
-		// ── Flush remaining mascot rows (if mascot is taller than content) ──
-		while (mascotRow < mascotLines.length) {
-			const gap = Math.max(0, innerW - mascotW);
-			lines.push(border("│") + " ".repeat(gap) + mascotLines[mascotRow]! + border("│"));
-			mascotRow++;
+		// ── Flush remaining mascot rows (if image is taller than content) ──
+		if (merger) {
+			for (const { gap, mascot } of merger.flushLines()) {
+				lines.push(border("│") + " ".repeat(gap) + mascot! + border("│"));
+			}
 		}
 
 		// ── Help text ──

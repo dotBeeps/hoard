@@ -25,6 +25,13 @@ import { fetchGiphyImage, fetchImageFromSource } from "../lib/giphy-source.ts";
 // ── Panel Manager Access ──
 
 const PANELS_KEY = Symbol.for("hoard.parchment");
+const KITTY_KEY = Symbol.for("hoard.kitty");
+function getKitty(): { loadImage: Function; disposeImage: Function; createMerger: Function } | undefined {
+	return (globalThis as any)[KITTY_KEY];
+}
+
+/** Shape of a LoadedImage as returned by kitty.loadImage(). Local mirror — no cross-extension import. */
+interface LoadedImage { player: { getPlaceholderLines(): string[]; cols: number; dispose(): void }; cols: number; rows: number; }
 function getPanels(): any {
 	return (globalThis as any)[PANELS_KEY];
 }
@@ -147,7 +154,7 @@ class PopupComponent {
 	private mdTheme: MarkdownTheme;
 
 	// GIF mascot (top-right corner image from tool params)
-	private mascot: AnimatedImagePlayer | null = null;
+	private mascot: LoadedImage | null = null;
 	private gifMaxW: number;
 	private gifMaxH: number;
 
@@ -188,29 +195,24 @@ class PopupComponent {
 
 	private setupGif(imageData: ImageFrames): void {
 		this.disposeGif();
-		const player = new AnimatedImagePlayer(imageData, { maxCols: this.gifMaxW, maxRows: this.gifMaxH });
-		this.mascot = player;
-
-		// Microtask delay avoids racing with the TUI's current render cycle.
-		// Transmit first frame explicitly, then start playback for animation.
-		setTimeout(() => {
-			if (this.mascot !== player) return;
-			// Transmit initial frame to Kitty memory
-			player.transmit();
-			// Start auto-advance for animated images
-			player.play(() => {
+		const kitty = getKitty();
+		if (!kitty) return; // kitty-gif-renderer not loaded — skip silently
+		const loaded = kitty.loadImage(imageData, {
+			maxCols: this.gifMaxW,
+			maxRows: this.gifMaxH,
+			onReady: () => {
+				if (this.mascot !== loaded) return; // disposed before ready
 				this.invalidate();
 				this.panelCtx.tui.requestRender();
-			});
-			// Re-render to show placeholder characters
-			this.invalidate();
-			this.panelCtx.tui.requestRender();
-		}, 0);
+			},
+		}) as LoadedImage;
+		this.mascot = loaded;
 	}
 
 	disposeGif(): void {
 		if (this.mascot) {
-			this.mascot.dispose();
+			const kitty = getKitty();
+			kitty ? kitty.disposeImage(this.mascot) : this.mascot.player.dispose();
 			this.mascot = null;
 		}
 	}
@@ -420,17 +422,12 @@ class PopupComponent {
 		this.scrollOffset = Math.min(this.scrollOffset, maxScroll);
 		const visible = this.renderedLines.slice(this.scrollOffset, this.scrollOffset + viewH);
 
-		// Build mascot placeholder lines if we have a GIF
-		const mascotLines = this.mascot ? this.mascot.getPlaceholderLines() : [];
-		const mascotW = this.mascot?.cols ?? 0;
-		let mascotRow = 0;
-
-		// Merge content lines with GIF mascot (top-right aligned).
-		// Build mascot-merged lines manually with edges + bg wrapping instead of
-		// padContentLine, which truncates in ways that break placeholder escape
-		// sequences. Bg and fg are independent SGR attributes, so wrapping the
-		// entire line (including mascot placeholders) in bg is safe — Kitty reads
-		// the fg color to identify the image, bg doesn't interfere.
+		// Merge content lines with GIF mascot (top-right aligned) via kitty-gif-renderer.
+		// Build merged lines manually with edges + bg wrapping instead of padContentLine —
+		// padContentLine truncates in ways that break Kitty placeholder escape sequences.
+		// Bg and fg are independent SGR attributes; wrapping the whole line in bg is safe.
+		const kitty = getKitty();
+		const merger = (this.mascot && kitty) ? kitty.createMerger(this.mascot, innerW) : null;
 		const edges = getEdges(chromeOpts);
 		const bgWrap = (s: string) => edges.bg ? theme.bg(edges.bg as any, s) : s;
 		const contentLines = visible.map(line => {
@@ -439,28 +436,22 @@ class PopupComponent {
 			if (line.startsWith(IMG_LINE_TAG)) {
 				const imgContent = line.slice(IMG_LINE_TAG.length);
 				const padding = Math.max(0, innerW - visibleWidth(imgContent));
-				const merged = edges.left + imgContent + " ".repeat(padding) + edges.right;
-				return bgWrap(merged);
+				return bgWrap(edges.left + imgContent + " ".repeat(padding) + edges.right);
 			}
 
 			const padded = ` ${line}`;
-			if (mascotRow < mascotLines.length && mascotW > 0) {
-				// Content already rendered at narrower width — just pad to fill the gap
-				const gap = Math.max(0, innerW - visibleWidth(padded) - mascotW);
-				const merged = edges.left + padded + " ".repeat(gap) + mascotLines[mascotRow]! + edges.right;
-				mascotRow++;
-				return bgWrap(merged);
+			if (merger?.hasMore) {
+				const { content, gap, mascot } = merger.nextLine(padded);
+				return bgWrap(edges.left + content + " ".repeat(gap) + mascot! + edges.right);
 			}
-			// Normal content lines: padContentLine handles truncation + edges + bg
 			return padContentLine(padded, width, chromeOpts);
 		});
 
-		// Flush remaining mascot rows if mascot is taller than visible content
-		while (mascotRow < mascotLines.length) {
-			const gap = Math.max(0, innerW - mascotW);
-			const merged = edges.left + " ".repeat(gap) + mascotLines[mascotRow]! + edges.right;
-			contentLines.push(bgWrap(merged));
-			mascotRow++;
+		// Flush remaining mascot rows if image is taller than visible content
+		if (merger) {
+			for (const { gap, mascot } of merger.flushLines()) {
+				contentLines.push(bgWrap(edges.left + " ".repeat(gap) + mascot! + edges.right));
+			}
 		}
 
 		// Scroll info for footer

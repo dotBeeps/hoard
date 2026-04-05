@@ -37,7 +37,7 @@ Return plain text only.`;
 
 // ── Panel Manager Access ──
 
-const PANELS_KEY = Symbol.for("hoard.gallery");
+const PANELS_KEY = Symbol.for("hoard.parchment");
 function getPanels(): any {
 	return (globalThis as any)[PANELS_KEY];
 }

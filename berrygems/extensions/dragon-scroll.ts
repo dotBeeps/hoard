@@ -1,5 +1,5 @@
 /**
- * Dragon Scroll — Markdown popup panels via hoard-gallery.
+ * Dragon Scroll — Markdown popup panels via dragon-parchment.
  *
  * Registers a tool + command for showing scrollable markdown content
  * in a floating panel. Good for documentation, summaries, help text,
@@ -24,7 +24,7 @@ import { fetchGiphyImage, fetchImageFromSource } from "../lib/giphy-source.ts";
 
 // ── Panel Manager Access ──
 
-const PANELS_KEY = Symbol.for("hoard.gallery");
+const PANELS_KEY = Symbol.for("hoard.parchment");
 function getPanels(): any {
 	return (globalThis as any)[PANELS_KEY];
 }
@@ -128,7 +128,7 @@ function extractInlineImages(content: string): { processed: string; refs: ImageR
 interface PopupComponentOptions {
 	title?: string;
 	content: string;
-	panelCtx: any;  // PanelContext from hoard-gallery
+	panelCtx: any;  // PanelContext from dragon-parchment
 	gifQuery?: string;
 	gifSize?: string;
 }
@@ -465,10 +465,14 @@ class PopupComponent {
 
 		// Scroll info for footer
 		const total = this.renderedLines.length;
+		const focusPos = this.panelCtx.focusIndex();
+		const focusCounter = focusPos ? ` · ${focusPos.index}/${focusPos.total}` : "";
 		if (total > viewH) {
 			const pct = Math.round(((this.scrollOffset + viewH) / total) * 100);
-			chromeOpts.footerHint = "↑↓/j/k scroll · PgUp/PgDn jump · g/G top/bottom";
+			chromeOpts.footerHint = `↑↓/j/k scroll · PgUp/PgDn jump · g/G top/bottom${focusCounter}`;
 			chromeOpts.scrollInfo = `${pct}%`;
+		} else if (focusPos) {
+			chromeOpts.footerHint = focusCounter.slice(3); // trim leading " · "
 		}
 
 		const header = renderHeader(width, chromeOpts);
@@ -512,7 +516,7 @@ export default function popup(pi: ExtensionAPI): void {
 			const panels = getPanels();
 			if (!panels) {
 				return {
-					content: [{ type: "text" as const, text: "Panel manager not available \u2014 hoard-gallery extension required" }],
+					content: [{ type: "text" as const, text: "Panel manager not available \u2014 dragon-parchment extension required" }],
 				details: {},
 				};
 			}

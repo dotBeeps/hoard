@@ -25,9 +25,9 @@ import { IMAGE_SIZES, resolveImageSize, type ImageFrames } from "../lib/animated
 import { fetchGiphyImage, generateVibeQuery, clearVibeCache } from "../lib/giphy-source.ts";
 
 // ── Panel Manager Access ──
-// hoard-gallery API is published to globalThis by hoard-gallery.ts extension.
+// dragon-parchment API is published to globalThis by dragon-parchment.ts extension.
 // No direct imports — avoids jiti module isolation issues.
-const PANELS_KEY = Symbol.for("hoard.gallery");
+const PANELS_KEY = Symbol.for("hoard.parchment");
 function getPanels(): any { return (globalThis as any)[PANELS_KEY]; }
 
 // ── Types ──
@@ -47,6 +47,7 @@ interface PanelContext {
 	theme: Theme;
 	cwd: string;
 	isFocused: () => boolean;
+	focusIndex: () => { index: number; total: number } | null;
 }
 
 
@@ -333,7 +334,11 @@ class TodoPanelComponent {
 
 		// ── Help text ──
 		const kh = getPanels()?.keyHints;
-		const help = focused ? th.fg("dim", `↑↓ nav · Space toggle · ${kh?.focused ?? "Q close · Escape unfocus"}`) : th.fg("dim", `${kh?.unfocused ?? "Alt+T focus"} · /todos help`);
+		const focusPos = this.panelCtx.focusIndex();
+		const focusCounter = focusPos ? ` ${focusPos.index}/${focusPos.total}` : "";
+		const help = focused
+			? th.fg("dim", `↑↓ nav · Space toggle · ${kh?.focused ?? "Q close · Escape unfocus"}${focusCounter}`)
+			: th.fg("dim", `${kh?.unfocused ?? "Alt+T/Shift+Tab cycle"} · /todos help${focusCounter}`);
 		lines.push(border("│") + padLine("  " + help) + border("│"));
 
 		// ── Bottom border ──
@@ -360,6 +365,7 @@ const TodoPanelParams = Type.Object({
 	offsetX: Type.Optional(Type.Number({ description: "Horizontal offset from anchor position" })),
 	offsetY: Type.Optional(Type.Number({ description: "Vertical offset from anchor position" })),
 	gifSize: Type.Optional(Type.String({ description: "GIF mascot size: tiny, small, medium (default), large, huge" })),
+	focus: Type.Optional(Type.Boolean({ description: "If true, immediately focus this panel after opening. Default: false" })),
 });
 
 // ── Extension ──
@@ -382,7 +388,7 @@ export default function (pi: ExtensionAPI) {
 
 	function panelId(tag: string): string { return `todo:${tag}`; }
 
-	function openPanel(tag: string, anchor?: string, width?: string, offsetX?: number, offsetY?: number, gifSize?: string, relativeTo?: string, relativeEdge?: string): string {
+	function openPanel(tag: string, anchor?: string, width?: string, offsetX?: number, offsetY?: number, gifSize?: string, relativeTo?: string, relativeEdge?: string, focusOnOpen?: boolean): string {
 		const panels = getPanels();
 		if (!panels) return "Error: Panel manager not available";
 		const pid = panelId(tag);
@@ -413,6 +419,7 @@ export default function (pi: ExtensionAPI) {
 			minWidth: DEFAULT_MIN_WIDTH,
 			maxHeight: DEFAULT_MAX_HEIGHT,
 			onClose: () => { todoComponents.delete(tag); component = null; },
+			...(focusOnOpen ? { focusOnOpen: true } : {}),
 		});
 		return result.message;
 	}
@@ -481,7 +488,7 @@ export default function (pi: ExtensionAPI) {
 		async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
 			if (!ctx.hasUI && params.action !== "suggest_layout") return makeResult("Error: panels require interactive mode", true);
 			switch (params.action) {
-				case "open": return params.tag ? makeResult(openPanel(params.tag, params.anchor, params.width, params.offsetX, params.offsetY, params.gifSize, params.relativeTo, params.relativeEdge)) : makeResult("Error: tag required for open", true);
+				case "open": return params.tag ? makeResult(openPanel(params.tag, params.anchor, params.width, params.offsetX, params.offsetY, params.gifSize, params.relativeTo, params.relativeEdge, params.focus)) : makeResult("Error: tag required for open", true);
 				case "close": return params.tag ? makeResult(closePanel(params.tag)) : makeResult("Error: tag required for close", true);
 				case "close_all": return makeResult(closeAllTodoPanels());
 				case "focus": { const p = getPanels(); return makeResult(params.tag ? p?.focusPanel(panelId(params.tag)) ?? "Panel manager unavailable" : p?.cycleFocus() ?? "Panel manager unavailable"); }

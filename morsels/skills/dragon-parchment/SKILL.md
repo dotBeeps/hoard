@@ -1,22 +1,22 @@
 ---
-name: hoard-gallery
-description: "Build and integrate floating overlay panels using the hoard-gallery API. Use when creating new panel extensions, adding panels to existing extensions, or working with the globalThis panel infrastructure."
+name: dragon-parchment
+description: "Build and integrate floating overlay panels using the dragon-parchment API. Use when creating new panel extensions, adding panels to existing extensions, or working with the globalThis panel infrastructure."
 ---
 
 # Panel Development
 
-Build floating overlay panels that integrate with hoard-gallery — the central authority for panel lifecycle, positioning, focus cycling, smart placement, and session management. Focus cycling, configurable hotkeys, and consistent hint bars come free.
+Build floating overlay panels that integrate with dragon-parchment — the central authority for panel lifecycle, positioning, focus cycling, smart placement, and session management. Focus cycling, configurable hotkeys, and consistent hint bars come free.
 
 ## API Access
 
 Hoard-gallery publishes its API to `globalThis` at extension load time. Access it from any extension:
 
 ```typescript
-const PANELS_KEY = Symbol.for("hoard.gallery");
+const PANELS_KEY = Symbol.for("hoard.parchment");
 function getPanels(): any { return (globalThis as any)[PANELS_KEY]; }
 ```
 
-Never import `hoard-gallery.ts` directly — jiti isolates module caches per extension entry point, causing duplicate state.
+Never import `dragon-parchment.ts` directly — jiti isolates module caches per extension entry point, causing duplicate state.
 
 ## API Reference
 
@@ -74,7 +74,7 @@ interface PanelComponent {
 }
 ```
 
-Handle only your extension-specific keys in `handleInput`. Shared keys (Esc / Q / focus cycle) are consumed by hoard-gallery before your handler runs.
+Handle only your extension-specific keys in `handleInput`. Shared keys (Esc / Q / focus cycle) are consumed by dragon-parchment before your handler runs.
 
 ## keyHints
 
@@ -95,7 +95,7 @@ kh.unfocused   // "Alt+T focus"
 
 ```typescript
 const panels = getPanels();
-if (!panels) return "hoard-gallery not loaded";
+if (!panels) return "dragon-parchment not loaded";
 ```
 
 ### 2. Create the panel
@@ -131,7 +131,7 @@ pi.on("session_shutdown", async () => { myComp = null; });
 
 ## Smart Placement
 
-When no `anchor` is specified, hoard-gallery picks the best available screen position automatically:
+When no `anchor` is specified, dragon-parchment picks the best available screen position automatically:
 
 - Tries positions in priority order: `right-center`, `top-right`, `bottom-right`, `left-center`, `top-left`, `bottom-left`, `top-center`, `bottom-center`
 - Computes bounding boxes for all open panels and picks the first non-overlapping position
@@ -146,7 +146,7 @@ When an anchor *is* specified, collision avoidance adjusts `offsetY`/`offsetX` t
 
 ### suggestLayout()
 
-Ask hoard-gallery for curated positions before opening multiple panels at once:
+Ask dragon-parchment for curated positions before opening multiple panels at once:
 
 ```typescript
 const suggestions = panels.suggestLayout(2);
@@ -276,8 +276,8 @@ panels.createPanel(PANEL_ID, (ctx) => new MyComponent(ctx), { anchor: "right-cen
 
 ## Anti-Patterns
 
-- **Don't import hoard-gallery directly** — use `globalThis[Symbol.for("hoard.gallery")]`. Direct imports create duplicate state due to jiti module isolation.
+- **Don't import dragon-parchment directly** — use `globalThis[Symbol.for("hoard.parchment")]`. Direct imports create duplicate state due to jiti module isolation.
 - **Don't call `ctx.ui.custom()` yourself for panels** — use `createPanel()`. Direct overlay creation bypasses geometry tracking, smart placement, and collision avoidance.
-- **Don't handle Esc, Q, or the focus key in your component** — hoard-gallery consumes these before your `handleInput` runs.
-- **Don't register your own focus shortcut** — hoard-gallery owns `registerShortcut` for the focus key. Adding another causes conflicts.
+- **Don't handle Esc, Q, or the focus key in your component** — dragon-parchment consumes these before your `handleInput` runs.
+- **Don't register your own focus shortcut** — dragon-parchment owns `registerShortcut` for the focus key. Adding another causes conflicts.
 - **Don't hardcode key labels in hints** — use `keyHints` so hints update when the user changes keybindings.

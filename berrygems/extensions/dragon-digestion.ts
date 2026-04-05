@@ -29,7 +29,7 @@ import {
 } from "../lib/panel-chrome.ts";
 
 // ── Panel Manager Access ──
-const PANELS_KEY = Symbol.for("hoard.gallery");
+const PANELS_KEY = Symbol.for("hoard.parchment");
 function getPanels(): any {
 	return (globalThis as any)[PANELS_KEY];
 }

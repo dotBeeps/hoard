@@ -2,6 +2,6 @@
   "name": "morsels",
   "version": "1.0.0",
   "description": "Bite-sized agent skills — git, GitHub, writing, pi internals, and more. Part of the Hoard.",
-  "keywords": ["pi-package"],
+  "keywords": ["pi-package", "skills", "hoard", "morsels"],
   "license": "MIT"
 }

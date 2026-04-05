@@ -28,7 +28,7 @@ pi install https://github.com/dotBeeps/hoard/morsels
 Pi extensions that add interactive tools, floating panels, permission guards, and tone management.
 
 <details>
-<summary><b>hoard-gallery</b> — Central panel authority</summary>
+<summary><b>dragon-parchment</b> — Central panel authority</summary>
 
 Owns all floating overlay panel lifecycle: creation, positioning, focus cycling, smart placement, collision avoidance. Other extensions create panels through its globalThis API.
 </details>
@@ -53,7 +53,7 @@ Live-tweakable compaction settings with three trigger modes (Reserve/Percentage/
 <details>
 <summary><b>kobold-housekeeping</b> — Floating todo panels with GIF mascots</summary>
 
-Persistent floating panels showing `.pi/todos` filtered by tag. AI-powered Giphy sticker search for animated mascots. Integrates with hoard-gallery for positioning and focus management.
+Persistent floating panels showing `.pi/todos` filtered by tag. AI-powered Giphy sticker search for animated mascots. Integrates with dragon-parchment for positioning and focus management.
 </details>
 
 <details>
@@ -131,9 +131,9 @@ Guides creation of Agent Skills (agentskills.io spec): frontmatter, naming, body
 </details>
 
 <details>
-<summary><b>hoard-gallery</b> — Build panel extensions</summary>
+<summary><b>dragon-parchment</b> — Build panel extensions</summary>
 
-How to build and integrate floating overlay panels using the hoard-gallery API.
+How to build and integrate floating overlay panels using the dragon-parchment API.
 </details>
 
 <details>

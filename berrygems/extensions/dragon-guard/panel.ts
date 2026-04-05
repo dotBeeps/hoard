@@ -2,7 +2,7 @@
  * Dragon Guard Panel — floating overlay for guard status and settings.
  *
  * Replaces the old select-loop /guard-settings UI with a proper SettingsList
- * panel registered with hoard-gallery. Shows current mode, live-tweakable
+ * panel registered with dragon-parchment. Shows current mode, live-tweakable
  * settings, and session tool policy overrides.
  *
  * A small dog and a large dragon made this together.
@@ -41,7 +41,7 @@ interface PanelContext {
 
 // ── Panel Manager Access ──
 
-const PANELS_KEY = Symbol.for("hoard.gallery");
+const PANELS_KEY = Symbol.for("hoard.parchment");
 function getPanels(): any {
 	return (globalThis as any)[PANELS_KEY];
 }

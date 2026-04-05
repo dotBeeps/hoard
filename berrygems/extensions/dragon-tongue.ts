@@ -29,7 +29,7 @@ import { LspClient, type LspDiagnostic, type LspDiagnosticEvent, type LspServerC
 
 // ── Panel Manager Access ──
 
-const PANELS_KEY = Symbol.for("hoard.gallery");
+const PANELS_KEY = Symbol.for("hoard.parchment");
 function getPanels(): any {
 	return (globalThis as any)[PANELS_KEY];
 }

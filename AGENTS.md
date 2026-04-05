@@ -17,7 +17,7 @@ hoard/
 ├── berrygems/                 Pi extensions (TypeScript)
 │   ├── extensions/
 │   │   ├── dragon-inquiry.ts      Interactive user input (select/confirm/text)
-│   │   ├── hoard-gallery.ts       Central panel authority — creation, positioning, focus
+│   │   ├── dragon-parchment.ts       Central panel authority — creation, positioning, focus
 │   │   ├── dragon-digestion.ts    Compaction tuning panel
 │   │   ├── dragon-scroll.ts       Markdown popup panels (scrollable, updatable by ID)
 │   │   ├── kobold-housekeeping.ts Floating todo panels with GIF mascots
@@ -40,7 +40,7 @@ hoard/
 │   │   ├── github-markdown/       GFM conventions
 │   │   ├── extension-designer/    Build pi extensions
 │   │   ├── skill-designer/        Build agent skills
-│   │   ├── hoard-gallery/         Build panel extensions
+│   │   ├── dragon-parchment/         Build panel extensions
 │   │   ├── kobold-housekeeping/   Task tracking with panels
 │   │   ├── pi-events/             Event hooks reference
 │   │   ├── pi-sessions/           Sessions & state management
@@ -182,12 +182,12 @@ Auto-triggers when `tokens > contextWindow - reserveTokens`. `reserveTokens` ser
 ### Inter-Extension Communication
 
 ```typescript
-// Publisher (hoard-gallery.ts)
-const API_KEY = Symbol.for("hoard.gallery");
+// Publisher (dragon-parchment.ts)
+const API_KEY = Symbol.for("hoard.parchment");
 (globalThis as any)[API_KEY] = { register, close, focusPanel, ... };
 
 // Consumer (any extension in berrygems)
-const panels = (globalThis as any)[Symbol.for("hoard.gallery")];
+const panels = (globalThis as any)[Symbol.for("hoard.parchment")];
 panels?.register("my-panel", { handle, invalidate, dispose });
 ```
 

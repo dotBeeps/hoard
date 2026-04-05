@@ -1,5 +1,5 @@
 /**
- * hoard-gallery — Central authority for floating overlay panels.
+ * dragon-parchment — Central authority for floating overlay panels.
  *
  * Owns ALL panel lifecycle: creation, positioning, focus cycling,
  * smart placement, collision avoidance, and session management.
@@ -9,7 +9,7 @@
  *
  * API published to globalThis at extension load time:
  *
- *   const panels = (globalThis as any)[Symbol.for("hoard.gallery")];
+ *   const panels = (globalThis as any)[Symbol.for("hoard.parchment")];
  *   panels.createPanel("my-panel", (panelCtx) => myComponent, options);
  *   panels.close("my-panel");
  *
@@ -36,15 +36,20 @@ export interface PanelContext {
 	isFocused: () => boolean;
 	/** Get this panel's current skin (respects per-panel overrides). */
 	skin: () => PanelSkin;
+	/**
+	 * Returns this panel's position in the focus cycle among visible panels,
+	 * or null if only one panel is open. Use to show a "1/3" counter in footers.
+	 */
+	focusIndex: () => { index: number; total: number } | null;
 }
 
-/** Shape a component must implement to be hosted by hoard-gallery. */
+/** Shape a component must implement to be hosted by dragon-parchment. */
 export interface PanelComponent {
 	/** Return rendered lines. Each line MUST NOT exceed `width`. */
 	render(width: number): string[];
 	/** Clear cached render state for fresh output next cycle. */
 	invalidate(): void;
-	/** Handle extension-specific keyboard input. Shared keys (Esc/Q/focus) are routed by hoard-gallery first. */
+	/** Handle extension-specific keyboard input. Shared keys (Esc/Q/focus) are routed by dragon-parchment first. */
 	handleInput?(data: string): void;
 	/** Clean up resources (intervals, images, etc.) before panel removal. */
 	dispose?(): void;
@@ -88,6 +93,8 @@ export interface PanelCreateOptions {
 	visible?: (termWidth: number, termHeight: number) => boolean;
 	/** Called after the panel is closed (for consumer state cleanup) */
 	onClose?: () => void;
+	/** If true, immediately focus this panel after creation. Default: false */
+	focusOnOpen?: boolean;
 }
 
 /** Result from createPanel(). */
@@ -162,10 +169,12 @@ const KEYBINDS = {
 	scrollDown: readHoardKey("panels.keybinds.scrollDown", "j"),
 	skinNext: readHoardKey("panels.keybinds.skinNext", "]"),
 	skinPrev: readHoardKey("panels.keybinds.skinPrev", "["),
+	focusReverse: readHoardKey("panels.keybinds.focusReverse", "shift+tab"),
 };
 const CLOSE_LABEL = keyLabel(KEYBINDS.close);
 const UNFOCUS_LABEL = keyLabel(KEYBINDS.unfocus);
-const API_KEY = Symbol.for("hoard.gallery");
+const FOCUS_REVERSE_LABEL = keyLabel(KEYBINDS.focusReverse);
+const API_KEY = Symbol.for("hoard.parchment");
 
 const VALID_ANCHORS: OverlayAnchor[] = [
 	"top-left", "top-center", "top-right",
@@ -552,7 +561,11 @@ class PanelRegistry {
 
 			// Focus cycle (global key, but also works when focused)
 			if (matchesKey(data, FOCUS_KEY)) {
-				this.cycleFocus();
+				this.cycleFocus(1);
+				return { consume: true };
+			}
+			if (matchesKey(data, KEYBINDS.focusReverse)) {
+				this.cycleFocus(-1);
 				return { consume: true };
 			}
 			// Unfocus
@@ -676,7 +689,7 @@ class PanelRegistry {
 	 * Create, position, and register a panel in one call.
 	 *
 	 * The factory receives a PanelContext with tui, theme, cwd, and isFocused().
-	 * hoard-gallery handles overlay creation, key routing, and geometry tracking.
+	 * dragon-parchment handles overlay creation, key routing, and geometry tracking.
 	 *
 	 * If the panel already exists, it's refreshed instead of recreated.
 	 * If no anchor is specified, the smart placement engine picks the best position.
@@ -823,6 +836,7 @@ class PanelRegistry {
 					cwd: this._cwd,
 					isFocused: () => this._focusedId === id,
 					skin: () => getSkin(this._panelSkins.get(id)),
+					focusIndex: () => this.getFocusPosition(id),
 				};
 				componentRef = factory(panelCtx);
 				// Return wrapped component — shared keys route through the registry
@@ -845,6 +859,7 @@ class PanelRegistry {
 						onClose: opts.onClose,
 					});
 					// Geometry already reserved above — no need to set again
+					if (opts.focusOnOpen) this.setFocus(id);
 				},
 			},
 		).catch(() => {
@@ -1014,17 +1029,46 @@ class PanelRegistry {
 	}
 
 	/** Cycle focus to the next panel. Returns status message. */
-	cycleFocus(): string {
-		if (this.focusOrder.length === 0) return "No panels open";
+	/**
+	 * IDs of panels that are currently visible (their `visible()` callback returns
+	 * true for the current terminal size, or they have no callback). Hidden panels
+	 * are skipped during focus cycling.
+	 */
+	private _visiblePanelIds(): string[] {
+		const cols = process.stdout.columns ?? 120;
+		const rows = process.stdout.rows ?? 40;
+		return this.focusOrder.filter(id => {
+			const visibleFn = this.recreateInfo.get(id)?.options.visible;
+			return visibleFn ? visibleFn(cols, rows) : true;
+		});
+	}
 
-		const currentIdx = this._focusedId
-			? this.focusOrder.indexOf(this._focusedId)
-			: -1;
+	/**
+	 * Returns the current panel's 1-based index within the visible focus cycle,
+	 * and the total count. Returns null when only one (or zero) panels are open.
+	 */
+	getFocusPosition(id: string): { index: number; total: number } | null {
+		const visible = this._visiblePanelIds();
+		if (visible.length <= 1) return null;
+		const idx = visible.indexOf(id);
+		if (idx === -1) return null;
+		return { index: idx + 1, total: visible.length };
+	}
 
-		const nextIdx = (currentIdx + 1) % this.focusOrder.length;
-		const nextId = this.focusOrder[nextIdx]!;
+	/**
+	 * Cycle focus to the next (direction = 1) or previous (direction = -1) visible panel.
+	 * No-ops when fewer than two visible panels are open.
+	 */
+	cycleFocus(direction: 1 | -1 = 1): string {
+		const visible = this._visiblePanelIds();
+		if (visible.length === 0) return "No panels open";
+		if (visible.length === 1) return `Only one panel open`;
+
+		const currentIdx = this._focusedId ? visible.indexOf(this._focusedId) : -1;
+		const nextIdx = ((currentIdx + direction) % visible.length + visible.length) % visible.length;
+		const nextId = visible[nextIdx]!;
 		this.setFocus(nextId);
-		return `Focused '${nextId}'`;
+		return `Focused '${nextId}' (${nextIdx + 1}/${visible.length})`;
 	}
 
 	/** Focus a specific panel by ID. Returns status message. */
@@ -1059,7 +1103,11 @@ class PanelRegistry {
 			return true;
 		}
 		if (matchesKey(data, FOCUS_KEY)) {
-			this.cycleFocus();
+			this.cycleFocus(1);
+			return true;
+		}
+		if (matchesKey(data, KEYBINDS.focusReverse)) {
+			this.cycleFocus(-1);
 			return true;
 		}
 
@@ -1201,14 +1249,16 @@ export default function (pi: ExtensionAPI) {
 		/** Display-friendly hints for shared panel keys. */
 		keyHints: {
 			focusKey: FOCUS_LABEL,
+			focusReverseKey: FOCUS_REVERSE_LABEL,
 			closeKey: CLOSE_LABEL,
 			unfocusKey: UNFOCUS_LABEL,
 			focused: `${CLOSE_LABEL} close · ${UNFOCUS_LABEL} unfocus`,
-			unfocused: `${FOCUS_LABEL} focus`,
+			unfocused: `${FOCUS_LABEL}/${FOCUS_REVERSE_LABEL} cycle`,
 		},
 		/** Raw matchesKey-compatible key codes for passthrough from overlays. */
 		rawKeys: {
 			focus: FOCUS_KEY,
+			focusReverse: KEYBINDS.focusReverse,
 			close: KEYBINDS.close,
 			unfocus: KEYBINDS.unfocus,
 		},
@@ -1221,9 +1271,16 @@ export default function (pi: ExtensionAPI) {
 	// ── Shortcut & Resize ──
 
 	pi.registerShortcut(FOCUS_KEY, {
-		description: "Cycle focus between panels",
+		description: "Cycle focus forward between panels",
 		handler: async () => {
-			if (registry.size > 0) registry.cycleFocus();
+			if (registry.size > 0) registry.cycleFocus(1);
+		},
+	});
+
+	pi.registerShortcut(KEYBINDS.focusReverse, {
+		description: "Cycle focus backward between panels",
+		handler: async () => {
+			if (registry.size > 0) registry.cycleFocus(-1);
 		},
 	});
 
@@ -1349,7 +1406,7 @@ export default function (pi: ExtensionAPI) {
 				}
 				default:
 					ctx.ui.notify([
-						"🐉 hoard-gallery — central panel manager",
+						"🐉 dragon-parchment — central panel manager",
 						"",
 						"  /panels                  List all open panels",
 						"  /panels close-all         Close everything",

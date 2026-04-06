@@ -23,154 +23,92 @@ pi install https://github.com/dotBeeps/hoard/berrygems
 pi install https://github.com/dotBeeps/hoard/morsels
 ```
 
-## Berrygems (Extensions)
+## Feature Lifecycle
+
+| emoji | state | meaning |
+|---|---|---|
+| 💭 | idea | Described but not yet researched or built |
+| 📜 | researched | Research gathered, not yet coded |
+| 🥚 | planned | Fully spec'd, no code yet |
+| 🐣 | in-progress | Being actively built |
+| 🔥 | beta | Usable, manually tested |
+| 💎 | complete | Stable and signed off |
+
+## Berrygems — Extensions
 
 Pi extensions that add interactive tools, floating panels, permission guards, and tone management.
 
-<details>
-<summary><b>dragon-parchment</b> — Central panel authority</summary>
+| | extension | description |
+|---|---|---|
+| 🔥 | **dragon-breath** | Carbon/energy tracking footer widget + `/carbon` command |
+| 💎 | **dragon-curfew** | Bedtime enforcement — blocks tool calls during curfew hours |
+| 🔥 | **dragon-digestion** | Tiered compaction system — 5 tiers of progressive context management |
+| 🔥 | **dragon-guard** | Three-tier permission guard (Dog / Puppy / Dragon modes) |
+| 💎 | **dragon-herald** | Desktop notifications on agent completion (OSC777 + notify-send) |
+| 🔥 | **dragon-image-fetch** | Multi-source image/GIF fetch API (Giphy/Tenor/URL/file) |
+| 💎 | **dragon-inquiry** | Interactive user input — select, confirm, text overlays |
+| 🥚 | **dragon-lab** | Auth-aware provider beta header manager *(blocks Anthropic context management in dragon-digestion)* |
+| 🐣 | **dragon-loop** | Automation loops with breakout conditions + `/loop` command |
+| 🔥 | **dragon-musings** | LLM-generated contextual thinking spinner |
+| 🔥 | **dragon-parchment** | Central panel authority — creation, positioning, focus cycling |
+| 🔥 | **dragon-review** | Code review via `/review` and `/end-review` |
+| 🔥 | **dragon-scroll** | Scrollable, updatable-by-ID markdown popup panels |
+| 💎 | **dragon-tongue** | Floating diagnostics panel (LSP + tsc) |
+| 🔥 | **kitty-gif-renderer** | Kitty Graphics Protocol image rendering for panels |
+| 🔥 | **kobold-housekeeping** | Floating todo panels with GIF mascots |
 
-Owns all floating overlay panel lifecycle: creation, positioning, focus cycling, smart placement, collision avoidance. Other extensions create panels through its globalThis API.
-</details>
+## Morsels — Skills
 
-<details>
-<summary><b>dragon-guard</b> — Three-tier permission guard</summary>
+On-demand knowledge packages that teach the agent how to do specific tasks.
 
-Tool call interception with three modes:
-- **Dog Mode** — permission-gated, asks before any tool execution
-- **Puppy Mode** — read-only planning, blocks mutations, auto-allows safe bash
-- **Dragon Mode** — unrestricted (default)
+### Pi & Hoard
 
-Bash command classification, session state persistence, settings panel.
-</details>
+| | skill | description |
+|---|---|---|
+| 🔥 | **agent-init** | Generate AGENTS.md files via interview |
+| 🔥 | **dragon-image-fetch** | Use the dragon-image-fetch extension API |
+| 🔥 | **dragon-parchment** | Build and integrate floating overlay panels |
+| 🔥 | **extension-designer** | Build pi extensions with tools, TUI, overlays, events |
+| 🔥 | **kitty-gif-renderer** | Integrate Kitty GIF rendering into panel extensions |
+| 🔥 | **kobold-housekeeping** | Task tracking with tagged todos and floating panels |
+| 💎 | **pi-events** | Event hook reference — intercept, transform, inject |
+| 🔥 | **pi-sessions** | Session state, branching, compaction, persistence |
+| 🔥 | **pi-tui** | Build custom TUI components, overlays, editors |
+| 🔥 | **skill-designer** | Build agent skills (agentskills.io spec) |
 
-<details>
-<summary><b>dragon-digestion</b> — Compaction tuning panel</summary>
+### Git & GitHub
 
-Live-tweakable compaction settings with three trigger modes (Reserve/Percentage/Fixed), strategy presets, context usage visualization, and proactive compaction triggers.
-</details>
+| | skill | description |
+|---|---|---|
+| 💎 | **commit** | Conventional Commits + AI attribution trailers |
+| 💎 | **git** | Git operations — rebase, bisect, reflog, stash, worktrees |
+| 💎 | **git-auth** | SSH key management + rbw passphrase automation |
+| 💎 | **github** | gh CLI — PRs, issues, releases, Actions, GraphQL |
+| 💎 | **github-actions** | GitHub Actions CI/CD workflow authoring |
+| 💎 | **github-markdown** | GFM — callouts, mermaid, task lists, cross-references |
+| 💎 | **github-writing** | Interview-driven authoring for PRs, READMEs, issues, releases |
 
-<details>
-<summary><b>kobold-housekeeping</b> — Floating todo panels with GIF mascots</summary>
+### Languages & Tooling
 
-Persistent floating panels showing `.pi/todos` filtered by tag. AI-powered Giphy sticker search for animated mascots. Integrates with dragon-parchment for positioning and focus management.
-</details>
-
-<details>
-<summary><b>dragon-inquiry</b> — Interactive user input tool</summary>
-
-Three input modes: select (pick from options), confirm (yes/no), text (free input). TUI overlays with cached rendering and keyboard navigation. Panels persist alongside ask prompts via suspend/resume timing.
-</details>
-
-<details>
-<summary><b>dragon-scroll</b> — Markdown popup panels</summary>
-
-Scrollable, updatable-by-ID floating panels for markdown content. Per-popup skin control. Uses shared panel-chrome for consistent rendering.
-</details>
-
-<details>
-<summary><b>dragon-tongue</b> — Live diagnostics panel</summary>
-
-Language-agnostic LSP-powered diagnostics with compiler fallback. Multi-server support, file grouping, expand/collapse navigation. `lint` tool (check/open/close) and `/lint` command.
-</details>
-
-## Morsels (Skills)
-
-Agent skills — on-demand knowledge packages that teach the agent how to do specific tasks.
-
-<details>
-<summary><b>git</b> — Git operations beyond basics</summary>
-
-Interactive rebase, bisect, reflog recovery, stash workflows, worktrees. Reference guides for rebase patterns and bisect workflows.
-</details>
-
-<details>
-<summary><b>commit</b> — Conventional Commits</summary>
-
-Commit message format, scope conventions, body guidelines, AI attribution with configurable Co-authored-by trailers.
-</details>
-
-<details>
-<summary><b>git-auth</b> — SSH & credential management</summary>
-
-SSH key setup, agent forwarding, rbw (Bitwarden CLI) integration for passphrase management. Cross-triggers when git/github operations hit auth walls.
-</details>
-
-<details>
-<summary><b>github</b> — GitHub CLI operations</summary>
-
-gh CLI patterns for issues, PRs, releases, Actions, and GraphQL queries. Reference guides for gh cheatsheet and GraphQL patterns.
-</details>
-
-<details>
-<summary><b>github-writing</b> — GitHub document authoring</summary>
-
-Interview-driven workflow for writing GitHub documents with approval gates:
-- 12+ document types — PRs, bugs, features, RFCs, READMEs, CONTRIBUTING, release notes, repo templates, community docs, discussions, wikis, profile READMEs
-- 5 writing tones — formal, friendly, personality, narrative, minimal — configurable per document type
-- Style guardrails — each tone defines what it allows and forbids
-- Reference guides for every document type
-</details>
-
-<details>
-<summary><b>github-markdown</b> — GitHub Flavored Markdown conventions</summary>
-
-GFM syntax, callout blocks, mermaid diagrams, task lists, footnotes, and cross-referencing patterns.
-</details>
-
-<details>
-<summary><b>extension-designer</b> — Build pi extensions</summary>
-
-Guides creation of pi extensions: custom tools, TUI components, overlays, commands, event hooks. Includes pi-internals reference.
-</details>
-
-<details>
-<summary><b>skill-designer</b> — Build agent skills</summary>
-
-Guides creation of Agent Skills (agentskills.io spec): frontmatter, naming, body structure, templates, quality checklist.
-</details>
-
-<details>
-<summary><b>dragon-parchment</b> — Build panel extensions</summary>
-
-How to build and integrate floating overlay panels using the dragon-parchment API.
-</details>
-
-<details>
-<summary><b>kobold-housekeeping</b> — Task tracking with panels</summary>
-
-Tagged todos and floating panels for task management.
-</details>
-
-<details>
-<summary><b>pi-events</b> — Event hooks</summary>
-
-Intercept tool calls, transform input, inject context, react to model/session changes.
-</details>
-
-<details>
-<summary><b>pi-sessions</b> — Sessions & state</summary>
-
-Session tree model, state management, compaction, branching, persistence patterns.
-</details>
-
-<details>
-<summary><b>pi-tui</b> — TUI components</summary>
-
-Build custom terminal UI: overlays, widgets, footers, custom editors.
-</details>
-
-<details>
-<summary><b>agent-init</b> — Generate AGENTS.md</summary>
-
-Investigate a project and create or update its AGENTS.md file through an interview process.
-</details>
+| | skill | description |
+|---|---|---|
+| 💎 | **api-design** | REST/GraphQL/OpenAPI design patterns |
+| 💎 | **database** | Schema design, migrations, ORMs, query optimization |
+| 💎 | **defuddle** | Extract clean markdown from web pages via Defuddle CLI |
+| 💎 | **dependency-management** | bun/uv/cargo/Go/Gradle dependency workflows |
+| 💎 | **docker** | Dockerfiles, multi-stage builds, Compose, security |
+| 💎 | **go-check** | Run go vet/golangci-lint/go test, interpret output |
+| 💎 | **go-testing** | Go testing — testify, table-driven tests, benchmarks |
+| 💎 | **js-testing** | JS/TS testing — Jest, Vitest, Node test runner |
+| 💎 | **python-testing** | Python testing with pytest |
+| 💎 | **refactoring** | Refactoring patterns, SOLID, design principles |
+| 💎 | **typescript-check** | Run tsc/eslint, interpret errors, fix common patterns |
 
 ## Dragon Daemon
 
-Go daemon for async agent operations — memory consolidation (dreaming), vault maintenance, and background tasks that outlive pi sessions.
-
-**Status:** Planned. See `.pi/plans/tone-extension.md` for the full architecture.
+| | component | description |
+|---|---|---|
+| 📜 | **dragon-daemon** | Go daemon for memory consolidation, vault maintenance, and async ops that outlive pi sessions |
 
 ## License
 

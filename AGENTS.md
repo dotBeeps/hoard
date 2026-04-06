@@ -10,53 +10,127 @@
 
 Installable via `pi install https://github.com/dotBeeps/hoard`. Pi auto-discovers `extensions/` and `skills/` in each sub-package.
 
-## Repository Structure
+## Feature Lifecycle
+
+Features move through six states, tracked with emoji in all inventory tables:
+
+| emoji | state | definition |
+|---|---|---|
+| 💭 | idea | Name and up to 500 words of description. No research or code yet. |
+| 📜 | researched | Research documents and/or relevant source files present. *(Auto-update via GitHub Actions is planned — see [Hoard Infrastructure](#hoard-infrastructure))* |
+| 🥚 | planned | Work broken down into phases. No code written. Spec lives in `den/features/{name}/`. |
+| 🐣 | in-progress | Code work cycle started. Current state documented in `den/features/{name}/AGENTS.md`. |
+| 🔥 | beta | Usable and being manually tested. Manually designated. |
+| 💎 | complete | Manually marked done when stable and well-tested. |
+
+## Hoard Features
+
+### berrygems — Extensions
+
+Extensions are TypeScript files loaded by pi via jiti. Multi-file extensions use a directory with `index.ts` as entry point (e.g. `dragon-guard/`). Single-file extensions will graduate to directories when they reach `in-progress` state, at which point they also gain a code-side `AGENTS.md` documenting patterns, antipatterns, and inter-extension interactions.
+
+| | extension | description |
+|---|---|---|
+| 🔥 | dragon-breath | Carbon/energy tracking footer widget + `/carbon` command |
+| 💎 | dragon-curfew | Bedtime enforcement — blocks tool calls during curfew hours |
+| 🔥 | dragon-digestion | Tiered compaction system with progressive context management |
+| 🔥 | dragon-guard/ | Three-tier permission guard |
+| 💎 | dragon-herald | Desktop notifications on agent completion (OSC777 + notify-send) |
+| 🔥 | dragon-image-fetch | Multi-source image/GIF fetch API (Giphy/Tenor/URL/file) |
+| 💎 | dragon-inquiry | Interactive user input (select/confirm/text) |
+| 🥚 | dragon-lab | Auth-aware provider beta header manager *(blocks `anthropicContextEdits` in dragon-digestion)* |
+| 🐣 | dragon-loop | Automation loops with breakout conditions + `/loop` command |
+| 🔥 | dragon-musings | LLM-generated contextual thinking spinner |
+| 🔥 | dragon-parchment | Central panel authority — creation, positioning, focus |
+| 🔥 | dragon-review | Code review via `/review` and `/end-review` commands |
+| 🔥 | dragon-scroll | Markdown popup panels (scrollable, updatable by ID) |
+| 💎 | dragon-tongue | Floating diagnostics panel (tsc type errors) |
+| 🔥 | kitty-gif-renderer | Kitty Graphics Protocol image rendering for panels |
+| 🔥 | kobold-housekeeping | Floating todo panels with GIF mascots |
+
+### berrygems — Library
+
+Shared utilities used across extensions. Not loaded directly by pi.
+
+| | module | description |
+|---|---|---|
+| 🔥 | animated-image-player | Playback lifecycle controller for AnimatedImage |
+| 🔥 | animated-image | Kitty Graphics Protocol frame rendering |
+| 🔥 | compaction-templates | Structured summary templates + strategy presets |
+| 🔥 | giphy-source | Giphy API fetch + GIF frame extraction |
+| 🔥 | lsp-client | Minimal LSP client (JSON-RPC over stdio) |
+| 🔥 | panel-chrome | Shared border/focus/header/footer rendering + 19 panel skins |
+| 🔥 | settings | Shared settings reader (`hoard.*` + legacy fallback) |
+
+### morsels — Skills
+
+| | skill | description |
+|---|---|---|
+| 🔥 | agent-init | Generate AGENTS.md files |
+| 💎 | api-design | REST/GraphQL/OpenAPI design patterns |
+| 💎 | commit | Conventional Commits + AI attribution |
+| 💎 | database | Schema design, migrations, ORMs, query optimization |
+| 💎 | defuddle | Extract clean markdown from web pages via Defuddle CLI |
+| 💎 | dependency-management | Cross-ecosystem dependency management (bun/uv/cargo/Go/Gradle) |
+| 💎 | docker | Dockerfiles, multi-stage builds, Compose, security |
+| 🔥 | dragon-image-fetch | Use the dragon-image-fetch extension API |
+| 🔥 | dragon-parchment | Build panel extensions |
+| 🔥 | extension-designer | Build pi extensions |
+| 💎 | git | Git operations + rebase/bisect references |
+| 💎 | git-auth | SSH + rbw credential management |
+| 💎 | github | gh CLI operations + GraphQL patterns |
+| 💎 | github-actions | GitHub Actions CI/CD workflow authoring |
+| 💎 | github-markdown | GFM conventions |
+| 💎 | github-writing | Interview-driven document authoring |
+| 💎 | go-check | Run go vet/golangci-lint/go test, interpret output |
+| 💎 | go-testing | Go testing patterns (testify, table-driven, benchmarks) |
+| 💎 | js-testing | JS/TS testing with Jest, Vitest, Node test runner |
+| 🔥 | kitty-gif-renderer | Integrate Kitty GIF rendering into panel extensions |
+| 🔥 | kobold-housekeeping | Task tracking with panels |
+| 💎 | pi-events | Event hooks reference |
+| 🔥 | pi-sessions | Sessions & state management |
+| 🔥 | pi-tui | TUI component building |
+| 💎 | python-testing | Python testing with pytest |
+| 💎 | refactoring | Refactoring patterns, SOLID, design principles |
+| 🔥 | skill-designer | Build agent skills |
+| 💎 | typescript-check | Run tsc/eslint, interpret errors, fix patterns |
+
+### dragon-daemon
+
+| | component | description |
+|---|---|---|
+| 📜 | dragon-daemon | Go daemon for memory consolidation, vault maintenance, and async ops |
+
+### Hoard Infrastructure
+
+Meta-features that serve the hoard as a whole rather than individual tools. Code artifacts live in `.github/` rather than a sub-package.
+
+| | feature | description |
+|---|---|---|
+| 💭 | auto-research | GitHub Actions workflow to auto-update `researched`-state feature docs on a timer |
+
+## Repository Layout
 
 ```
 hoard/
-├── berrygems/                 Pi extensions (TypeScript)
-│   ├── extensions/
-│   │   ├── dragon-inquiry.ts      Interactive user input (select/confirm/text)
-│   │   ├── dragon-parchment.ts       Central panel authority — creation, positioning, focus
-│   │   ├── dragon-digestion.ts    Compaction tuning panel
-│   │   ├── dragon-scroll.ts       Markdown popup panels (scrollable, updatable by ID)
-│   │   ├── kobold-housekeeping.ts Floating todo panels with GIF mascots
-│   │   ├── dragon-guard/          Three-tier permission guard
-│   │   └── dragon-tongue.ts       Floating diagnostics panel (tsc type errors)
-│   ├── lib/
-│   │   ├── settings.ts            Shared settings reader (hoard.* + legacy fallback)
-│   │   ├── panel-chrome.ts        Shared border/focus/header/footer rendering + 19 panel skins
-│   │   └── lsp-client.ts          Minimal LSP client (JSON-RPC over stdio)
-│   ├── styles/                    Writing tone files (formal, friendly, etc.)
-│   ├── tsconfig.json              Type checking config (resolves pi packages via symlinks)
+├── berrygems/        Pi extensions (TypeScript)
+│   ├── extensions/   Extension files and directories
+│   ├── lib/          Shared utilities
+│   ├── styles/       Writing tone files (formal, friendly, etc.)
+│   ├── tsconfig.json Type checking config (resolves pi packages via symlinks)
 │   └── package.json
-├── morsels/                   Pi skills (Markdown)
-│   ├── skills/
-│   │   ├── git/                   Git operations + rebase/bisect references
-│   │   ├── commit/                Conventional Commits + AI attribution
-│   │   ├── git-auth/              SSH + rbw credential management
-│   │   ├── github/                gh CLI operations + GraphQL patterns
-│   │   ├── github-writing/        Interview-driven document authoring
-│   │   ├── github-markdown/       GFM conventions
-│   │   ├── extension-designer/    Build pi extensions
-│   │   ├── skill-designer/        Build agent skills
-│   │   ├── dragon-parchment/         Build panel extensions
-│   │   ├── kobold-housekeeping/   Task tracking with panels
-│   │   ├── pi-events/             Event hooks reference
-│   │   ├── pi-sessions/           Sessions & state management
-│   │   ├── pi-tui/                TUI component building
-│   │   ├── agent-init/            Generate AGENTS.md files
-│   │   ├── typescript-check/      Run tsc/eslint, interpret errors, fix patterns
-│   │   └── go-check/              Run go vet/golangci-lint/go test, interpret output
+├── morsels/          Pi skills (Markdown)
+│   ├── skills/       One directory per skill, each with SKILL.md
 │   └── package.json
-├── den/                       Internal docs (not shipped)
-│   ├── plans/                     Specs, roadmaps
-│   ├── research/                  Design reviews, explorations
-│   └── moments/                   Test session logs, interaction captures
-├── dragon-daemon/             Go daemon (planned)
+├── den/              Internal docs (not shipped)
+│   ├── features/     Per-feature docs — plans, research, reviews, current state
+│   │   └── {name}/
+│   │       └── AGENTS.md   Current state, what's present, links to code
+│   └── moments/      Session logs and interaction captures
+├── dragon-daemon/    Go daemon
 │   ├── main.go
 │   └── go.mod
-├── package.json               Root manifest (references sub-packages)
+├── package.json      Root manifest (references sub-packages)
 ├── AGENTS.md
 └── README.md
 ```
@@ -196,11 +270,16 @@ panels?.register("my-panel", { handle, invalidate, dispose });
 All settings under `hoard` in `~/.pi/agent/settings.json`, with tiered nesting. Legacy `dotsPiEnhancements` flat keys are still read as fallback via `berrygems/lib/settings.ts`.
 
 ```
-hoard.guard.*        Dragon Guard (autoDetect, dogAllowedTools, keys)
-hoard.panels.*       Panel system (focusKey, defaultSkin, keybinds.*)
-hoard.digestion.*    Compaction tuning (triggerMode, strategy)
-hoard.todos.*        Todo panels (gifVibePrompt, gifRating)
+hoard.breath.*       Carbon tracking (enabled, gridRegion, gridIntensity)
 hoard.contributor.*  AI attribution (name, email, trailerFormat)
+hoard.curfew.*       Bedtime enforcement (enabled, startHour, endHour)
+hoard.digestion.*    Compaction tuning (triggerMode, strategy, tieredMode, summaryThreshold, hygieneKeepResults, summaryModel, anchoredUpdates, anthropicContextEdits, tierOverrides)
+hoard.guard.*        Dragon Guard (autoDetect, dogAllowedTools, keys)
+hoard.herald.*       Desktop notifications (enabled, title, method, minDuration)
+hoard.imageFetch.*   Image/GIF fetching (sources, preferStickers, rating, enableVibeQuery, model, queryPrompt, cacheMaxSize)
+hoard.musings.*      Thinking spinner configuration
+hoard.panels.*       Panel system (focusKey, defaultSkin, keybinds.*)
+hoard.todos.*        Todo panels (gifVibePrompt, gifRating)
 hoard.tone.*         Writing style (default, overrides)
 ```
 

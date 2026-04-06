@@ -38,7 +38,7 @@ Extensions are TypeScript files loaded by pi via jiti. Multi-file extensions use
 | 💎 | dragon-herald | Desktop notifications on agent completion (OSC777 + notify-send) |
 | 🔥 | dragon-image-fetch | Multi-source image/GIF fetch API (Giphy/Tenor/URL/file) |
 | 💎 | dragon-inquiry | Interactive user input (select/confirm/text) |
-| 🥚 | dragon-lab | Auth-aware provider beta header manager *(blocks `anthropicContextEdits` in dragon-digestion)* |
+| 🐣 | dragon-lab | Experimental provider feature opt-in manager — Anthropic beta headers today, extensible to any provider |
 | 🐣 | dragon-loop | Automation loops with breakout conditions + `/loop` command |
 | 🔥 | dragon-musings | LLM-generated contextual thinking spinner |
 | 🔥 | dragon-parchment | Central panel authority — creation, positioning, focus |
@@ -273,7 +273,8 @@ All settings under `hoard` in `~/.pi/agent/settings.json`, with tiered nesting. 
 hoard.breath.*       Carbon tracking (enabled, gridRegion, gridIntensity)
 hoard.contributor.*  AI attribution (name, email, trailerFormat)
 hoard.curfew.*       Bedtime enforcement (enabled, startHour, endHour)
-hoard.digestion.*    Compaction tuning (triggerMode, strategy, tieredMode, summaryThreshold, hygieneKeepResults, summaryModel, anchoredUpdates, anthropicContextEdits, tierOverrides)
+hoard.lab.*          Provider experimental features (lab.anthropic.contextManagement)
+hoard.digestion.*    Compaction tuning (triggerMode, strategy, tieredMode, summaryThreshold, hygieneKeepResults, summaryModel, anchoredUpdates, tierOverrides)
 hoard.guard.*        Dragon Guard (autoDetect, dogAllowedTools, keys)
 hoard.herald.*       Desktop notifications (enabled, title, method, minDuration)
 hoard.imageFetch.*   Image/GIF fetching (sources, preferStickers, rating, enableVibeQuery, model, queryPrompt, cacheMaxSize)

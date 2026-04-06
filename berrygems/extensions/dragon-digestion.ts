@@ -99,7 +99,8 @@ interface DigestSettingsV2 extends DigestSettings {
 	hygieneKeepResults: number;
 	summaryModel: string;
 	anchoredUpdates: boolean;
-	anthropicContextEdits: boolean;
+	// anthropicContextEdits removed — dragon-lab now owns this.
+	// Check: (globalThis as any)[Symbol.for("hoard.lab")]?.isActive("anthropic.context-management")
 	digestRemarks: boolean;
 	tierOverrides: {
 		alert?: number;
@@ -192,12 +193,11 @@ const DEFAULT_DIGEST: DigestSettings = {
 };
 
 const DEFAULT_DIGEST_V2: Omit<DigestSettingsV2, keyof DigestSettings> = {
-	tieredMode: false,
+	tieredMode: true,
 	summaryThreshold: 80,
 	hygieneKeepResults: 5,
 	summaryModel: "",
 	anchoredUpdates: true,
-	anthropicContextEdits: false,
 	digestRemarks: true,
 	tierOverrides: {},
 };
@@ -643,6 +643,7 @@ async function resolveSummaryModel(ctx: ExtensionContext, preferredModelId: stri
 		["anthropic", "claude-haiku-3-5-20241022"],
 		["google", "gemini-2.0-flash-lite"],
 		["google", "gemini-2.0-flash"],
+		["openai", "gpt-4o-mini"],
 	] as const;
 
 	for (const [provider, modelId] of candidates) {
@@ -872,7 +873,6 @@ function readDigestSettingsV2(cwd: string): DigestSettingsV2 {
 		hygieneKeepResults: readProjectHoardSetting(cwd, "digestion.hygieneKeepResults", DEFAULT_DIGEST_V2.hygieneKeepResults) as number,
 		summaryModel: readProjectHoardSetting(cwd, "digestion.summaryModel", DEFAULT_DIGEST_V2.summaryModel) as string,
 		anchoredUpdates: readProjectHoardSetting(cwd, "digestion.anchoredUpdates", DEFAULT_DIGEST_V2.anchoredUpdates) as boolean,
-		anthropicContextEdits: readProjectHoardSetting(cwd, "digestion.anthropicContextEdits", DEFAULT_DIGEST_V2.anthropicContextEdits) as boolean,
 		digestRemarks: readProjectHoardSetting(cwd, "digestion.digestRemarks", DEFAULT_DIGEST_V2.digestRemarks) as boolean,
 		tierOverrides: {
 			alert: readProjectHoardSetting(cwd, "digestion.tierOverrides.alert", undefined) as number | undefined,
@@ -2136,7 +2136,8 @@ export default function (pi: ExtensionAPI) {
 		if (ctx.model?.provider !== "anthropic") return;
 
 		const v2Anthropic = digestState.digestSettingsV2;
-		if (!v2Anthropic.tieredMode || !v2Anthropic.anthropicContextEdits) return;
+		const lab = (globalThis as any)[Symbol.for("hoard.lab")] as import("./dragon-lab").DragonLabAPI | undefined;
+		if (!v2Anthropic.tieredMode || !lab?.isActive("anthropic.context-management")) return;
 
 		const usage = digestState.contextUsage;
 		if (!usage?.percent || !usage?.contextWindow) return;

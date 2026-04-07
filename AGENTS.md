@@ -99,7 +99,7 @@ Shared utilities used across extensions. Not loaded directly by pi.
 
 | | component | description |
 |---|---|---|
-| 📜 | dragon-daemon | Go daemon for memory consolidation, vault maintenance, and async ops |
+| 🐣 | dragon-daemon | Persistent persona daemon — thought ticker, attention economy, Obsidian vault memory, hoard body, pi OAuth. Phase 1 complete, Phase 2 (auth+memory) in progress |
 
 ### Hoard Infrastructure
 
@@ -127,7 +127,9 @@ hoard/
 │   │   └── {name}/
 │   │       └── AGENTS.md   Current state, what's present, links to code
 │   └── moments/      Session logs and interaction captures
-├── dragon-daemon/    Go daemon
+├── dragon-daemon/    Go persona daemon
+│   ├── cmd/          Cobra CLI (run --persona <name>)
+│   ├── internal/     Core packages (auth, persona, attention, sensory, body, memory, thought, ticker, daemon)
 │   ├── main.go
 │   └── go.mod
 ├── package.json      Root manifest (references sub-packages)

@@ -517,12 +517,10 @@ This is defensible. It's less than the carbon cost of streaming video for a few 
 
 ## 11. Open Questions
 
-These need resolution before implementation begins.
+Status as of 2026-04-06:
 
-**Q1: Attention regen model**
-Does the attention pool reset to `base` at the start of each thought, or does it carry from the previous turn?
-
-*Current lean:* Reset + banking. Each thought you receive `min(base × rate_factor, max - current)` attention added to your pool. So slow thinking = larger per-thought addition. Unspent attention banks. This is more interesting than a pure reset.
+**Q1: Attention regen model** ✅ RESOLVED
+Implemented as continuous time-based regen. `rate` units per hour, capped at pool max. Regen is calculated on-demand (elapsed time × rate). Unspent attention banks. The ledger applies regen lazily on every Pool()/Spend()/AboveFloor() call.
 
 **Q2: Multiple simultaneous delegated actions**
 Can the agent have more than one Baritone goal running at once? Currently no — Baritone only supports one active process. This affects how the focus manager tracks state.
@@ -536,44 +534,42 @@ Does dot's impulse arrive as:
 
 *Current lean:* Synthetic sensory event for immersion, with a visible "impulse received" marker in the Qt stream. The agent perceives it through its senses, not as an external edit.
 
-**Q4: Thought output format**
-How does the LLM signal its actions? Options:
-- Tool calls (most natural in pi, action = tool call)
-- Structured XML/JSON in the response
-- Markdown sections
-
-*Current lean:* Tool calls. Each action type is a pi tool. The attention ledger intercepts tool calls, checks budget, deducts cost. This maps onto the existing pi architecture cleanly.
+**Q4: Thought output format** ✅ RESOLVED
+Tool calls. Built-in tools: `think`, `speak`, `remember`, `search_memory`. Body tools: `log_to_hoard`. Tool dispatch returns attention cost; total deducted after the full cycle.
 
 **Q5: Rate of thinking — is 15/min right?**
 Initial analysis says yes. But the *right* number is probably "whatever produces good behavior in practice." We should build the system with configurable rates and tune empirically.
 
-**Q6: Persona storage location**
-Global (`~/.pi/agent/personas/`) vs project-scoped (`.pi/personas/`)? The Minecraft persona probably wants to be project-scoped to dragon-cubed. The Ember/daily-life persona is global.
-
-*Current lean:* Both. Persona loader checks project-scoped first, falls back to global. Same pattern as vault and tone.
+**Q6: Persona storage location** ✅ RESOLVED
+Global only for now: `~/.config/dragon-daemon/personas/<name>.yaml`. Project-scoped will be added when body types other than hoard arrive.
 
 ---
 
 ## 12. What Gets Built When
 
-### Phase 1 — Minimum Viable Ticker
-- Persona loader (YAML parse + validation)
-- Attention ledger (pool, rate, cost deduction)
-- Ticker (heartbeat only, no event-driven yet)
-- Basic sensory aggregator (body state + last N events)
-- Dispatch to one hardcoded body (daily-life/hoard)
-- No contract enforcer yet
-- No Qt yet — terminal output only
+### Phase 1 — Minimum Viable Ticker ✅
+- ✅ Persona loader (YAML parse + validation + defaults)
+- ✅ Attention ledger (pool, hourly regen, floor gate, per-action spend)
+- ✅ Ticker (heartbeat with ±variance jitter)
+- ✅ Sensory aggregator (event queue, body state merge)
+- ✅ Dispatch to hoard body (git log, daily journal, log_to_hoard tool)
+- ✅ Thought cycle (Claude haiku, multi-turn tool dispatch)
+- ✅ Daemon lifecycle (signal handling, cobra CLI)
+- Terminal output only — no Qt yet (as planned)
 
-### Phase 2 — Event-Driven + Contracts
-- Event-driven ticker (body events trigger thoughts)
-- Contract enforcer (obligations + prohibitions)
-- Focus manager
-- Impulse injection (terminal only — Qt later)
-- Budget awareness + dragon-breath reporting
+### Phase 2 — Auth + Memory + Events (in progress)
+- ✅ Pi OAuth auth (reads ~/.pi/agent/auth.json, refreshes tokens, Bearer auth)
+- ✅ Obsidian vault memory (~/.config/dragon-daemon/memory/<persona>/)
+- ✅ Five memory kinds: observation, decision, insight, wondering, fragment
+- ✅ Pinned notes surface in every sensory snapshot
+- ✅ First-person ethical contract as system_prompt
+- ❌ Event-driven ticker (body events trigger thoughts)
+- ❌ Contract enforcer (obligations + prohibitions)
+- ❌ Focus manager
+- ❌ Impulse injection (terminal only — Qt later)
+- ❌ Budget awareness + dragon-breath reporting
 
-### Phase 3 — Memory + Body Interface
-- Memory integration with hoard vault (episodic + semantic)
+### Phase 3 — Body Interface + Integration
 - Full body connection interface
 - SoulGem registered as a body (Minecraft persona works)
 - Working memory across turns

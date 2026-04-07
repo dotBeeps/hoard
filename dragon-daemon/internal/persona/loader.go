@@ -1,6 +1,7 @@
 package persona
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -50,22 +51,22 @@ func (p *Persona) ThoughtInterval() (time.Duration, error) {
 // validate checks required fields and sane defaults.
 func validate(p *Persona) error {
 	if p.Persona.Name == "" {
-		return fmt.Errorf("persona.name is required")
+		return errors.New("persona.name is required")
 	}
 	if p.Attention.Pool <= 0 {
-		return fmt.Errorf("attention.pool must be > 0")
+		return errors.New("attention.pool must be > 0")
 	}
 	if p.Attention.Rate < 0 {
-		return fmt.Errorf("attention.rate must be >= 0")
+		return errors.New("attention.rate must be >= 0")
 	}
 	if p.Attention.ThoughtInterval == "" {
-		return fmt.Errorf("attention.thought_interval is required")
+		return errors.New("attention.thought_interval is required")
 	}
 	if _, err := time.ParseDuration(p.Attention.ThoughtInterval); err != nil {
 		return fmt.Errorf("attention.thought_interval must be a valid duration: %w", err)
 	}
 	if p.Attention.Variance < 0 || p.Attention.Variance >= 1 {
-		return fmt.Errorf("attention.variance must be in [0, 1)")
+		return errors.New("attention.variance must be in [0, 1)")
 	}
 	applyDefaults(p)
 	return nil

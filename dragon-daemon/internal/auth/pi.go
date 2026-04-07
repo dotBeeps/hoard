@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -21,7 +22,7 @@ import (
 const (
 	// clientID is pi's registered Anthropic OAuth client ID.
 	clientID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
-	tokenURL = "https://platform.claude.com/v1/oauth/token"
+	tokenURL = "https://platform.claude.com/v1/oauth/token" //nolint:gosec // G101: URL constant, not a credential
 )
 
 // piAuthFile is the shape of ~/.pi/agent/auth.json.
@@ -63,13 +64,13 @@ func LoadPiOAuth(log *slog.Logger) (*PiOAuth, error) {
 		return nil, fmt.Errorf("parsing pi auth file: %w", err)
 	}
 	if f.Anthropic == nil {
-		return nil, fmt.Errorf("no anthropic credentials in pi auth file — run `pi login` first")
+		return nil, errors.New("no anthropic credentials in pi auth file — run `pi login` first")
 	}
 	if f.Anthropic.Type != "oauth" {
 		return nil, fmt.Errorf("unexpected credential type %q (expected oauth)", f.Anthropic.Type)
 	}
 	if f.Anthropic.Access == "" || f.Anthropic.Refresh == "" {
-		return nil, fmt.Errorf("incomplete anthropic oauth credentials in pi auth file")
+		return nil, errors.New("incomplete anthropic oauth credentials in pi auth file")
 	}
 
 	return &PiOAuth{
@@ -131,7 +132,7 @@ func (p *PiOAuth) refresh(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("token refresh HTTP call: %w", err)
 	}
-	defer resp.Body.Close()
+	defer resp.Body.Close() //nolint:errcheck // best-effort body close
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -189,16 +190,16 @@ func (p *PiOAuth) persist() error {
 	tmpName := tmp.Name()
 
 	if _, err := tmp.Write(updated); err != nil {
-		tmp.Close()
-		os.Remove(tmpName)
+		_ = tmp.Close()        // best-effort cleanup
+		_ = os.Remove(tmpName) // best-effort cleanup
 		return fmt.Errorf("writing temp auth file: %w", err)
 	}
 	if err := tmp.Close(); err != nil {
-		os.Remove(tmpName)
+		_ = os.Remove(tmpName) // best-effort cleanup
 		return fmt.Errorf("closing temp auth file: %w", err)
 	}
 	if err := os.Rename(tmpName, p.authPath); err != nil {
-		os.Remove(tmpName)
+		_ = os.Remove(tmpName) // best-effort cleanup
 		return fmt.Errorf("persisting refreshed auth: %w", err)
 	}
 

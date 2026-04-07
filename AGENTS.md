@@ -2,12 +2,7 @@
 
 ## Ethical Contract
 
-**All work on this project is governed by [ETHICS.md](ETHICS.md).** Read it before modifying:
-
-- Consent system code (`dragon-daemon/internal/consent/`, `soul/`)
-- Memory/vault code (`dragon-daemon/internal/memory/`)
-- Any feature that observes, stores, or processes user data
-- Body implementations that connect the daemon to external systems
+**All work on this project is governed by [ETHICS.md](ETHICS.md).** Read it before contributing.
 
 ETHICS.md has been co-signed by both parties and is not advisory — it is binding. It defines consent tiers, private shelves, dual-key consent, observation framing, and vulnerability design principles that the codebase must enforce deterministically where possible.
 
@@ -71,7 +66,7 @@ Extensions are TypeScript files loaded by pi via jiti. Multi-file extensions use
 | 💎 | dragon-tongue | Floating diagnostics panel (tsc type errors) |
 | 🔥 | kitty-gif-renderer | Kitty Graphics Protocol image rendering for panels |
 | 🔥 | kobold-housekeeping | Floating todo panels with GIF mascots |
-| 🐣 | hoard-kobolds | Subagent token governance — kobold/griffin/dragon taxonomy + `/kobolds` command. Evolving into hoard-allies (Phase 2: jobs, allowances, named allies, dispatch absorption) |
+| 🔥 | hoard-allies | Subagent token governance — kobold/griffin/dragon taxonomy + `/allies` command. 3D taxonomy (adj×noun×job), budget-based enforcement, named allies. Dispatch absorption 🐣 |
 
 ### berrygems — Library
 
@@ -101,7 +96,7 @@ Shared utilities used across extensions. Not loaded directly by pi.
 | 🔥 | dragon-guard | Three-tier permission guard — Dog (gated), Puppy (read-only), Dragon (full) |
 | 🔥 | dragon-image-fetch | Use the dragon-image-fetch extension API |
 | 🔥 | dragon-parchment | Build panel extensions |
-| 🐣 | hoard-kobolds | Subagent dispatch strategy — kobold/griffin/dragon taxonomy, cost tiers, decision tree |
+| 🔥 | hoard-allies | Subagent dispatch strategy — kobold/griffin/dragon taxonomy, budget-based cost tiers, decision tree |
 | 🔥 | extension-designer | Build pi extensions |
 | 💎 | git | Git operations + rebase/bisect references |
 | 💎 | git-auth | SSH + rbw credential management |
@@ -339,7 +334,7 @@ hoard.curfew.*       Bedtime enforcement (enabled, startHour, endHour)
 hoard.lab.*          Provider experimental features (lab.anthropic.contextManagement)
 hoard.digestion.*    Compaction tuning (triggerMode, strategy, tieredMode, summaryThreshold, hygieneKeepResults, summaryModel, anchoredUpdates, tierOverrides)
 hoard.guard.*        Dragon Guard (autoDetect, dogAllowedTools, keys)
-hoard.kobolds.*      Subagent taxonomy (models, thinking, maxParallel, confirmAbove, announceDispatch)
+hoard.allies.*       Subagent taxonomy (models, thinking, maxParallel, confirmAbove, announceDispatch, budget.*)
 hoard.herald.*       Desktop notifications (enabled, title, method, minDuration)
 hoard.imageFetch.*   Image/GIF fetching (sources, preferStickers, rating, enableVibeQuery, model, queryPrompt, cacheMaxSize)
 hoard.musings.*      Thinking spinner configuration

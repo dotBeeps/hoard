@@ -1,89 +1,71 @@
-# Handoff: hoard-allies Phase 2 Development
+# Handoff: hoard-allies
 
-> **Date:** 2026-04-07
-> **From:** Ember 🐉 (this session)
-> **For:** Next session (Ember or any agent working on hoard-allies)
-
-## Context
-
-This session ran a full hoard audit, migrated dragon-cubed into the monorepo, and forged hoard-kobolds (Phase 1 of what is now hoard-allies). We burned through dot's Anthropic budget dispatching 10 sonnet reviewers — which proved the need for this system.
+> **Last updated:** 2026-04-07
+> **From:** Ember 🐉
+> **For:** Next session picking up hoard-allies work
 
 ## Current State
 
-### What Exists (Phase 1 — done)
-- **`berrygems/extensions/hoard-kobolds.ts`** — Extension with:
-  - Settings-driven agent def generation (writes `.pi/agents/*.md` on session start)
-  - System prompt injection (dispatch rules, taxonomy)
-  - Strips `APPEND_SYSTEM.md` from subagent contexts
-  - `/kobolds` and `/kobolds-regen` commands
-  - Reads all config from `hoard.kobolds.*` settings
-- **`morsels/skills/hoard-kobolds/SKILL.md`** — Skill teaching dispatch strategy
-- **`.pi/agents/*.md`** — 8 agent defs (auto-generated, 2D: thinking × model)
-- **Settings** in `~/.pi/agent/settings.json` under `hoard.kobolds`
+**Phase 2 is implemented.** The extension is at 🔥 beta — functional, needs manual testing via `/reload`.
 
-### What's Specced (Phase 2 — ready to build)
-- **`den/features/hoard-allies/AGENTS.md`** — Full 422-line spec covering:
-  - Three-dimension taxonomy: `<adjective>-<noun>-<job>` (e.g., "Grix the Silly Kobold Scout")
-  - 5 job roles: scout, reviewer, coder, researcher, planner
-  - Tool restrictions per job
-  - Allowance system (spawn budgets, tier limits, refund on complete)
-  - Named allies with name pools (30 kobold, 30 griffin, 14 dragon names)
-  - Context trimming (strip persona, skip digestion for subagents)
-  - Inter-agent communication chatroom (Phase 3)
-  - Full technical implementation details (pi hooks, enforcement flow, agent def format)
+### What Exists
 
-## What Needs Building (Phase 2)
+- **`berrygems/extensions/hoard-allies.ts`** (~800 lines) — full extension:
+  - 3D taxonomy: `<adjective>-<noun>-<job>` with 13 curated combos
+  - 5 jobs with per-job system prompts, tool restrictions, output formats
+  - Formula-based budget: `cost = noun_weight × thinking_multiplier × job_multiplier`
+  - Budget enforcement via `tool_call` interception (deterministic blocking)
+  - Named allies from shuffled pools (72 names total)
+  - Name injection via `pendingNames` bridge (tool_call → before_agent_start)
+  - Completion tracking + refund (50% on complete, 100% on failure)
+  - `/allies` and `/allies-regen` commands
+  - System prompt injection for primary session (taxonomy + budget status)
+  - Context trimming: strips APPEND_SYSTEM for subagents
+  - Cleans old 2D agent defs on regeneration
 
-### Step 1: Rename hoard-kobolds → hoard-allies
-- Rename `berrygems/extensions/hoard-kobolds.ts` → `hoard-allies.ts`
-- Rename `morsels/skills/hoard-kobolds/` → `hoard-allies/`
-- Update settings namespace from `hoard.kobolds.*` → `hoard.allies.*` (keep legacy fallback)
-- Update root AGENTS.md feature tables
-- Update `/kobolds` command → `/allies`
+- **`morsels/skills/hoard-allies/SKILL.md`** (~155 lines) — dispatch strategy skill:
+  - Full cost table with formulas for all 13 combos
+  - Decision tree (job → noun → adjective)
+  - Budget explanation + dispatch patterns with cost annotations
+  - Guidelines for when to dispatch vs do it yourself
 
-### Step 2: Add job dimension
-- Add 5 jobs to the TIERS array: scout, reviewer, coder, researcher, planner
-- Each job defines: tools list, system prompt template, behavior instructions, report-back triggers
-- Generate 13 curated `<adj>-<noun>-<job>` agent defs (see spec for the list)
-- Agent def filenames: `silly-kobold-scout.md`, `wise-griffin-reviewer.md`, etc.
+- **`.pi/agents/<adj>-<noun>-<job>.md`** — auto-generated on session start, 13 files
 
-### Step 3: Named allies
-- Name pools as constants in the extension (see spec for names)
-- Shuffle on session start, pop on dispatch
-- Inject `{Name}` into agent system prompts
-- Display names use natural capitalization: "Grix the Silly Kobold Scout"
+- **Settings:** `hoard.allies.*` including `budget.nounWeights`, `budget.thinkingMultipliers`, `budget.jobMultipliers`, `budget.pools`, `budget.refundFraction`
 
-### Step 4: Allowance tracking
-- State on `globalThis[Symbol.for("hoard.allies.state")]`
-- Track active allies, spawn counts, name queues
-- Enforce spawn budgets (kobold=0, griffin=2, dragon=4, primary=8)
-- Refund slots when allies complete
-- Block over-budget requests deterministically
+### What Was Removed
 
-### Step 5: Absorb pi-subagents dispatch
-- **pi-subagents is NOT a dependency** — it's the existing tool we're replacing
-- It's currently uninstalled. Its source is still at `~/.npm/lib/node_modules/pi-subagents/` for reference
-- Key files to study: `pi-spawn.ts` (resolve pi binary), `pi-args.ts` (build CLI args), `execution.ts` (spawn + stream)
-- hoard-allies needs to register its own `subagent` tool that:
-  1. Parses agent name → extracts taxonomy dimensions
-  2. Checks allowance → blocks or approves
-  3. Builds pi CLI args (model, thinking, tools from job, system prompt with name)
-  4. Spawns pi subprocess
-  5. Streams results back
-  6. Tracks ally lifecycle (active → completed/failed)
-  7. Refunds spawn slots on completion
+- `berrygems/extensions/hoard-kobolds.ts` — replaced by hoard-allies.ts
+- `morsels/skills/hoard-kobolds/` — replaced by hoard-allies/
+- Old 2D agent defs (silly-kobold.md, etc.) — auto-cleaned on next session start
 
-## Key Files to Read
+## What's Next
 
-| File | Why |
-|------|-----|
-| `den/features/hoard-allies/AGENTS.md` | **THE SPEC** — read this first |
-| `berrygems/extensions/hoard-kobolds.ts` | Current Phase 1 code to evolve |
-| `~/.npm/lib/node_modules/pi-subagents/` | Reference implementation for dispatch (not a dependency) |
-| `berrygems/extensions/dragon-digestion.ts` | Context management patterns |
-| `berrygems/lib/compaction-templates.ts` | Summary templates (reusable for ally result synthesis) |
-| `berrygems/lib/settings.ts` | Settings reader (readHoardSetting) |
-| `ETHICS.md` | Carbon accountability (§3.7) drives this whole feature |
+### Phase 3 — Dispatch Absorption 🐣
+
+Register our own `subagent` tool with taxonomy awareness. Currently we intercept the built-in subagent tool via `tool_call` events, but absorption means we *own* the tool and can:
+- Pre-dispatch: show cost estimate in tool confirmation
+- Post-dispatch: report actual cost in tool result
+- Integrate with dragon-breath for carbon tracking
+- Route to optimal provider based on ally tier
+
+Reference: `~/.npm/lib/node_modules/pi-subagents/` has the old spawn machinery if needed.
+
+### Phase 4+ — Future Ideas 💭
+
+- Inter-agent chatroom for active allies
+- Long-running dispatcher session (prompt caching) + short-lived worker allies (quota absorption)
+- Provider-aware dispatch (match ally to cheapest available provider)
+
+## Key Files
+
+| File | Role |
+|------|------|
+| `den/features/hoard-allies/AGENTS.md` | Full spec and phase tracker |
+| `berrygems/extensions/hoard-allies.ts` | The extension |
+| `morsels/skills/hoard-allies/SKILL.md` | Dispatch strategy skill |
+| `berrygems/lib/settings.ts` | Settings reader (`readHoardSetting`) |
+| `ETHICS.md` | §3.7 drives the budget system |
 
 ## Verification
 
@@ -91,13 +73,6 @@ This session ran a full hoard audit, migrated dragon-cubed into the monorepo, an
 # Type check
 cd /home/dot/Development/hoard && tsc --project berrygems/tsconfig.json
 
-# Test after changes
-/reload  # in pi, then test /allies command and subagent dispatch
+# Test
+/reload  # in pi, then /allies to see taxonomy, dispatch some subagents
 ```
-
-## What NOT to Do
-
-- Don't install pi-subagents — we're replacing it, not wrapping it
-- Don't generate all 60 taxonomy permutations — only the 13 curated combos
-- Don't skip the allowance system — deterministic enforcement is an ethical requirement
-- Don't let kobolds spawn subagents — they report back, always

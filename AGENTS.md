@@ -66,7 +66,7 @@ Extensions are TypeScript files loaded by pi via jiti. Multi-file extensions use
 | 💎 | dragon-tongue | Floating diagnostics panel (tsc type errors) |
 | 🔥 | kitty-gif-renderer | Kitty Graphics Protocol image rendering for panels |
 | 🔥 | kobold-housekeeping | Floating todo panels with GIF mascots |
-| 🔥 | hoard-allies | Subagent token governance — kobold/griffin/dragon taxonomy + `/allies` command. 3D taxonomy (adj×noun×job), budget-based enforcement, named allies. Dispatch absorption 🐣 |
+| 🔥 | hoard-allies | Subagent token governance — kobold/griffin/dragon taxonomy + `quest` tool + `/allies` command. 3D taxonomy (adj×noun×job), budget-based enforcement, named allies, FrugalGPT model cascade. Dragon-guard coupling 🐣 |
 
 ### berrygems — Library
 

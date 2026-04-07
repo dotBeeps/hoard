@@ -193,9 +193,19 @@ The primary session (Ember) gets:
 | Hook | When | What |
 |------|------|------|
 | `session_start` | Session begins | Generate 13 agent defs, clean old 2D defs, reset state |
-| `before_agent_start` | Agent starting | Primary: inject dispatch rules. Subagent: strip persona, inject identity + name |
-| `tool_call` (subagent) | Dispatch requested | Check parallel + budget, pop name, record spawn, queue name for injection |
-| `tool_result` (subagent) | Dispatch complete | Mark complete/failed, refund budget |
+| `before_agent_start` | Agent starting | Primary: inject dispatch rules. Subagent: strip persona |
+| `quest` tool | Dispatch requested | Budget check, name pop, model cascade, pi process spawn, cost report |
+
+### Directory Structure
+
+```
+berrygems/extensions/hoard-allies/
+  index.ts        — Entry: taxonomy, budget, events, /allies command, shared API on globalThis
+  quest-tool.ts   — Quest tool: schema, execute (single/rally/chain), formatting
+  spawn.ts        — Pi process spawning (pi --mode json), NDJSON parsing
+  cascade.ts      — Model fallback, provider cooldown tracking
+  types.ts        — Shared interfaces
+```
 
 ### State Management
 
@@ -221,9 +231,13 @@ interface AllyInfo {
 
 ### Name Injection Flow
 
-1. `tool_call` for subagent → parse agent name, pop name, push to `pendingNames[agentDefName]`
-2. `before_agent_start` for subagent → regex match `You are a <Adj> <Noun> <Job>.` in system prompt
-3. Derive agent def name from match → shift name from `pendingNames` → replace pattern with `You are {Name} the <Adj> <Noun> <Job>.`
+With the quest tool, names are baked directly into the system prompt file before spawning — no `pendingNames` bridge needed.
+
+1. Quest tool receives dispatch request
+2. Pop name from noun's shuffled pool
+3. `buildAllyPrompt(combo, allyName)` generates prompt with name embedded
+4. Prompt written to temp file, passed via `--append-system-prompt`
+5. Pi process spawns with the named prompt
 
 ### Agent Def Format
 
@@ -274,13 +288,26 @@ You may dispatch subagents (Kobold tier only). Your budget: 5 points.
 - [x] Updated root AGENTS.md
 - [x] ETHICS.md now unconditionally required reading
 
-### Phase 3 — Dispatch Absorption 🐣
-- [ ] Register custom `subagent` tool with taxonomy awareness
-- [ ] Pre-dispatch cost estimation in tool output
-- [ ] Post-dispatch cost reporting in tool result
+### Phase 3 — Quest Tool (Dispatch Absorption) 🔥
+- [x] Graduate to directory extension (index.ts + modules)
+- [x] `quest` tool registration (single, rally, chain modes)
+- [x] Process spawning via `pi --mode json` child processes
+- [x] FrugalGPT-style model cascade (copilot → anthropic → google)
+- [x] Provider cooldown tracking (60s rate limit, 30s server, 5min auth)
+- [x] Budget enforcement integrated into dispatch lifecycle
+- [x] Named allies baked into system prompt (no pendingNames bridge needed)
+- [x] Cost + model reporting in quest results
+- [x] First successful dispatch: Wort the Silly Kobold Scout 🎉
+- [ ] Dragon-guard coupling — ally job profiles paired with guard modes
 - [ ] Integration with dragon-breath for carbon tracking
 
-### Phase 4 — Inter-Agent Communication (future 💭)
+### Phase 4 — Dragon-Guard Coupling 🐣
+- [ ] Allies run with guard profiles matching their job's tool restrictions
+- [ ] Scout/reviewer/researcher/planner → read-only guard profile
+- [ ] Coder → write-gated guard profile
+- [ ] Guard mode passed via spawn args or env var
+
+### Phase 5 — Inter-Agent Communication (future 💭)
 - [ ] Chatroom message passing between active agents
 - [ ] Dispatcher visibility into all messages
 - [ ] Agent tagging / direct requests

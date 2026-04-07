@@ -6,64 +6,62 @@
 
 ## Current State
 
-**Phase 2 is implemented.** The extension is at 🔥 beta — functional, needs manual testing via `/reload`.
+**Phase 3 (quest tool) is implemented and tested.** Extension is at 🔥 beta.
+
+First successful dispatch: **Wort the Silly Kobold Scout** — copilot/haiku, 0.5 pts, model cascade worked.
 
 ### What Exists
 
-- **`berrygems/extensions/hoard-allies.ts`** (~800 lines) — full extension:
-  - 3D taxonomy: `<adjective>-<noun>-<job>` with 13 curated combos
-  - 5 jobs with per-job system prompts, tool restrictions, output formats
-  - Formula-based budget: `cost = noun_weight × thinking_multiplier × job_multiplier`
-  - Budget enforcement via `tool_call` interception (deterministic blocking)
-  - Named allies from shuffled pools (72 names total)
-  - Name injection via `pendingNames` bridge (tool_call → before_agent_start)
-  - Completion tracking + refund (50% on complete, 100% on failure)
-  - `/allies` and `/allies-regen` commands
-  - System prompt injection for primary session (taxonomy + budget status)
-  - Context trimming: strips APPEND_SYSTEM for subagents
-  - Cleans old 2D agent defs on regeneration
+- **`berrygems/extensions/hoard-allies/`** — directory extension (~1,560 lines across 5 files):
+  - `index.ts` — taxonomy, budget, events, `/allies` command, shared API on globalThis
+  - `quest-tool.ts` — quest tool (single, rally, chain modes), budget enforcement
+  - `spawn.ts` — pi process spawning (`pi --mode json`), NDJSON parsing
+  - `cascade.ts` — FrugalGPT model fallback, provider cooldown tracking
+  - `types.ts` — shared interfaces
 
-- **`morsels/skills/hoard-allies/SKILL.md`** (~155 lines) — dispatch strategy skill:
-  - Full cost table with formulas for all 13 combos
-  - Decision tree (job → noun → adjective)
-  - Budget explanation + dispatch patterns with cost annotations
-  - Guidelines for when to dispatch vs do it yourself
+- **`morsels/skills/hoard-allies/SKILL.md`** — dispatch strategy skill (~155 lines)
 
-- **`.pi/agents/<adj>-<noun>-<job>.md`** — auto-generated on session start, 13 files
+- **`.pi/agents/<adj>-<noun>-<job>.md`** — 13 auto-generated agent defs
 
-- **Settings:** `hoard.allies.*` including `budget.nounWeights`, `budget.thinkingMultipliers`, `budget.jobMultipliers`, `budget.pools`, `budget.refundFraction`
+- **`den/features/hoard-allies/quest-design.md`** — griffin-researcher design doc
 
-### What Was Removed
+### Known Issues
 
-- `berrygems/extensions/hoard-kobolds.ts` — replaced by hoard-allies.ts
-- `morsels/skills/hoard-kobolds/` — replaced by hoard-allies/
-- Old 2D agent defs (silly-kobold.md, etc.) — auto-cleaned on next session start
+1. **Dragon-guard coupling** — allies hit dragon-guard in Dog Mode. Jobs should pair with guard profiles (scouts → read-only, coders → write-gated). This is the next piece of work.
+
+2. **NDJSON parsing** — the `parseSpawnOutput` function handles several event formats but hasn't been tested with all pi output modes. May need refinement.
+
+3. **Old interception code** — `tool_call`/`tool_result` interception for the built-in `subagent` tool still exists in index.ts. Can be removed once dot disables pi-subagents and the quest tool is fully validated.
+
+4. **Rally + chain untested** — single quest works, parallel and sequential modes haven't been tested yet.
 
 ## What's Next
 
-### Phase 3 — Dispatch Absorption 🐣
+### Phase 4 — Dragon-Guard Coupling 🐣
 
-Register our own `subagent` tool with taxonomy awareness. Currently we intercept the built-in subagent tool via `tool_call` events, but absorption means we *own* the tool and can:
-- Pre-dispatch: show cost estimate in tool confirmation
-- Post-dispatch: report actual cost in tool result
-- Integrate with dragon-breath for carbon tracking
-- Route to optimal provider based on ally tier
+Allies should run with guard profiles matching their job. The quest tool controls WHICH tools, dragon-guard controls HOW those tools behave.
 
-Reference: `~/.npm/lib/node_modules/pi-subagents/` has the old spawn machinery if needed.
+- Scout/reviewer/researcher/planner → read-only guard profile (Puppy mode)
+- Coder → write-gated guard profile (Dog mode)
+- Guard mode passed via spawn args or env var
 
-### Phase 4+ — Future Ideas 💭
+This requires coordination with `berrygems/extensions/dragon-guard/`.
 
-- Inter-agent chatroom for active allies
-- Long-running dispatcher session (prompt caching) + short-lived worker allies (quota absorption)
-- Provider-aware dispatch (match ally to cheapest available provider)
+### Phase 5+ — Future
+
+- Inter-agent chatroom
+- Long-running dispatcher sessions (prompt caching)
+- Provider-aware routing
+- Dragon-breath carbon integration
 
 ## Key Files
 
 | File | Role |
 |------|------|
 | `den/features/hoard-allies/AGENTS.md` | Full spec and phase tracker |
-| `berrygems/extensions/hoard-allies.ts` | The extension |
+| `berrygems/extensions/hoard-allies/` | The extension (5 files) |
 | `morsels/skills/hoard-allies/SKILL.md` | Dispatch strategy skill |
+| `berrygems/extensions/dragon-guard/` | Guard extension (next coupling target) |
 | `berrygems/lib/settings.ts` | Settings reader (`readHoardSetting`) |
 | `ETHICS.md` | §3.7 drives the budget system |
 
@@ -74,5 +72,5 @@ Reference: `~/.npm/lib/node_modules/pi-subagents/` has the old spawn machinery i
 cd /home/dot/Development/hoard && tsc --project berrygems/tsconfig.json
 
 # Test
-/reload  # in pi, then /allies to see taxonomy, dispatch some subagents
+/reload  # in pi, then use quest tool to dispatch allies
 ```

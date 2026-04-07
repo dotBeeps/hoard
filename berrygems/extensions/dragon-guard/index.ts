@@ -1,9 +1,10 @@
 /**
- * Dragon Guard — Three-tier permission guard for pi.
+ * Dragon Guard — Four-tier permission guard for pi.
  *
  * Modes:
- * - Dog Mode (default): permission-gated — prompts before non-allowlisted tools
  * - Puppy Mode: read-only planning — safe tools auto-allowed, restricted tools prompt
+ * - Dog Mode (default): permission-gated — prompts before non-allowlisted tools
+ * - Ally Mode: quest-dispatched allies — job whitelist only, no prompting, no escalation
  * - Dragon Mode: all tools allowed, full implementation enabled
  *
  * A small dog and a large dragon made this together.
@@ -21,7 +22,8 @@ import { GuardPanelComponent } from "./panel.ts";
 
 import {
 	getMode, setMode as setModeState,
-	getDogModeToolPolicy, getPuppyModeToolPolicy,
+	getDogModeToolPolicy, getPuppyModeToolPolicy, getAllyModeToolPolicy,
+	initAllyMode,
 	reconstructState, persistState as doPersistState,
 	dogModeSessionAllowedTools, dogModeSessionBlockedTools, puppyModeSessionAllowedTools,
 	MODE_LABEL, type GuardMode,
@@ -134,11 +136,37 @@ function shouldAutoPlan(prompt: string): boolean {
 // ── Extension Entry Point ──
 
 export default function dragonGuardExtension(pi: ExtensionAPI): void {
-	// Subagent child processes inherit all package extensions. The guard's
-	// context injection ("[DOG MODE ACTIVE]") and tool_call blocking confuse
-	// subagent workers — they interpret guard messages as instructions to
-	// refuse writes. Bail out entirely when PI_SUBAGENT_DEPTH indicates
-	// we're inside a spawned subagent process.
+	// ── Ally Mode: quest-dispatched allies get locked tool whitelist ──
+	const guardModeEnv = process.env.HOARD_GUARD_MODE;
+	const allyToolsEnv = process.env.HOARD_ALLY_TOOLS;
+
+	if (guardModeEnv === "ally" && allyToolsEnv) {
+		initAllyMode(allyToolsEnv.split(","));
+		// Ally mode: no UI, no panel, no commands, no shortcuts.
+		// Just register the tool_call handler and return.
+		pi.on("tool_call", async (event, _ctx) => {
+			const policy = getAllyModeToolPolicy(event.toolName);
+			if (policy === "allow") return;
+			return {
+				block: true,
+				reason: `Ally Mode: tool "${event.toolName}" is not in this ally's job whitelist.`,
+			};
+		});
+
+		pi.on("before_agent_start", async (event, ctx) => {
+			const base = event.systemPrompt ?? ctx.getSystemPrompt();
+			return {
+				systemPrompt: base + "\n\n" +
+					"[ALLY MODE: TOOL WHITELIST ENFORCED]\n" +
+					"You are operating under Ally Mode. Only your job-assigned tools are available. " +
+					"Do not attempt to use tools outside your assignment.",
+			};
+		});
+
+		return; // No further initialization — no UI, no panel, no mode switching
+	}
+
+	// ── Legacy subagent bail-out (non-hoard subagents) ──
 	const subagentDepth = Number(process.env.PI_SUBAGENT_DEPTH ?? "0");
 	if (subagentDepth > 0) return;
 

@@ -10,7 +10,7 @@ import { DOG_MODE_ALLOWED_TOOLS, PUPPY_MODE_DEFAULT_ALLOWED_TOOLS } from "./sett
 
 // ── Types ──
 
-export type GuardMode = "none" | "plan" | "dragon";
+export type GuardMode = "none" | "plan" | "dragon" | "ally";
 
 export type PersistedState = {
 	mode?: GuardMode;
@@ -23,11 +23,15 @@ export const MODE_LABEL: Record<GuardMode, string> = {
 	none: "Dog Mode",
 	plan: "Puppy Mode",
 	dragon: "Dragon Mode",
+	ally: "Ally Mode",
 };
 
 // ── Module-Level State ──
 
 let _mode: GuardMode = "none";
+
+// Ally mode whitelist — set at process start from env var, immutable
+let _allyToolWhitelist: Set<string> | null = null;
 
 export const dogModeSessionAllowedTools = new Set<string>();
 export const dogModeSessionBlockedTools = new Set<string>();
@@ -40,7 +44,28 @@ export function getMode(): GuardMode {
 }
 
 export function setMode(m: GuardMode): void {
+	// Ally mode is locked at process birth — no transitions allowed
+	if (_mode === "ally") return;
+	// Only quest-spawned processes can enter Ally mode (via initAllyMode)
+	if (m === "ally") return;
 	_mode = m;
+}
+
+/** Initialize Ally mode from env vars. Called once at extension startup. */
+export function initAllyMode(tools: string[]): void {
+	_allyToolWhitelist = new Set(tools.map((t) => t.trim()).filter(Boolean));
+	_mode = "ally";
+}
+
+/** Check if we're in Ally mode. */
+export function isAllyMode(): boolean {
+	return _mode === "ally";
+}
+
+/** Get Ally mode tool policy — allow if whitelisted, block otherwise. */
+export function getAllyModeToolPolicy(toolName: string): "allow" | "block" {
+	if (!_allyToolWhitelist) return "block";
+	return _allyToolWhitelist.has(toolName) ? "allow" : "block";
 }
 
 // ── Tool Policy ──

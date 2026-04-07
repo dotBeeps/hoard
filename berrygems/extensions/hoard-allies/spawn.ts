@@ -56,7 +56,11 @@ export async function spawnPi(opts: SpawnOptions): Promise<SpawnResult> {
 		return await new Promise<SpawnResult>((resolve) => {
 			const proc = spawn(opts.piPath, args, {
 				cwd: opts.cwd,
-				env: { ...process.env },
+				env: {
+					...process.env,
+					HOARD_GUARD_MODE: "ally",
+					HOARD_ALLY_TOOLS: opts.tools ?? "",
+				},
 				stdio: ["ignore", "pipe", "pipe"],
 			});
 

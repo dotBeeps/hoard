@@ -220,8 +220,9 @@ function resolveModel(ctx: ExtensionContext) {
 		}
 	}
 
-	// Auto-select cheapest available
+	// Auto-select cheapest available — prefer github-copilot to preserve Anthropic quota
 	return (
+		ctx.modelRegistry.find("github-copilot", "claude-haiku-4-5") ??
 		ctx.modelRegistry.find("anthropic", "claude-haiku-4-5") ??
 		ctx.modelRegistry.find("anthropic", "claude-haiku-4-5-20251001") ??
 		ctx.modelRegistry.find("anthropic", "claude-haiku-3-5-20241022") ??

@@ -636,8 +636,9 @@ async function resolveSummaryModel(ctx: ExtensionContext, preferredModelId: stri
 		}
 	}
 
-	// Auto-select cheapest available
+	// Auto-select cheapest available — prefer github-copilot to preserve Anthropic quota
 	const candidates = [
+		["github-copilot", "claude-haiku-4-5"],
 		["anthropic", "claude-haiku-4-5"],
 		["anthropic", "claude-haiku-4-5-20251001"],
 		["anthropic", "claude-haiku-3-5-20241022"],

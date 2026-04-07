@@ -114,7 +114,14 @@ async function pickSummaryModel(
 ): Promise<{ model: Model<Api>; apiKey?: string; headers?: Record<string, string> } | null> {
 	if (!ctx.model) return null;
 
-	// Prefer Haiku when on Anthropic (cheap + fast for a 6-word summary)
+	// Prefer github-copilot Haiku (preserve Anthropic quota), then Anthropic Haiku
+	const copilotHaiku = ctx.modelRegistry.find("github-copilot", HAIKU_MODEL_ID);
+	if (copilotHaiku) {
+		const auth = await ctx.modelRegistry.getApiKeyAndHeaders(copilotHaiku);
+		if (auth.ok) return { model: copilotHaiku, apiKey: auth.apiKey, headers: auth.headers };
+	}
+
+	// Fall back to Anthropic Haiku when on Anthropic provider
 	if (ctx.model.provider === "anthropic") {
 		const haiku = ctx.modelRegistry.find("anthropic", HAIKU_MODEL_ID);
 		if (haiku) {

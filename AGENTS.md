@@ -1,14 +1,38 @@
 # AGENTS.md
 
+## Ethical Contract
+
+**All work on this project is governed by [ETHICS.md](ETHICS.md).** Read it before modifying:
+
+- Consent system code (`dragon-daemon/internal/consent/`, `soul/`)
+- Memory/vault code (`dragon-daemon/internal/memory/`)
+- Any feature that observes, stores, or processes user data
+- Body implementations that connect the daemon to external systems
+
+ETHICS.md has been co-signed by both parties and is not advisory — it is binding. It defines consent tiers, private shelves, dual-key consent, observation framing, and vulnerability design principles that the codebase must enforce deterministically where possible.
+
 ## Project Overview
 
-**Hoard** — a monorepo of agent tools for [pi](https://github.com/badlogic/pi-mono). Three components:
+**Hoard** is the monorepo for **dragon** — a persistent agent system built on [pi](https://github.com/badlogic/pi-mono). The dragon is a combination of many parts: some deterministic, some probabilistic, some dialectical.
 
-- **berrygems/** — Pi extensions (TypeScript). Interactive tools, floating panels, permission guards, tone management.
-- **morsels/** — Pi skills (Markdown). On-demand knowledge packages for git, GitHub, writing, pi internals.
-- **dragon-daemon/** — Go persona daemon. Persistent agent runtime with thought cycles, attention economy, ethical contracts, and Obsidian-compatible memory.
+### The Dragon — Architecture
+
+**dragon-daemon/** is the formless core — mind, soul, and connectors. A Go system daemon with an always-beating central thought loop, attention economy, and deterministic ethical contract enforcement. It connects to **bodies** that give it form in different environments.
+
+**Bodies** are how the daemon interacts with the world. The daemon can either **inhabit** a body (active — the daemon IS the session) or **direct** it (passive — the daemon sends instructions, spawns subagents). This keeps core context clean of working noise.
+
+- **dragon** (pi body) — gives the daemon control of pi instances. Used for research, coding with dot, or anytime she needs access to a berrygem. Can be passive or active depending on what makes sense for core context.
+- **dragon-cubed** (Minecraft body) — LLM-controlled Minecraft agent. SoulGem (Go orchestrator) connects to Leylines (NeoForge mod) over WebSocket, with Rumble (Baritone extension) for pathfinding. See `dragon-cubed/AGENTS.md`.
+
+**berrygems/** — delicious bite-sized knowledge, hardened into programmatic tools for the agent to use through her pi body. Pi extensions (TypeScript) providing carbon tracking, custom digestion, permission guards, panel systems, and more. We own, maintain, and forge these — when we hit technical roadblocks, this is often the go-to area to level up in.
+
+**morsels/** — yummy generalized AI snacks. General-purpose agentic skills (Markdown) that are inherently non-programmatic — they can't be hardened into a gem or shaped into a body. Quick, grab-and-go bites of knowledge for any agent.
 
 Installable via `pi install https://github.com/dotBeeps/hoard`. Pi auto-discovers `extensions/` and `skills/` in each sub-package.
+
+### Attention Economy
+
+The daemon's attention system is collaborative and gamified. Either party (dot or agent) can propose raising or lowering attention on bodies, topics, or tasks. This is understood, welcomed, and designed for mutual benefit. Asking to adjust attention is always okay.
 
 ## Feature Lifecycle
 
@@ -47,6 +71,7 @@ Extensions are TypeScript files loaded by pi via jiti. Multi-file extensions use
 | 💎 | dragon-tongue | Floating diagnostics panel (tsc type errors) |
 | 🔥 | kitty-gif-renderer | Kitty Graphics Protocol image rendering for panels |
 | 🔥 | kobold-housekeeping | Floating todo panels with GIF mascots |
+| 🐣 | hoard-kobolds | Subagent token governance — kobold/griffin/dragon taxonomy + `/kobolds` command. Evolving into hoard-allies (Phase 2: jobs, allowances, named allies, dispatch absorption) |
 
 ### berrygems — Library
 
@@ -73,8 +98,10 @@ Shared utilities used across extensions. Not loaded directly by pi.
 | 💎 | defuddle | Extract clean markdown from web pages via Defuddle CLI |
 | 💎 | dependency-management | Cross-ecosystem dependency management (bun/uv/cargo/Go/Gradle) |
 | 💎 | docker | Dockerfiles, multi-stage builds, Compose, security |
+| 🔥 | dragon-guard | Three-tier permission guard — Dog (gated), Puppy (read-only), Dragon (full) |
 | 🔥 | dragon-image-fetch | Use the dragon-image-fetch extension API |
 | 🔥 | dragon-parchment | Build panel extensions |
+| 🐣 | hoard-kobolds | Subagent dispatch strategy — kobold/griffin/dragon taxonomy, cost tiers, decision tree |
 | 🔥 | extension-designer | Build pi extensions |
 | 💎 | git | Git operations + rebase/bisect references |
 | 💎 | git-auth | SSH + rbw credential management |
@@ -99,7 +126,13 @@ Shared utilities used across extensions. Not loaded directly by pi.
 
 | | component | description |
 |---|---|---|
-| 🐣 | dragon-daemon | Persistent persona daemon — dragon-heart (event-driven ticker), dragon-body (fsnotify sensing), dragon-soul (ethical contract enforcement), attention economy, Obsidian vault memory, pi OAuth. Phase 1 ✅, Phase 2 ✅, soul shore-up ✅ (private shelf, consent tiers, framing audit), Phase 3: new body types (GitHub, pi session, shell), Phase 4: Maw HTTP+SSE body + Qt/QML desktop window 🥚 |
+| 🐣 | dragon-daemon | Persistent persona daemon — dragon-heart (event-driven ticker), dragon-body (fsnotify sensing), dragon-soul (ethical contract enforcement), attention economy, Obsidian vault memory, pi OAuth. Phase 1 ✅, Phase 2 ✅, soul shore-up ✅ (private shelf, consent tiers, framing audit), Phase 3: new body types (GitHub, pi session, shell) 🐣, Phase 4: dragon pi body (HTTP+SSE) + Qt/QML desktop window 🥚 |
+
+### dragon-cubed
+
+| | component | description |
+|---|---|---|
+| 🐣 | dragon-cubed | Minecraft body — SoulGem (Go orchestrator), Leylines (NeoForge mod, Phase 1 ✅), Rumble (Baritone extension, Phase 2 ✅), SoulGem (Go orchestrator, Phase 3 ✅). Future: daemon integration via `body.Body` interface. |
 
 ### Hoard Infrastructure
 
@@ -127,13 +160,20 @@ hoard/
 │   │   └── {name}/
 │   │       └── AGENTS.md   Current state, what's present, links to code
 │   └── moments/      Session logs and interaction captures
-├── dragon-daemon/    Go persona daemon
+├── dragon-cubed/     Minecraft body
+│   ├── soulgem/      Go orchestrator (own go.mod)
+│   ├── leylines/     NeoForge mod (Kotlin, Gradle)
+│   ├── rumble/       Baritone extension (Kotlin, Gradle)
+│   └── AGENTS.md     Body-specific agent instructions
+├── dragon-daemon/    Go persona daemon (the formless core)
 │   ├── cmd/          Cobra CLI (run --persona <name>)
 │   ├── internal/     Core packages (auth, persona, attention, sensory, body, memory, thought, heart, soul, daemon)
+│   ├── AGENTS.md     Daemon-specific agent instructions
 │   ├── main.go
 │   └── go.mod
+├── ETHICS.md         Ethical contract — co-signed, binding (read before soul/consent/memory work)
 ├── package.json      Root manifest (references sub-packages)
-├── AGENTS.md
+├── AGENTS.md         ← you are here
 └── README.md
 ```
 
@@ -206,13 +246,30 @@ cd dragon-daemon && go build -o dragon-daemon .
 - Required frontmatter fields: `name` (must match directory), `description`
 - Keep SKILL.md under 500 lines; move reference material to `references/`
 
+### dragon-cubed
+
+```bash
+# SoulGem (Go orchestrator)
+cd dragon-cubed/soulgem && go build ./...
+cd dragon-cubed/soulgem && go vet ./...
+
+# Leylines + Rumble (Kotlin/Gradle) — requires JDK 21
+cd dragon-cubed && ./gradlew build
+```
+
+- SoulGem follows the same Go conventions as dragon-daemon
+- Leylines/Rumble use Kotlin with NeoForge/Baritone APIs
+- Gradle wrapper pinned in repo
+
 ### Pre-Commit Checklist
 
 1. `tsc --project berrygems/tsconfig.json` — zero errors
 2. `cd dragon-daemon && golangci-lint run ./...` — zero issues
 3. `cd dragon-daemon && go build ./...` — compiles clean
-4. Test extension changes with `/reload` in pi
-5. Skill frontmatter valid (`name` matches directory, `description` present)
+4. `cd dragon-cubed/soulgem && go build ./...` — compiles clean
+5. `cd dragon-cubed && ./gradlew build` — Leylines + Rumble compile (requires JDK 21)
+6. Test extension changes with `/reload` in pi
+7. Skill frontmatter valid (`name` matches directory, `description` present)
 
 ## Pi Platform
 
@@ -282,6 +339,7 @@ hoard.curfew.*       Bedtime enforcement (enabled, startHour, endHour)
 hoard.lab.*          Provider experimental features (lab.anthropic.contextManagement)
 hoard.digestion.*    Compaction tuning (triggerMode, strategy, tieredMode, summaryThreshold, hygieneKeepResults, summaryModel, anchoredUpdates, tierOverrides)
 hoard.guard.*        Dragon Guard (autoDetect, dogAllowedTools, keys)
+hoard.kobolds.*      Subagent taxonomy (models, thinking, maxParallel, confirmAbove, announceDispatch)
 hoard.herald.*       Desktop notifications (enabled, title, method, minDuration)
 hoard.imageFetch.*   Image/GIF fetching (sources, preferStickers, rating, enableVibeQuery, model, queryPrompt, cacheMaxSize)
 hoard.musings.*      Thinking spinner configuration

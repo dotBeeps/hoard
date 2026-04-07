@@ -1,11 +1,15 @@
-# dragon-daemon
+# dragon-daemon — Feature Tracker
+
+> **Part of [Hoard](../../../AGENTS.md)** — the dragon's monorepo. Read root AGENTS.md for full architecture.
+> **Governed by [ETHICS.md](../../../ETHICS.md)** — binding ethical contract, enforced deterministically in `soul/`.
+> **Code-level AGENTS.md:** [`dragon-daemon/AGENTS.md`](../../../dragon-daemon/AGENTS.md) — read that for development guidance.
 
 **Status:** 🐣 in-progress (Phase 1 ✅, Phase 2 ✅, soul shore-up ✅, Phase 4A ✅, lint clean ✅)
 **Code:** `dragon-daemon/` (Go module)
 
 ## What It Does
 
-A persistent persona runtime. An agent gets a continuous inner life — a thought cycle driven by a heartbeat that responds to events, an attention budget, ethically-enforced behavioral contracts, connected bodies (hoard repo today, Minecraft/APIs later), and Obsidian-compatible memory that persists across sessions. This is how Ember runs nonstop.
+The formless core of the dragon — mind, soul, and connectors. A Go system daemon with an always-beating central thought loop, deterministic ethical contract enforcement, attention economy, and connections to bodies (pi sessions, Minecraft, filesystem, GitHub) that give the dragon form in the world. Obsidian-compatible memory persists across sessions. This is how Ember runs nonstop.
 
 ## Specs
 

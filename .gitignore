@@ -4,3 +4,11 @@ node_modules/
 *.swo
 *~
 .pi/
+
+# dragon-cubed (Gradle/Kotlin)
+.gradle/
+build/
+.idea/
+*.class
+*.jar
+runs/

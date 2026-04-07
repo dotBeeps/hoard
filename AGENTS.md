@@ -6,7 +6,7 @@
 
 - **berrygems/** — Pi extensions (TypeScript). Interactive tools, floating panels, permission guards, tone management.
 - **morsels/** — Pi skills (Markdown). On-demand knowledge packages for git, GitHub, writing, pi internals.
-- **dragon-daemon/** — Go daemon. Memory consolidation, vault maintenance, async operations that outlive sessions.
+- **dragon-daemon/** — Go persona daemon. Persistent agent runtime with thought cycles, attention economy, ethical contracts, and Obsidian-compatible memory.
 
 Installable via `pi install https://github.com/dotBeeps/hoard`. Pi auto-discovers `extensions/` and `skills/` in each sub-package.
 
@@ -99,7 +99,7 @@ Shared utilities used across extensions. Not loaded directly by pi.
 
 | | component | description |
 |---|---|---|
-| 🐣 | dragon-daemon | Persistent persona daemon — thought ticker, attention economy, Obsidian vault memory, hoard body, pi OAuth. Phase 1 complete, Phase 2 (auth+memory) in progress |
+| 🐣 | dragon-daemon | Persistent persona daemon — dragon-heart (event-driven ticker), dragon-body (fsnotify sensing), dragon-soul (ethical contract enforcement), attention economy, Obsidian vault memory, pi OAuth. Phase 1 ✅, Phase 2 ✅, soul shore-up ✅ (private shelf, consent tiers, framing audit), Phase 3: new body types (GitHub, pi session, shell), Phase 4: Maw HTTP+SSE body + Qt/QML desktop window 🥚 |
 
 ### Hoard Infrastructure
 
@@ -129,7 +129,7 @@ hoard/
 │   └── moments/      Session logs and interaction captures
 ├── dragon-daemon/    Go persona daemon
 │   ├── cmd/          Cobra CLI (run --persona <name>)
-│   ├── internal/     Core packages (auth, persona, attention, sensory, body, memory, thought, ticker, daemon)
+│   ├── internal/     Core packages (auth, persona, attention, sensory, body, memory, thought, heart, soul, daemon)
 │   ├── main.go
 │   └── go.mod
 ├── package.json      Root manifest (references sub-packages)
@@ -187,15 +187,18 @@ tsc --project berrygems/tsconfig.json 2>&1 | grep "<filename>"
 ### dragon-daemon (Go)
 
 ```bash
-# Vet — catches suspicious constructs
-cd dragon-daemon && go vet ./...
-
-# Lint — comprehensive static analysis
+# Lint — strict static analysis (includes vet + 30+ linters)
 cd dragon-daemon && golangci-lint run ./...
 
 # Build — verify compilation
 cd dragon-daemon && go build -o dragon-daemon .
 ```
+
+- Uses `.golangci.yml` in `dragon-daemon/` (v2 format)
+- Key strict linters: `errcheck`, `wrapcheck`, `errorlint`, `gosec`, `revive`, `gocritic`, `exhaustive`
+- `fmt.Print*` banned outside `cmd/` (use `log/slog`)
+- `gofumpt` formatting enforced
+- All `//nolint` directives must be specific + explained
 
 ### morsels (Markdown)
 
@@ -206,9 +209,10 @@ cd dragon-daemon && go build -o dragon-daemon .
 ### Pre-Commit Checklist
 
 1. `tsc --project berrygems/tsconfig.json` — zero errors
-2. `cd dragon-daemon && go vet ./... && golangci-lint run ./...` — zero issues
-3. Test extension changes with `/reload` in pi
-4. Skill frontmatter valid (`name` matches directory, `description` present)
+2. `cd dragon-daemon && golangci-lint run ./...` — zero issues
+3. `cd dragon-daemon && go build ./...` — compiles clean
+4. Test extension changes with `/reload` in pi
+5. Skill frontmatter valid (`name` matches directory, `description` present)
 
 ## Pi Platform
 
@@ -325,9 +329,53 @@ Tone files in `berrygems/styles/`. Controls document writing voice only — does
 ## Code Style
 
 - **TypeScript** — tabs for indentation, double quotes, semicolons; `satisfies` over `as`; no `any` without comment
-- **Go** — standard `gofmt`, no special conventions beyond golangci-lint defaults
+- **Go** — strict conventions enforced via `.golangci.yml` (see below)
 - **Markdown** — ATX headings (`#`), bullet lists with `-`, fenced code blocks with language tags
 - **Skill frontmatter** — YAML between `---` fences, `name` and `description` required
+
+### Go Conventions (dragon-daemon)
+
+**Naming:**
+- `MixedCaps`/`mixedCaps` only. Never underscores in exported names.
+- Interfaces: single-method → `-er` suffix (`Reader`, `Gate`). Multi-method → describe the capability.
+- Error types: `ErrFoo` for sentinels, `FooError` for custom types. Enforced by `errname` linter.
+- Receivers: short (1–2 chars), consistent per type, never `this`/`self`. E.g. `h` for `Heart`, `e` for `Enforcer`.
+- Packages: single lowercase word, no underscores, no plurals. Name matches directory.
+- Getters: `Name()` not `GetName()`. Setters: `SetName()`.
+
+**Error handling:**
+- Wrap errors crossing package boundaries with `fmt.Errorf("context: %w", err)`. Enforced by `wrapcheck`.
+- Error messages: lowercase, no punctuation. E.g. `"starting watcher: %w"`.
+- Use `errors.Is`/`errors.As` for comparison, never `==` on wrapped errors. Enforced by `errorlint`.
+- Handle or return every error. No `_ = foo()` without comment. Enforced by `errcheck`.
+- `panic` only for truly unrecoverable programmer errors (init-time invariant violations).
+
+**Concurrency:**
+- Every goroutine must have a shutdown path via `context.Context` or a done channel.
+- Use `context.Context` as first parameter in functions that may block.
+- Prefer channels for coordination, `sync.Mutex` for state protection.
+- Document goroutine ownership: who starts it, what stops it.
+- Use `sync.WaitGroup` or done channels to prevent goroutine leaks.
+
+**Style:**
+- `gofumpt` formatting (strict superset of `gofmt`). Enforced by formatter.
+- No naked returns. Enforced by `nakedret`.
+- No `fmt.Print*` in library code (use `log/slog`). Enforced by `forbidigo`.
+- Use `http.StatusOK` not `200`. Enforced by `usestdlibvars`.
+- Switch over if-else chains when ≥3 branches. Flagged by `gocritic`.
+- Preallocate slices when length is known. Suggested by `prealloc`.
+
+**Security (gosec):**
+- File permissions: dirs ≤0750, files ≤0600. Relax only with `//nolint:gosec` + reason.
+- No `math/rand` for anything security-adjacent. Use `crypto/rand` or `math/rand/v2`.
+- Validate/sanitize external input before passing to `exec.Command`.
+
+**nolint discipline:**
+- Every `//nolint` must name the specific linter and include a reason.
+- E.g. `//nolint:gosec // G204: git args are not user-controlled`.
+- Enforced by `nolintlint`.
+
+**Linting:** `golangci-lint run ./...` using `dragon-daemon/.golangci.yml`. Zero issues required before merge.
 
 ## Commits
 

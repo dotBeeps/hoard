@@ -220,12 +220,12 @@ function resolveModel(ctx: ExtensionContext) {
 		}
 	}
 
-	// Auto-select cheapest available — prefer github-copilot to preserve Anthropic quota
+	// Auto-select cheapest available — github-copilot is FREE, ZAI flash is $0.06/MTok, Anthropic last
 	return (
 		ctx.modelRegistry.find("github-copilot", "claude-haiku-4-5") ??
+		ctx.modelRegistry.find("zai", "glm-4.7-flashx") ??
+		ctx.modelRegistry.find("zai", "glm-4.7-flash") ??
 		ctx.modelRegistry.find("anthropic", "claude-haiku-4-5") ??
-		ctx.modelRegistry.find("anthropic", "claude-haiku-4-5-20251001") ??
-		ctx.modelRegistry.find("anthropic", "claude-haiku-3-5-20241022") ??
 		ctx.modelRegistry.find("google", "gemini-2.0-flash-lite") ??
 		ctx.modelRegistry.find("google", "gemini-2.0-flash") ??
 		ctx.model ?? // last resort: current model

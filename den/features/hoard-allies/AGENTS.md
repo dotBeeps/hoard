@@ -402,6 +402,21 @@ On ally completion →
 - [ ] Integration with dragon-breath
 - [ ] Budget-aware auto-downgrade (if budget low, prefer kobolds over griffins)
 
+### Phase 5 — Dispatcher Session Architecture (future)
+- [ ] Long-running Anthropic sonnet session as primary dispatcher
+  - Benefits from prompt caching (90% cheaper re-reads)
+  - Server-side context management keeps cache warm
+  - Handles orchestration, planning, delegating — minimal tool use
+- [ ] Short-lived github-copilot allies for actual work
+  - No cache benefit needed (fresh context each time)
+  - GitHub Copilot quota absorbs the volume
+  - Sonnet 1M context on github-copilot for long research runs (TBC)
+- [ ] Provider-aware dispatch: match ally to optimal provider
+  - Long analysis → github-copilot/sonnet (big context, their bill)
+  - Quick scout → github-copilot/haiku (cheap, fast, their bill)
+  - Cache-dependent orchestration → anthropic/sonnet (cache optimization)
+  - Heavy reasoning → anthropic/opus or github-copilot/opus (thinking tokens)
+
 ---
 
 ## Curated Agent Combos (Phase 2 default set)

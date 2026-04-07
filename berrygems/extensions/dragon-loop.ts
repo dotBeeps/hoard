@@ -114,14 +114,23 @@ async function pickSummaryModel(
 ): Promise<{ model: Model<Api>; apiKey?: string; headers?: Record<string, string> } | null> {
 	if (!ctx.model) return null;
 
-	// Prefer github-copilot Haiku (preserve Anthropic quota), then Anthropic Haiku
+	// Prefer free github-copilot Haiku, then ZAI flash ($0.06/MTok), then Anthropic Haiku
 	const copilotHaiku = ctx.modelRegistry.find("github-copilot", HAIKU_MODEL_ID);
 	if (copilotHaiku) {
 		const auth = await ctx.modelRegistry.getApiKeyAndHeaders(copilotHaiku);
 		if (auth.ok) return { model: copilotHaiku, apiKey: auth.apiKey, headers: auth.headers };
 	}
 
-	// Fall back to Anthropic Haiku when on Anthropic provider
+	// ZAI flash — dirt cheap with reasoning
+	for (const zaiId of ["glm-4.7-flashx", "glm-4.7-flash"]) {
+		const zai = ctx.modelRegistry.find("zai", zaiId);
+		if (zai) {
+			const auth = await ctx.modelRegistry.getApiKeyAndHeaders(zai);
+			if (auth.ok) return { model: zai, apiKey: auth.apiKey, headers: auth.headers };
+		}
+	}
+
+	// Fall back to Anthropic Haiku
 	if (ctx.model.provider === "anthropic") {
 		const haiku = ctx.modelRegistry.find("anthropic", HAIKU_MODEL_ID);
 		if (haiku) {

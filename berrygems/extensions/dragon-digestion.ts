@@ -636,12 +636,12 @@ async function resolveSummaryModel(ctx: ExtensionContext, preferredModelId: stri
 		}
 	}
 
-	// Auto-select cheapest available — prefer github-copilot to preserve Anthropic quota
+	// Auto-select cheapest available — github-copilot is FREE, ZAI flash is $0.06/MTok, Anthropic last
 	const candidates = [
 		["github-copilot", "claude-haiku-4-5"],
+		["zai", "glm-4.7-flashx"],
+		["zai", "glm-4.7-flash"],
 		["anthropic", "claude-haiku-4-5"],
-		["anthropic", "claude-haiku-4-5-20251001"],
-		["anthropic", "claude-haiku-3-5-20241022"],
 		["google", "gemini-2.0-flash-lite"],
 		["google", "gemini-2.0-flash"],
 		["openai", "gpt-4o-mini"],

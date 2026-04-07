@@ -46,7 +46,7 @@ const TENOR_SEARCH_URL = "https://tenor.googleapis.com/v2/search";
 const VALID_RATINGS = ["g", "pg", "pg-13", "r"];
 const GIF_SIZE_VARIANT = "fixed_width";
 const DEFAULT_FRAME_DELAY_MS = 80;
-const DEFAULT_VIBE_MODEL = "github-copilot/claude-haiku-4-5";
+const DEFAULT_VIBE_MODEL = "github-copilot/claude-haiku-4-5"; // free is better than cheap
 const VIBE_TIMEOUT_MS = 4000;
 const VIBE_CACHE_TTL_MS = 10 * 60 * 1000;
 

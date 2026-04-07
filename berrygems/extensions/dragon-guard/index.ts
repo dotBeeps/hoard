@@ -281,9 +281,9 @@ export default function dragonGuardExtension(pi: ExtensionAPI): void {
 		// Try cheap/fast models in preference order; fall back gracefully
 		const model =
 			ctx.modelRegistry.find("github-copilot", "claude-haiku-4-5") ??
+			ctx.modelRegistry.find("zai", "glm-4.7-flashx") ??
+			ctx.modelRegistry.find("zai", "glm-4.7-flash") ??
 			ctx.modelRegistry.find("anthropic", "claude-haiku-4-5") ??
-			ctx.modelRegistry.find("anthropic", "claude-haiku-4-5-20251001") ??
-			ctx.modelRegistry.find("anthropic", "claude-haiku-3-5-20241022") ??
 			ctx.modelRegistry.find("google", "gemini-2.0-flash") ??
 			ctx.modelRegistry.find("google", "gemini-2.0-flash-lite");
 

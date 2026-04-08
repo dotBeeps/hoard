@@ -5,7 +5,7 @@ description: Send and receive messages between pi sessions via the hoard sending
 
 # Sending Stone — Cross-Agent Communication
 
-The sending stone is a local message bus that lets pi sessions talk to each other. The primary session runs an HTTP server; all other sessions connect as clients.
+The sending stone is a local message bus that lets pi sessions talk to each other. The primary session runs an HTTP server; all other sessions connect as clients. Allies subscribe to the SSE stream for bidirectional dialog.
 
 ## Quick Reference
 
@@ -28,12 +28,12 @@ if (stone) {
 - You're **genuinely stuck** — tried your own tools first, still blocked
 - You need a **decision** that isn't yours to make
 - You have a **result** to report (quest tool handles this automatically)
-- You want to **check in** on progress
+- You want to **report progress** at a natural milestone
 
 ### When NOT to call home
 
 - Minor issues you can work around
-- Status updates on tasks going smoothly (check-ins handle this)
+- Every individual tool call (too noisy)
 - Asking permission for things in your job whitelist
 
 ## Message Format
@@ -89,17 +89,58 @@ stone.send({ from: "my-name", type: "status", addressing: "wise-griffin-coder",
 
 ## Receiving Messages
 
-```typescript
+Allies automatically subscribe to the primary's SSE stream and can receive messages in two ways:
+
+### 1. Explicit Polling — `stone_receive` tool
+
+Use after sending a question to wait for a reply:
+
+```
+stone_send("Found two candidate files. Which should I focus on?", type: "question")
+stone_receive(wait: 60)  ← blocks up to 60s for reply
+→ "📨 From Ember (status): focus on types.ts"
+```
+
+Parameters:
+- `wait` — max seconds to wait (default: 30, max: 120)
+- Polls at 200ms intervals
+- Returns immediately if messages already pending
+- Returns "No messages received" message on timeout
+
+### 2. Passive Injection — tool_result hook
+
+Pending stone messages are automatically appended to any tool result (except `stone_receive`). This catches messages that arrive between tool calls without the ally explicitly polling:
+
+```
+read("types.ts")  → file contents + "📨 Incoming message from Ember: check spawn.ts too"
+```
+
+### TypeScript API (globalThis)
+
+```ts
 const stone = (globalThis as any)[Symbol.for("hoard.stone")];
 if (stone) {
+  // Subscribe to messages (works in both primary and ally sessions)
   const unsubscribe = stone.onMessage((msg) => {
     // msg: { id, from, addressing, type, content, metadata?, timestamp }
-    // Filter by addressing if you only want messages for you
   });
+
+  // Send a message
+  await stone.send({
+    from: "my-extension",
+    type: "status",
+    addressing: "primary-agent",
+    content: "Hello from my extension",
+  });
+
+  // Get the server port
+  const port = stone.port();
 }
 ```
 
-All sessions can subscribe to the SSE stream. Messages are broadcast to all subscribers — each session filters by `addressing` to decide what's relevant to them.
+All sessions subscribe to SSE. Messages are broadcast to all — each session filters by `addressing`.
+- Ally sessions accept: messages to their defName or `"session-room"`
+- Primary sessions accept: all messages
 
 ## Architecture
 
@@ -107,39 +148,14 @@ All sessions can subscribe to the SSE stream. Messages are broadcast to all subs
 Primary (Ember)          Subagent (ally)          Guild-master (Maren)
   HTTP server ◄──POST── stone client    ◄──POST── stone client
   SSE stream ──────────► SSE listener   ──────────► SSE listener
+  stone_send tool        stone_send tool           stone_send tool
+                         stone_receive tool
+                         tool_result injection
 ```
 
 - Server starts automatically in primary session
 - Port passed to allies via `HOARD_STONE_PORT` env var
+- Ally identity via `HOARD_ALLY_DEFNAME` env var
 - All communication is local (`127.0.0.1`), no auth
 - Messages are structured JSON (`StoneMessage` type)
-- All subscribers see all messages — filtering is client-side
-
-## TypeScript API (globalThis)
-
-The sending stone exposes a programmatic API for other extensions:
-
-```ts
-import type { StoneAPI } from "berrygems/extensions/hoard-sending-stone/types.ts";
-const stone = (globalThis as any)[Symbol.for("hoard.stone")] as StoneAPI | undefined;
-
-// Subscribe to messages
-const unsub = stone?.onMessage((msg) => {
-  console.log(`${msg.from}: ${msg.content}`);
-});
-
-// Send a message
-await stone?.send({
-  from: "my-extension",
-  type: "status",
-  addressing: "primary-agent",
-  content: "Hello from my extension",
-});
-
-// Get the server port
-const port = stone?.port();
-```
-
-## Message Types
-
-The valid message types are: `"question"`, `"status"`, `"result"`, `"progress"`. These are enforced by the stone_send tool schema.
+- Ally SSE connections cleaned up on `session_shutdown`

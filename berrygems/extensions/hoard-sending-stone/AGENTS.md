@@ -26,12 +26,16 @@ The primary session owns the server; ally sessions get a send-only client.
 
 ## Patterns to Follow
 
-- Ally mode check is first — `if (process.env["HOARD_GUARD_MODE"] === "ally")` — return early after registering thin client API
+- Ally mode check is first — `if (process.env["HOARD_GUARD_MODE"] === "ally")` — sets up SSE subscription, message buffer, stone_receive tool, tool_result injection, then returns
 - Server validates `from` (string, required) and `content` (string, required) on every POST; 400 on failure
 - `stone.port` setting: `0` or `undefined` = auto-assign; otherwise binds to the specified port
 - `stone_send` tool schema uses `Type.Union` of four string literals: `"question"`, `"status"`, `"result"`, `"progress"`
+- `stone_receive` tool is ally-only — polls `pendingMessages[]` at 200ms interval, max 120s wait
 - Rendering logic lives exclusively in `renderer.ts`; `index.ts` only calls `registerStoneRenderer()`
 - `Symbol.for("hoard.stone.internals")` holds `{ port, sseReq, handlers }` — survives `/reload` without leaking listeners
+- Ally SSE connection stored as `sseRequest` and destroyed on `session_shutdown`
+- `tool_result` hook injects pending messages into any tool result EXCEPT `stone_receive` (avoids double-delivery)
+- Message filtering in ally mode: accept `addressing === allyDefName || "session-room"`, ignore own messages
 
 ## Anti-Patterns
 

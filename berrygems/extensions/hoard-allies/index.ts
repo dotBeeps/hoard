@@ -2,8 +2,9 @@ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { isToolCallEventType } from "@mariozechner/pi-coding-agent";
 import { readHoardSetting } from "../../lib/settings.ts";
 import { writeFileSync, mkdirSync, readdirSync, unlinkSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve, normalize } from "node:path";
 import { registerQuestTool } from "./quest-tool.ts";
+import { Type } from "@sinclair/typebox";
 import {
 	type Adjective, type Noun, type Job, type AllyCombo,
 	CURATED_COMBOS, comboName, parseComboName,
@@ -395,15 +396,56 @@ function spawnBudgetLine(combo: AllyCombo): string {
 	return `You may dispatch subagents (${allowed} tier only). Your budget: ${budget} points.`;
 }
 
-const CALLING_HOME_SECTION = `## Calling Home
-If you get stuck, hit an unexpected blocker, or need clarification, send a short message home via the sending stone.
-Access it via: \`(globalThis as any)[Symbol.for("hoard.stone")]?.send({ from: "your-name", type: "question", addressing: "primary-agent", content: "..." })\`
+const CALLING_HOME_SECTION = `## Sending Stone — Communication
+You have a sending stone for communicating with the primary agent while you work.
 
-**Format:** Lead with a concise 1-2 liner: what you're trying to do and what's blocking you. Only send longer explanations in follow-up messages if asked.
+### Progress Reports
+Use \`stone_send\` with type \"progress\" at natural milestones — not every tool call, but when you start a meaningful phase:
+- Starting work: \"Reading 5 files in berrygems/lib/...\"
+- Found something: \"Found ExtensionAPI interface in types.ts, analyzing...\"
+- Writing output: \"Compiling findings, writing summary\"
+- Long task: \"Still analyzing — this file is 800 lines, halfway through\"
 
-Example: \"Trying to fetch Node.js IPC docs via defuddle but getting a 403. Should I try curl instead?\"
+Aim for 2-4 progress messages per task. Enough that silence means something is wrong.
 
-Do NOT send home every minor issue — exhaust your own tools first. Call home when you're genuinely stuck or need a decision that isn't yours to make.`;
+### Working Notes — Chunked Exploration
+For tasks that involve reading multiple files or building up a large analysis, **do NOT try to compile everything into one giant final response**. Instead:
+1. Read a file or section → write findings to \`write_notes\` (e.g. \"part1-types.md\")
+2. Send a progress message via \`stone_send\`
+3. Read the next file/section → write more notes
+4. Repeat until done
+5. Read your notes back, compile a final summary, and deliver it
+
+This pattern keeps you active (tool calls = heartbeat), prevents timeout during long output generation, and produces better results through incremental analysis.
+
+Example workflow:
+- \`read\` types.ts → \`write_notes\` \"types-analysis.md\" → \`stone_send\` \"Analyzed types.ts, moving to spawn.ts\"
+- \`read\` spawn.ts → \`write_notes\` \"spawn-analysis.md\" → \`stone_send\` \"Found check-in logic in spawn.ts\"
+- \`read\` your notes → compile final summary
+
+### Asking Questions
+If you hit a genuine blocker, use \`stone_send\` with type \"question\", then call \`stone_receive\` to wait for a reply:
+1. \`stone_send\` — describe what you need (concise 1-2 liner)
+2. \`stone_receive\` with \`wait: 60\` — polls for up to 60s for a reply
+3. If you get a reply, continue. If timeout, make your best judgment and note the assumption.
+
+Example: \"Found two candidate files for the bug. types.ts has the interface but spawn.ts has the runtime logic. Which should I focus on?\"
+
+### When NOT to Send
+- Don't report every file read or tool call
+- Don't send home for minor issues you can work around
+- Don't ask questions you could answer by reading more code
+
+Exhaust your own tools first. The stone is for meaningful updates and genuine blockers.
+
+### When You're Done
+Once your task is complete and you've delivered your final output, **stop**. Do not:
+- Offer to do more work or suggest next steps
+- Socialize with other allies in the room
+- Ask the dispatcher for new assignments
+- Summarize what other allies are doing
+
+Deliver your result and exit cleanly.`;
 
 function buildAllyPrompt(combo: AllyCombo, allyName: string | null): string {
 	return `${identityLine(allyName, combo)}
@@ -771,6 +813,34 @@ export default function hoardAllies(pi: ExtensionAPI) {
 	exposeAPI();
 	// Register the quest dispatch tool
 	registerQuestTool(pi);
+
+	// Register write_notes tool — scoped write access for ally working notes
+	const NOTES_DIR = join(process.cwd(), ".pi", "ally-notes");
+	pi.registerTool({
+		name: "write_notes",
+		label: "Write Notes",
+		description: "Write working notes to .pi/ally-notes/. Use to save intermediate findings, partial analyses, or draft sections while working. Break large tasks into smaller chunks — write notes after each chunk, then compile a final summary. This keeps you active and prevents long silences during output generation.",
+		parameters: Type.Object({
+			path: Type.String({ description: "Filename within .pi/ally-notes/ (e.g. 'findings-part1.md'). Subdirectories allowed (e.g. 'quest-123/part1.md')." }),
+			content: Type.String({ description: "Content to write" }),
+		}),
+		execute: async (_id: string, params: { path: string; content: string }) => {
+			// Resolve and validate the path stays within NOTES_DIR
+			const target = normalize(resolve(NOTES_DIR, params.path));
+			if (!target.startsWith(normalize(NOTES_DIR))) {
+				return { content: [{ type: "text" as const, text: "Error: path must be within .pi/ally-notes/" }], isError: true, details: "" };
+			}
+			try {
+				const dir = join(target, "..");
+				mkdirSync(dir, { recursive: true });
+				writeFileSync(target, params.content, "utf-8");
+				return { content: [{ type: "text" as const, text: `Wrote ${params.path} (${params.content.length} chars)` }], details: "" };
+			} catch (err) {
+				const msg = err instanceof Error ? err.message : String(err);
+				return { content: [{ type: "text" as const, text: `Error writing notes: ${msg}` }], isError: true, details: "" };
+			}
+		},
+	});
 
 	// Regenerate agent defs + reset state on session start
 	pi.on("session_start", async (_event, ctx) => {

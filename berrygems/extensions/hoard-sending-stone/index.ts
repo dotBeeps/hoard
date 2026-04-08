@@ -78,16 +78,129 @@ function registerStoneSendTool(pi: ExtensionAPI, stoneAPI: StoneAPI, senderFrom:
 // ── Extension Entry Point ────────────────────────────────────────────────────
 
 export default function (pi: ExtensionAPI, _ctx: ExtensionContext): void {
-	// Ally sessions get a client-only stone API (send only, no server)
+	// Ally sessions get a client-only stone API with SSE subscription for bidirectional dialog
 	if (process.env["HOARD_GUARD_MODE"] === "ally") {
+		const allyDefName = process.env["HOARD_ALLY_DEFNAME"] ?? "ally";
+		const stonePort = Number(process.env["HOARD_STONE_PORT"]) || null;
+		const allyHandlers = new Set<(msg: StoneMessage) => void>();
+		const pendingMessages: StoneMessage[] = [];
+
 		const allyStoneAPI: StoneAPI = {
-			onMessage() { return () => {}; },
+			onMessage(handler: (msg: StoneMessage) => void): () => void {
+				allyHandlers.add(handler);
+				return () => { allyHandlers.delete(handler); };
+			},
 			async send(msg) { await sendToStone(msg); },
-			port() { return Number(process.env["HOARD_STONE_PORT"]) || null; },
+			port() { return stonePort; },
 		};
 		(globalThis as any)[STONE_KEY] = allyStoneAPI; // eslint-disable-line @typescript-eslint/no-explicit-any
 
-		registerStoneSendTool(pi, allyStoneAPI, process.env["HOARD_ALLY_DEFNAME"] ?? "ally");
+		registerStoneSendTool(pi, allyStoneAPI, allyDefName);
+
+		// ── SSE subscription: listen for messages from primary ──
+		let sseRequest: ReturnType<typeof http.get> | undefined;
+		if (stonePort) {
+			try {
+				sseRequest = http.get(
+					{ hostname: "127.0.0.1", port: stonePort, path: "/stream", headers: { Accept: "text/event-stream" } },
+					(res) => {
+						let buf = "";
+						res.on("data", (chunk: Buffer) => {
+							buf += chunk.toString();
+							const lines = buf.split("\n");
+							buf = lines.pop() ?? "";
+							for (const line of lines) {
+								if (!line.startsWith("data:")) continue;
+								const raw = line.slice(5).trim();
+								if (!raw) continue;
+								try {
+									const msg = JSON.parse(raw) as StoneMessage;
+									// Only accept messages addressed to us or to session-room
+									const addr = msg.addressing ?? "session-room";
+									const isForUs = addr === allyDefName || addr === "session-room";
+									// Ignore our own messages
+									const isFromUs = (msg.from ?? "") === allyDefName;
+									if (isForUs && !isFromUs) {
+										pendingMessages.push(msg);
+										for (const h of allyHandlers) h(msg);
+									}
+								} catch { /* ignore malformed */ }
+							}
+						});
+						res.on("error", () => {});
+					},
+				);
+				sseRequest.on("error", () => {});
+			} catch { /* ignore */ }
+		}
+
+		// Clean up SSE connection on session shutdown
+		pi.on("session_shutdown" as any, () => {
+			sseRequest?.destroy();
+		});
+
+		// ── stone_receive tool: poll for incoming messages ──
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		(pi.registerTool as any)({
+			name: "stone_receive",
+			description: "Check for incoming messages from the primary agent or other allies. Waits up to `wait` seconds for a message to arrive. Use after sending a question via stone_send to wait for a reply.",
+			parameters: Type.Object({
+				wait: Type.Optional(Type.Number({ description: "Max seconds to wait for a message (default: 30, max: 120)" })),
+			}),
+			execute: async (_id: string, params: { wait?: number }) => {
+				const maxWait = Math.min(params.wait ?? 30, 120) * 1000;
+				const startMs = Date.now();
+
+				// Drain any already-pending messages first
+				if (pendingMessages.length > 0) {
+					const msgs = pendingMessages.splice(0);
+					const formatted = msgs.map((m) =>
+						`📨 From ${m.displayName ?? m.from ?? "unknown"} (${m.type ?? "status"}): ${m.content ?? ""}`
+					).join("\n\n");
+					return { content: [{ type: "text" as const, text: formatted }] };
+				}
+
+				// Poll for new messages
+				while (Date.now() - startMs < maxWait) {
+					await new Promise((r) => setTimeout(r, 200));
+					if (pendingMessages.length > 0) {
+						const msgs = pendingMessages.splice(0);
+						const formatted = msgs.map((m) =>
+							`📨 From ${m.displayName ?? m.from ?? "unknown"} (${m.type ?? "status"}): ${m.content ?? ""}`
+						).join("\n\n");
+						return { content: [{ type: "text" as const, text: formatted }] };
+					}
+				}
+
+				return { content: [{ type: "text" as const, text: `No messages received after ${Math.round(maxWait / 1000)}s. Continue with your best judgment.` }] };
+			},
+		});
+
+		// ── tool_result hook: inject pending messages passively ──
+		pi.on("tool_result", (event) => {
+			if (pendingMessages.length === 0) return undefined;
+			// Don't inject into stone_receive results (it handles its own messages)
+			if (event.toolName === "stone_receive") return undefined;
+
+			const msgs = pendingMessages.splice(0);
+			const injection = msgs.map((m) =>
+				`\n\n📨 Incoming message from ${m.displayName ?? m.from ?? "unknown"} (${m.type ?? "status"}): ${m.content ?? ""}`
+			).join("");
+
+			const existingContent = event.content ?? [];
+			const existingText = existingContent.find((c): c is { type: "text"; text: string } => c.type === "text");
+			if (existingText) {
+				return {
+					content: existingContent.map((c) =>
+						c === existingText ? { ...c, text: c.text + injection } : c
+					),
+				};
+			}
+			return {
+				content: [...existingContent, { type: "text" as const, text: injection.trim() }],
+			};
+		});
+
 		return;
 	}
 

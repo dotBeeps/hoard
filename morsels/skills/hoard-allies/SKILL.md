@@ -47,11 +47,11 @@ Each job has a strict tool whitelist enforced by dragon-guard:
 | reviewer | read, grep, find, ls, bash |
 | coder | read, grep, find, ls, bash, write, edit |
 | researcher | read, grep, find, ls, bash |
-| planner | read, grep, find, ls |
+| planner | read, grep, find, ls, write_notes, stone_send, stone_receive |
 
 **Researchers** additionally get `defuddle` and `native-web-search` skills for web research.
 
-> **Note:** Allies do NOT have `stone_send` — the primary session handles all cross-agent communication via check-ins and async result dispatch.
+> **Note:** All allies have `stone_send` for progress reporting, `stone_receive` for receiving replies, and `write_notes` for incremental working notes in `.pi/ally-notes/`.
 
 ## Async Dispatch (via Sending Stone)
 
@@ -70,9 +70,32 @@ When the hoard-sending-stone extension is running, quest dispatch is **fire-and-
 
 **Fallback:** If stone is unavailable, dispatch falls back to blocking mode (allies complete before tool returns).
 
+## Ally Communication
+
+### Self-Reporting
+Allies are instructed to send progress messages at natural milestones via `stone_send` with `type: "progress"`. This serves two purposes:
+1. Keeps the primary informed about what the ally is doing
+2. Suppresses timer-based check-in noise — check-ins only fire when the ally hasn't self-reported within 35s
+
+### Bidirectional Dialog
+Allies subscribe to the primary's SSE stream and can receive messages mid-task:
+- **Explicit polling:** ally calls `stone_receive(wait: 60)` to block and wait for a reply
+- **Passive injection:** pending messages are automatically appended to tool results
+- **Question pattern:** `stone_send(question)` → `stone_receive(wait: 60)` → process reply
+
+### Chunked Exploration
+Allies use `write_notes` to save intermediate findings instead of generating one massive response:
+- Read file → `write_notes("part1.md")` → `stone_send(progress)` → read next file → repeat → compile from notes
+- Creates natural heartbeats (tool calls = activity = no false stuck warnings)
+- Notes saved to `.pi/ally-notes/` (path-traversal guarded)
+
 ## Check-Ins & Monitoring
 
-The primary session monitors allies via periodic check-ins (configurable via `checkInIntervalMs`). Check-in progress messages stream as non-triggering stone messages. If an ally goes quiet too long, a frozen alert fires as a `status` message that triggers an agent turn.
+The primary session monitors allies via a layered system:
+1. **Ally self-reporting** (primary) — allies send progress via stone. This is the preferred signal.
+2. **Timer check-ins** (fallback) — fire every `checkInIntervalMs` only when ally hasn't self-reported within `SUPPRESS_WINDOW_MS` (35s)
+3. **Frozen detection** — flags ally as stuck when no stderr AND no stone message within suppression window. Per-ally isolation (one ally's alert won't suppress others).
+4. **ally_status tool** — shows stderr buffer + recent stone messages per running ally
 
 ## Commands
 

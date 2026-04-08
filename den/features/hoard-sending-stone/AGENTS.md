@@ -23,9 +23,10 @@ A local cross-agent communication bus for pi sessions. The primary session runs 
 ```
 Primary (Ember)          Subagent (ally)
   HTTP server ◄──POST── stone client (reads HOARD_STONE_PORT from env)
-  SSE stream             stone_send tool (whitelisted for all jobs)
-  stone_send tool
-  Custom renderer        
+  SSE stream ───────► SSE listener (filters by addressing)
+  stone_send tool        stone_send tool (progress, questions)
+  stone messages         stone_receive tool (poll for replies)
+  Custom renderer        tool_result injection (passive message delivery)
 ```
 
 - Server starts on extension load (survives `/reload`)
@@ -33,6 +34,17 @@ Primary (Ember)          Subagent (ally)
 - `HOARD_STONE_PORT` env var passed to allies via spawn.ts
 - `HOARD_ALLY_DEFNAME` env var identifies the ally
 - All communication local (`127.0.0.1`), no auth
+
+### Bidirectional Dialog (new)
+
+Ally sessions now subscribe to the primary's SSE stream and can receive messages mid-task:
+
+1. **SSE subscription** — ally connects to `GET /stream` on init, filters for messages addressed to its defName or `session-room`
+2. **stone_receive tool** — ally-only tool that polls pending message buffer (200ms interval, max 120s wait)
+3. **tool_result injection** — pending stone messages passively appended to any tool result (except stone_receive)
+4. **SSE cleanup** — ally SSE connection destroyed on `session_shutdown`
+
+Dialog pattern: ally sends question via `stone_send` → calls `stone_receive(wait: 60)` → primary answers via `stone_send(to: defName)` → ally receives reply and continues.
 
 ## Message Format
 
@@ -110,15 +122,17 @@ GET  /health     { status: "ok", port, messageCount }
 
 ```
 berrygems/extensions/hoard-sending-stone/
-├── index.ts    — extension entry: server lifecycle, SSE, renderer, stone_send tool
+├── index.ts    — extension entry: server lifecycle, SSE, stone_send/stone_receive tools, ally SSE subscription, tool_result injection
 ├── server.ts   — HTTP server (Node.js built-in, zero deps)
 ├── client.ts   — thin POST client for subagents
+├── renderer.ts — bordered message rendering with per-agent truecolor
 └── types.ts    — StoneMessage, StoneAPI, STONE_KEY
 ```
 
 ## Integration Points
 
 - **spawn.ts** — passes `HOARD_STONE_PORT` + `HOARD_ALLY_DEFNAME` to ally processes
-- **quest-tool.ts** — fire-and-forget dispatch when stone available; `postResultToStone` on ally completion
-- **hoard-allies/index.ts** — stone message handler: try immediate `sendMessage`, fall back to queue for next turn
-- **dragon-guard** — `stone_send` whitelisted for all ally jobs
+- **quest-tool.ts** — fire-and-forget dispatch when stone available; `postResultToStone` on ally completion; stone-aware check-in suppression tracks messages from active allies
+- **hoard-allies/index.ts** — stone message handler: try immediate `sendMessage`, fall back to queue for next turn; `write_notes` tool for chunked exploration workflow
+- **dragon-guard** — `stone_send`, `stone_receive`, `write_notes` whitelisted for all ally jobs
+- **ally-status-tool.ts** — shows recent stone messages alongside stderr buffer in `ally_status` output

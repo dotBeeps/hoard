@@ -59,7 +59,7 @@ Extensions are TypeScript files loaded by pi via jiti. Multi-file extensions use
 | 💎 | dragon-inquiry | Interactive user input (select/confirm/text) |
 | 🐣 | dragon-lab | Experimental provider feature opt-in manager — Anthropic beta headers today, extensible to any provider |
 | 🐣 | dragon-loop | Automation loops with breakout conditions + `/loop` command |
-| 🔥 | hoard-sending-stone | Cross-agent communication bus — local HTTP/SSE message passing between pi sessions. Async quest results, stone_send tool, bordered message renderer with per-agent truecolor. Powers future Maren voice. |
+| 🔥 | hoard-sending-stone | Cross-agent communication bus — local HTTP/SSE message passing between pi sessions. Async quest results, stone_send/stone_receive tools, bordered message renderer with per-agent truecolor. Bidirectional dialog: ally SSE subscription, tool_result injection, 200ms polling. Powers future Maren voice. |
 | 🔥 | dragon-musings | LLM-generated contextual thinking spinner |
 | 🔥 | dragon-parchment | Central panel authority — creation, positioning, focus |
 | 🔥 | dragon-review | Code review via `/review` and `/end-review` commands |
@@ -67,7 +67,7 @@ Extensions are TypeScript files loaded by pi via jiti. Multi-file extensions use
 | 💎 | dragon-tongue | Floating diagnostics panel (tsc type errors) |
 | 🔥 | kitty-gif-renderer | Kitty Graphics Protocol image rendering for panels |
 | 🔥 | kobold-housekeeping | Floating todo panels with GIF mascots |
-| 🔥 | hoard-allies | Subagent token governance — kobold/griffin/dragon taxonomy + `quest`/`recruit` tools + `/allies` + `/allies-budget` commands. 3D taxonomy (thinking×noun×job, open combos), budget-based enforcement with session persistence, named allies, FrugalGPT model cascade, async dispatch via sending-stone with streaming check-ins, ally_status tool, carbon tracking integration. Dragon-guard coupling ✅. Phase 4 (polish) ✅, Phase 5 (decoupling + Maren + budget interview) 🥚 |
+| 🔥 | hoard-allies | Subagent token governance — kobold/griffin/dragon taxonomy + `quest`/`recruit` tools + `/allies` + `/allies-budget` commands. 3D taxonomy (thinking×noun×job, open combos), budget-based enforcement with session persistence, named allies, FrugalGPT model cascade, async dispatch via sending-stone with streaming check-ins, ally_status tool, carbon tracking integration. Stone-aware monitoring (self-reporting, per-ally frozen gate, suppression window), write_notes chunked workflow, bidirectional dialog (stone_receive + tool_result injection). Dragon-guard coupling ✅. Phase 4 (polish + bidirectional dialog) ✅, Phase 5 (decoupling + Maren + budget interview) 🥚 |
 
 ### berrygems — Library
 

@@ -11,7 +11,7 @@ import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-age
 import { readHoardSetting } from "../../lib/settings.ts";
 import { spawnPi, findPiBinary } from "./spawn.ts";
 import { availableModels, isRetryable, recordProviderFailure } from "./cascade.ts";
-import { registerAlly, appendAllyLine, deregisterAlly, registerAllyStatusTool } from "./ally-status-tool.ts";
+import { registerAlly, appendAllyLine, appendAllyStoneMessage, deregisterAlly, registerAllyStatusTool } from "./ally-status-tool.ts";
 import type {
 	AlliesState,
 	AlliesAPI,
@@ -27,7 +27,7 @@ import { Text, truncateToWidth } from "@mariozechner/pi-tui";
 
 // ── Sending Stone API ──
 const STONE_KEY = Symbol.for("hoard.stone");
-function getStoneAPI(): { send(msg: { from: string; displayName?: string; type: string; addressing: string; content: string; color?: string; metadata?: unknown }): Promise<void>; port(): number | null } | undefined {
+function getStoneAPI(): { send(msg: { from: string; displayName?: string; type: string; addressing: string; content: string; color?: string; metadata?: unknown }): Promise<void>; onMessage(handler: (msg: { from?: string; displayName?: string; type?: string; addressing?: string; content?: string }) => void): () => void; port(): number | null } | undefined {
 	return (globalThis as any)[STONE_KEY];
 }
 
@@ -138,11 +138,11 @@ interface DispatchOptions {
 	ally: string;
 	task: string;
 	cwd: string;
-	notify: (msg: string) => void;
+	notify: (msg: string, defName?: string) => void;
 	progress?: ProgressFn;
 	timeoutMs?: number;
 	checkInIntervalMs?: number;
-	onFrozen?: (allyName: string, quietSecs: number) => void;
+	onFrozen?: (allyName: string, quietSecs: number, defName?: string) => void;
 	signal?: AbortSignal;
 }
 
@@ -228,10 +228,10 @@ async function dispatchSingle(opts: DispatchOptions): Promise<QuestResult> {
 					? `\n   └ ${recentLine.slice(0, 120)}`
 					: " · no output yet";
 				const frozen = effectiveCheckInMs > 0 && sinceActivityMs > effectiveCheckInMs * 2;
-				if (frozen) onFrozen?.(allyName, quietSecs);
+				if (frozen) onFrozen?.(allyName, quietSecs, ally);
 				const msg = `⏳ ${allyName} the ${defName} — ${secs}s elapsed${frozen ? ` (⚠️ quiet ${quietSecs}s)` : ""}${activityStr}`;
 				progress?.(msg); // update tool box if streaming is available
-				notify(msg);    // always surface via notify regardless
+				notify(msg, ally);    // pass defName for stone-aware suppression
 			},
 		}).finally(() => deregisterAlly(spawnId));
 
@@ -275,11 +275,11 @@ async function dispatchSingle(opts: DispatchOptions): Promise<QuestResult> {
 async function dispatchRally(
 	quests: Array<{ ally: string; task: string }>,
 	cwd: string,
-	notify: (msg: string) => void,
+	notify: (msg: string, defName?: string) => void,
 	progress?: ProgressFn,
 	timeoutMs?: number,
 	checkInIntervalMs?: number,
-	onFrozen?: (allyName: string, quietSecs: number) => void,
+	onFrozen?: (allyName: string, quietSecs: number, defName?: string) => void,
 	signal?: AbortSignal,
 ): Promise<QuestResult[]> {
 	const api = getAlliesAPI();
@@ -353,11 +353,11 @@ async function dispatchChain(
 	steps: Array<{ ally: string; task?: string }>,
 	originalTask: string,
 	cwd: string,
-	notify: (msg: string) => void,
+	notify: (msg: string, defName?: string) => void,
 	progress?: ProgressFn,
 	timeoutMs?: number,
 	checkInIntervalMs?: number,
-	onFrozen?: (allyName: string, quietSecs: number) => void,
+	onFrozen?: (allyName: string, quietSecs: number, defName?: string) => void,
 	signal?: AbortSignal,
 ): Promise<QuestResult[]> {
 	const results: QuestResult[] = [];
@@ -658,6 +658,8 @@ If the sending stone is active, quests dispatch asynchronously and results arriv
 					: params.ally
 						? [params.ally]
 						: [];
+			// Register ally defNames for stone message tracking (populated after map is created below)
+
 			const estCost = estimateCost(defNames);
 			const allyList = params.chain
 				? defNames.join(" → ")
@@ -685,23 +687,58 @@ If the sending stone is active, quests dispatch asynchronously and results arriv
 			const progress: ProgressFn = onUpdate
 				? (msg: string) => onUpdate(makeResult(msg, { mode: "progress", allies: [], totalCost: 0 }))
 				: undefined;
-			const notify = (msg: string) => ctx.ui.notify(msg, "info");
-			const onFrozen = (name: string, quietSecs: number) =>
+			const notify = (msg: string, _defName?: string) => ctx.ui.notify(msg, "info");
+			const onFrozen = (name: string, quietSecs: number, _defName?: string) =>
 				ctx.ui.notify(`⚠️ ${name} may be stuck — ${quietSecs}s since last activity`, "warning");
 			const stone = getStoneAPI();
-			// In stone mode, route check-ins and frozen alerts through the stone instead of no-ops
-			let lastFrozenMs = 0;
-			const stoneNotify = (msg: string) => {
-				// Skip regular check-in if frozen alert just fired (they overlap at the same interval)
-				if (Date.now() - lastFrozenMs < 2000) return;
+
+			// Track stone messages from active allies — used to suppress timer check-ins
+			// when the ally is self-reporting progress via stone_send
+			// Value of 0 = registered but never self-reported (won't suppress)
+			const allyLastStoneMs = new Map<string, number>();
+			// Register ally defNames for stone message tracking
+			for (const dn of defNames) allyLastStoneMs.set(dn, 0);
+			let stoneUnsub: (() => void) | undefined;
+			if (stone) {
+				stoneUnsub = stone.onMessage((msg) => {
+					// Track messages FROM any active ally (by defName match, case-insensitive)
+					const from = (msg.from ?? msg.displayName ?? "").toLowerCase();
+					for (const name of allyLastStoneMs.keys()) {
+						if (from.includes(name.toLowerCase())) {
+							allyLastStoneMs.set(name, Date.now());
+							appendAllyStoneMessage(name, msg.content ?? "", msg.type ?? "status");
+							break;
+						}
+					}
+				});
+			}
+
+			// In stone mode, route check-ins and frozen alerts through the stone
+			// Check-ins are suppressed when the ally has recently self-reported via stone
+			// Per-ally frozen gate prevents one ally's alert from suppressing others
+			const lastFrozenPerAlly = new Map<string, number>();
+			const SUPPRESS_WINDOW_MS = 35_000; // unified window for check-in + frozen suppression
+			const stoneNotify = (msg: string, defName?: string) => {
+				// Skip regular check-in if frozen alert just fired for THIS ally
+				if (defName && (Date.now() - (lastFrozenPerAlly.get(defName) ?? 0)) < 2000) return;
+				// Skip if ally has self-reported via stone recently (must have reported at least once — value > 0)
+				if (defName) {
+					const lastStone = allyLastStoneMs.get(defName) ?? 0;
+					if (lastStone > 0 && (Date.now() - lastStone) < SUPPRESS_WINDOW_MS) return;
+				}
 				void stone?.send({ from: "quest", type: "progress", addressing: "primary-agent", content: msg }).catch(() => undefined);
 			};
-			const stoneFrozen = (name: string, quietSecs: number) => {
-				lastFrozenMs = Date.now();
-				void stone?.send({ from: "quest", type: "status", addressing: "primary-agent", content: `⚠️ ${name} may be stuck — ${quietSecs}s since last activity` }).catch(() => undefined);
+			const stoneFrozen = (name: string, quietSecs: number, defName?: string) => {
+				// Don't flag as stuck if ally has self-reported via stone recently (must have reported at least once)
+				if (defName) {
+					const lastStone = allyLastStoneMs.get(defName) ?? 0;
+					if (lastStone > 0 && (Date.now() - lastStone) < SUPPRESS_WINDOW_MS) return;
+				}
+				if (defName) lastFrozenPerAlly.set(defName, Date.now());
+				void stone?.send({ from: "quest", type: "status", addressing: "primary-agent", content: `⚠️ ${name} may be stuck — ${quietSecs}s since last activity and no self-report` }).catch(() => undefined);
 			};
-			const safeNotify = stone ? stoneNotify : (_msg: string) => {};
-			const safeFrozen = stone ? stoneFrozen : (_name: string, _secs: number) => {};
+			const safeNotify = stone ? stoneNotify : (_msg: string, _defName?: string) => {};
+			const safeFrozen = stone ? stoneFrozen : (_name: string, _secs: number, _defName?: string) => {};
 
 			// Determine mode
 				if (params.chain && params.chain.length > 0) {
@@ -719,7 +756,8 @@ If the sending stone is active, quests dispatch asynchronously and results arriv
 								const step = err instanceof ChainStepError ? `step ${err.failedStepIndex + 1} (${err.failedAlly})` : "unknown step";
 								void stone.send({ from: "quest", type: "result", addressing: "primary-agent", content: `Chain failed at ${step}: ${err.message}`, metadata: { error: true } }).catch(() => undefined);
 							}
-						});
+						})
+							.finally(() => stoneUnsub?.());
 						return makeResult(`\u26D3\uFE0F Dispatched chain \u2014 ${allyList} \u00b7 est. ${estCost.toFixed(1)} pts`, { mode: "dispatched", allies: defNames, totalCost: estCost });
 					}
 					progress?.(`⛓️ Starting chain (${params.chain.length} steps)`);
@@ -736,7 +774,8 @@ If the sending stone is active, quests dispatch asynchronously and results arriv
 						progress?.("\u2694\uFE0F Rally: dispatching " + params.rally.length + " allies");
 						dispatchRally(params.rally, ctx.cwd, safeNotify, undefined, params.timeoutMs, params.checkInIntervalMs, safeFrozen, signal)
 							.then((results) => { results.forEach(reportBreath); results.forEach(postResultToStone); })
-							.catch((err: Error) => void stone.send({ from: "quest", type: "result", addressing: "primary-agent", content: `Rally failed: ${err.message}`, metadata: { error: true } }).catch(() => undefined));
+							.catch((err: Error) => void stone.send({ from: "quest", type: "result", addressing: "primary-agent", content: `Rally failed: ${err.message}`, metadata: { error: true } }).catch(() => undefined))
+							.finally(() => stoneUnsub?.());
 						return makeResult(`\u2694\uFE0F Dispatched rally \u2014 ${allyList} \u00b7 est. ${estCost.toFixed(1)} pts`, { mode: "dispatched", allies: defNames, totalCost: estCost });
 					}
 					progress?.(`⚔️ Rally: dispatching ${params.rally.length} allies`);
@@ -752,7 +791,8 @@ If the sending stone is active, quests dispatch asynchronously and results arriv
 					if (stone) {
 						dispatchSingle({ ally: params.ally, task: params.task, cwd: ctx.cwd, notify: safeNotify, timeoutMs: params.timeoutMs, checkInIntervalMs: params.checkInIntervalMs, onFrozen: safeFrozen, signal })
 							.then((r) => { reportBreath(r); postResultToStone(r); })
-							.catch((err: Error) => void stone.send({ from: "quest", type: "result", addressing: "primary-agent", content: `Quest failed: ${err.message}`, metadata: { error: true } }).catch(() => undefined));
+							.catch((err: Error) => void stone.send({ from: "quest", type: "result", addressing: "primary-agent", content: `Quest failed: ${err.message}`, metadata: { error: true } }).catch(() => undefined))
+							.finally(() => stoneUnsub?.());
 						return makeResult(`\u{1F5E1}\uFE0F Dispatched \u2014 ${params.ally} \u00b7 est. ${estCost.toFixed(1)} pts`, { mode: "dispatched", allies: defNames, totalCost: estCost });
 					}
 					const result = await dispatchSingle({ ally: params.ally, task: params.task, cwd: ctx.cwd, notify, progress, timeoutMs: params.timeoutMs, checkInIntervalMs: params.checkInIntervalMs, onFrozen, signal });

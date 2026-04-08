@@ -302,7 +302,7 @@ You may dispatch subagents (Kobold tier only). Your budget: 5 points.
 - [x] Progress updates via onUpdate callback (⚔️ dispatched, ✅ returned, 🔄 cascading)
 - [ ] Integration with dragon-breath for carbon tracking
 
-### Phase 4 — Polish + Async Dispatch 🔥
+### Phase 4 — Polish + Async Dispatch + Bidirectional Dialog 🔥
 - [x] Quest tool TUI rendering (renderCall/renderResult) — two-line layout, display names, cost estimates
 - [x] Dispatch announcements in primary session
 - [x] Rally/chain cost estimation in renderCall
@@ -318,6 +318,20 @@ You may dispatch subagents (Kobold tier only). Your budget: 5 points.
 - [x] Display names in results ("Zig the Silly Kobold Scout")
 - [x] Custom message renderer: bordered boxes, truecolor per-agent colors, word-wrap, truncation
 - [x] Turn triggering: only `type: "question"` auto-triggers agent, results queue
+- [x] **Ally self-reporting via stone_send** — progress messages at natural milestones
+- [x] **Stone-aware check-in suppression** — timer check-ins suppressed when ally self-reports within 35s window
+- [x] **Per-ally frozen gate** — one ally's stuck warning can't suppress others (was global)
+- [x] **Case-insensitive name matching** — stone message tracking uses `.toLowerCase()`
+- [x] **Unified suppression window** — single `SUPPRESS_WINDOW_MS = 35_000` for both check-in and frozen
+- [x] **Recurring report requirement** — initial registration (value=0) won't suppress; ally must have actually self-reported at least once
+- [x] **ally_status stone enrichment** — shows recent stone messages alongside stderr buffer
+- [x] **write_notes tool** — scoped to `.pi/ally-notes/`, path-traversal guarded, available to all jobs
+- [x] **Chunked exploration workflow** — ally prompt instructs: read → write notes → progress → repeat → compile
+- [x] **"When You're Done" prompt** — allies exit cleanly after delivering results (no loitering)
+- [x] **Bidirectional dialog** — allies subscribe to SSE, can receive messages mid-task
+- [x] **stone_receive tool** — allies poll for incoming messages (200ms interval, max 120s wait)
+- [x] **tool_result injection** — pending stone messages passively appended to tool results in ally sessions
+- [x] **SSE cleanup on session exit** — ally SSE connection destroyed on shutdown
 - [ ] dragon-breath carbon tracking integration
 
 ### Phase 5 — Taxonomy Decoupling + Budget Rework 🥚 ⚠️ WIP
@@ -407,9 +421,9 @@ elder-dragon-coder:    12 × 2.5 × 1.5 = 45.0 pts   ← deep implementation (fi
 5. Root `AGENTS.md` — update taxonomy table and ally list
 
 ### Phase 5 — Inter-Agent Communication (future 💭)
-- [ ] Chatroom message passing between active agents
-- [ ] Dispatcher visibility into all messages
-- [ ] Agent tagging / direct requests
+- [x] ~~Chatroom message passing between active agents~~ ✅ Implemented via stone SSE + tool_result injection
+- [x] ~~Dispatcher visibility into all messages~~ ✅ Primary subscribes to stone, tracks per-ally
+- [ ] Agent tagging / direct requests (partially working — addressing by defName)
 
 ### Phase 5 — Dispatcher Session Architecture (future 💭)
 - [ ] Long-running Anthropic sonnet session as primary dispatcher (prompt caching)
@@ -422,8 +436,14 @@ elder-dragon-coder:    12 × 2.5 × 1.5 = 45.0 pts   ← deep implementation (fi
 - Budget state resets on `session_start` — ~~no persistence across sessions~~ ✅ Fixed: `allies-budget-checkpoint` entries in session tree
 - ~~No `/allies-budget` command to see spend history~~ ✅ Fixed: Fable added `buildBudgetDisplay()` + `/allies-budget` command
 - ~~Chain error reporting drops successful step results when a later step fails~~ ✅ Fixed: `ChainStepError` with `partialResults`
-- Stone messages from allies queue in SSE and only deliver during `before_agent_start` — ~~check-ins and results arrive all at once instead of streaming during execution~~ ✅ Fixed: results + status trigger turns, check-ins route through stone
+- ~~Stone messages from allies queue in SSE and only deliver during `before_agent_start`~~ ✅ Fixed: results + status trigger turns, check-ins route through stone
 - ~~Async check-in callbacks silenced in stone dispatch mode~~ ✅ Fixed: `stoneNotify`/`stoneFrozen` replace no-ops, frozen uses `status` type to trigger turns
-- `stone_send` listed in `JOB_TOOLS` but never registers in ally subprocesses — allies waste turns trying to use it. ✅ Fixed: removed from JOB_TOOLS
-- Check-in + frozen alert fire duplicate messages at same interval when ally is quiet (noisy but non-blocking)
+- ~~`stone_send` listed in `JOB_TOOLS` but never registers in ally subprocesses~~ ✅ Fixed: removed from JOB_TOOLS
+- ~~Check-in + frozen alert fire duplicate messages at same interval when ally is quiet~~ ✅ Fixed: per-ally frozen gate + 2s dedup window
+- ~~Allies loiter after completing tasks, socializing in stone room~~ ✅ Fixed: "When You're Done" prompt section
+- ~~Check-in messages always say "no output yet" — useless during LLM inference~~ ✅ Fixed: ally self-reporting via stone_send
+- ~~Stuck detection based purely on stderr silence — false positives on large tasks~~ ✅ Fixed: stone-aware suppression with recurring report requirement
+- ~~Global frozen gate — one ally's alert suppresses all others~~ ✅ Fixed: per-ally `lastFrozenPerAlly` map
 - Orphaned check-in timers: if ally subprocess exits without producing output, the setInterval never clears and ghost check-ins fire forever until `/reload`
+- Silly kobolds sometimes ignore chunked exploration instructions and generate one massive response — prompt may need tier-specific reinforcement
+- `stone_receive` and `write_notes` appear as "Unknown tool" warnings in pi CLI args validation (cosmetic — tools still work via extension registration)

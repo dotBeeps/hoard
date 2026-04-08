@@ -15,12 +15,13 @@ export interface RunningAlly {
 	defName: string;
 	startMs: number;
 	stderrLines: string[];
+	stoneMessages: Array<{ time: number; content: string; type: string }>;
 }
 
 const runningAllies = new Map<string, RunningAlly>();
 
 export function registerAlly(id: string, defName: string): void {
-	runningAllies.set(id, { id, defName, startMs: Date.now(), stderrLines: [] });
+	runningAllies.set(id, { id, defName, startMs: Date.now(), stderrLines: [], stoneMessages: [] });
 }
 
 export function appendAllyLine(id: string, line: string): void {
@@ -28,6 +29,17 @@ export function appendAllyLine(id: string, line: string): void {
 	if (!entry) return;
 	entry.stderrLines.push(line);
 	if (entry.stderrLines.length > 200) entry.stderrLines.shift(); // rolling window
+}
+
+/** Record a stone message from an ally (matched by defName) */
+export function appendAllyStoneMessage(defName: string, content: string, type: string): void {
+	for (const entry of runningAllies.values()) {
+		if (entry.defName === defName || defName.includes(entry.defName)) {
+			entry.stoneMessages.push({ time: Date.now(), content, type });
+			if (entry.stoneMessages.length > 50) entry.stoneMessages.shift();
+			return;
+		}
+	}
 }
 
 export function deregisterAlly(id: string): void {
@@ -73,7 +85,13 @@ export function registerAllyStatusTool(pi: ExtensionAPI): void {
 			const sections = entries.map((entry) => {
 				const elapsed = Math.round((Date.now() - entry.startMs) / 1000);
 				const recent = entry.stderrLines.slice(-lineCount).join("\n");
-				return `**${entry.defName}** — ${elapsed}s elapsed\n${recent || "(no output yet)"}`.trim();
+				const stoneSection = entry.stoneMessages.length > 0
+					? "\n\n**Stone messages:**\n" + entry.stoneMessages.slice(-5).map((m) => {
+						const ago = Math.round((Date.now() - m.time) / 1000);
+						return `  [${ago}s ago] (${m.type}) ${m.content}`;
+					}).join("\n")
+					: "";
+				return `**${entry.defName}** — ${elapsed}s elapsed\n${recent || "(no output yet)"}${stoneSection}`.trim();
 			});
 
 			return { content: [{ type: "text" as const, text: sections.join("\n\n---\n\n") }] };

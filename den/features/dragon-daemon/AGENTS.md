@@ -111,11 +111,11 @@ The daemon currently has one body type (hoard repo watcher). Phase 3 expands wha
 
 Spec: **[phase4-maw-spec.md](./phase4-maw-spec.md)**
 
-**Doggy** is dot's chat client and tool observatory. The daemon side (`internal/body/doggy/`) is an HTTP+SSE body; the client side is a Qt/QML app that connects to it.
+**Doggy** is dot's chat client and tool observatory. The daemon side (`internal/psi/doggy/`) is an HTTP+SSE psi interface; the client side is a Qt/QML app that connects to it.
 
 **Goal state:**
 
-- One chat thread per agent; each persona's doggy body runs on its own port
+- One chat thread per agent; each persona's doggy psi interface runs on its own port
 - Tool invocations render in dedicated Qt windows (not inline in chat)
 - Proactive agents (heartbeat-driven) and reactive agents (message-triggered) both stream into the same UI via SSE
 - Berrygems with Pi-specific panels (dragon-guard, dragon-scroll, dragon-digestion, dragon-parchment, dragon-inquiry, dragon-tongue, kitty-gif-renderer, etc.) get native Qt window equivalents here
@@ -123,15 +123,16 @@ Spec: **[phase4-maw-spec.md](./phase4-maw-spec.md)**
 **Auth / proactive ticking — ⏸ deferred:**
 Autonomous heartbeat-driven thought cycles are parked until LLM provider + auth is decided. Pi OAuth is pi-session-only and does not work in the daemon context. Reactive mode — `POST /message` nudges the heart, which runs one thought cycle and streams the result — is the unblocked path forward once auth lands.
 
-**4A ✅ Doggy body** (2026-04-08):
+**4A ✅ Doggy psi interface** (2026-04-08, refactored to psi 2026-04-09):
 
-- `internal/body/doggy/doggy.go` — full Body implementation
+- `internal/psi/doggy/doggy.go` — full psi.Interface + psi.OutputSink implementation
   - `GET /stream`: SSE thought events + 30s keepalive + flush-on-connect
   - `GET /state`: JSON snapshot (attention pool + timestamp)
-  - `POST /message`: enqueues doggy/message sensory event
-  - `Wire(soul.OutputCapture)`: hooks into thought cycle output
-- `internal/body/doggy/doggy_test.go` — 8 tests
-- `internal/daemon/daemon.go` — "doggy" case, outputWirer interface, cycleCapture adapter, soul.Deps.Cycle wiring
+  - `POST /message`: enqueues doggy/message sensory event directly to aggregator
+  - `Wire(soul.OutputCapture)`: hooks into thought cycle output via psi.OutputSink
+- `internal/psi/doggy/doggy_test.go` — 8 tests
+- `internal/psi/mcp/mcp.go` — MCP psi interface (moved from body/mcp same refactor)
+- `internal/daemon/daemon.go` — separate buildInterfaces/fanInIfaceEvents; OutputSink wiring via psi.OutputSink
 
 **4B 🥚 Qt scaffold + stream** — DoggyConnection SSE client, multi-agent chat threads, ThoughtStream.qml
 **4C 🥚 Tool windows** — dedicated Qt panels per tool type (replaces Pi-specific berrygem panels)
@@ -147,7 +148,8 @@ Autonomous heartbeat-driven thought cycles are parked until LLM provider + auth 
 
 ## Key Design Decisions
 
-- **Package renames**: `ticker/` → `heart/`. New packages: `soul/`. These reflect the "dragon triad" conceptual model.
+- **Package renames**: `ticker/` → `heart/`. New packages: `soul/`, `psi/`. These reflect the "dragon triad" conceptual model.
+- **Bodies vs psi interfaces**: Bodies are external systems the daemon inhabits and senses from (`body/hoard`, planned: github, shell). Psi interfaces are communication surfaces the daemon exposes — channels through which dot and tools reach in. They share a lifecycle (Start/Stop/Events) but psi has no State/Tools/Execute.
 - **Gate vs Audit**: Pre-beat gates block; post-beat audits log and flag. Gates are hard stops, audits are integrity checks.
 - **ErrDeclarative sentinel**: `ParseGate` returns `ErrDeclarative` for non-enforceable rules instead of `(nil, nil)`. Avoids nilnil lint violations and makes the intent explicit.
 - **Vault write hooks don't trigger on Append**: Prevents infinite recursion when the memory-transparency audit auto-journals.
@@ -169,8 +171,10 @@ dragon-daemon/
     body/body.go                  Body interface (ID, Type, State, Tools, Events, Start, Stop)
     body/hoard/hoard.go           git log, daily journal, log_to_hoard, event channel
     body/hoard/watcher.go         fsnotify file/commit watcher with debounce
-    body/doggy/doggy.go           HTTP+SSE body: thought stream, state, message injection
-    daemon/daemon.go              lifecycle orchestrator, fan-in, soul wiring, outputWirer
+    psi/psi.go                    Interface + OutputSink contracts
+    psi/doggy/doggy.go            HTTP+SSE dot interface: thought stream, state, message ingestion
+    psi/mcp/mcp.go                MCP tool server: vault, attention, stone, session registry
+    daemon/daemon.go              lifecycle orchestrator, body + psi fan-in, OutputSink wiring
     heart/heart.go                heartbeat with jitter + event-driven nudge
     memory/note.go                Note struct + frontmatter + Kind enum
     memory/vault.go               Obsidian-compatible read/write/search/append + write hooks

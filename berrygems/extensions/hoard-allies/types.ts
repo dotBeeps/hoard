@@ -77,6 +77,7 @@ export interface SpawnOptions {
 	signal?: AbortSignal;
 	timeoutMs?: number;
 	defName?: string;
+	allyName?: string;
 	checkInIntervalMs?: number;
 	onCheckIn?: (defName: string, elapsedMs: number, sinceActivityMs: number, recentLine: string) => void;
 	onStderrLine?: (line: string) => void;

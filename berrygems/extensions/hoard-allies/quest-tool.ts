@@ -217,6 +217,7 @@ async function dispatchSingle(opts: DispatchOptions): Promise<QuestResult> {
 			thinking: thinking[combo.adjective],
 			maxSubagentDepth: MAX_SUBAGENT_DEPTH[combo.noun],
 			defName: ally,
+			allyName,
 			timeoutMs: effectiveTimeoutMs,
 			checkInIntervalMs: effectiveCheckInMs,
 			signal,
@@ -713,6 +714,14 @@ If the sending stone is active, quests dispatch asynchronously and results arriv
 				});
 			}
 
+			// Heartbeat pulse — sends a subtle time message to the quest room every 15s
+			const HEARTBEAT_MS = 15_000;
+			const heartbeatTimer = stone ? setInterval(() => {
+				const ts = new Date().toLocaleTimeString();
+				void stone.send({ from: "quest", type: "status", addressing: "session-room", content: `⏱ ${ts}` }).catch(() => undefined);
+			}, HEARTBEAT_MS) : undefined;
+			const cleanupHeartbeat = () => { if (heartbeatTimer) clearInterval(heartbeatTimer); };
+
 			// In stone mode, route check-ins and frozen alerts through the stone
 			// Check-ins are suppressed when the ally has recently self-reported via stone
 			// Per-ally frozen gate prevents one ally's alert from suppressing others
@@ -757,7 +766,7 @@ If the sending stone is active, quests dispatch asynchronously and results arriv
 								void stone.send({ from: "quest", type: "result", addressing: "primary-agent", content: `Chain failed at ${step}: ${err.message}`, metadata: { error: true } }).catch(() => undefined);
 							}
 						})
-							.finally(() => stoneUnsub?.());
+							.finally(() => { stoneUnsub?.(); cleanupHeartbeat(); });
 						return makeResult(`\u26D3\uFE0F Dispatched chain \u2014 ${allyList} \u00b7 est. ${estCost.toFixed(1)} pts`, { mode: "dispatched", allies: defNames, totalCost: estCost });
 					}
 					progress?.(`⛓️ Starting chain (${params.chain.length} steps)`);
@@ -775,7 +784,7 @@ If the sending stone is active, quests dispatch asynchronously and results arriv
 						dispatchRally(params.rally, ctx.cwd, safeNotify, undefined, params.timeoutMs, params.checkInIntervalMs, safeFrozen, signal)
 							.then((results) => { results.forEach(reportBreath); results.forEach(postResultToStone); })
 							.catch((err: Error) => void stone.send({ from: "quest", type: "result", addressing: "primary-agent", content: `Rally failed: ${err.message}`, metadata: { error: true } }).catch(() => undefined))
-							.finally(() => stoneUnsub?.());
+							.finally(() => { stoneUnsub?.(); cleanupHeartbeat(); });
 						return makeResult(`\u2694\uFE0F Dispatched rally \u2014 ${allyList} \u00b7 est. ${estCost.toFixed(1)} pts`, { mode: "dispatched", allies: defNames, totalCost: estCost });
 					}
 					progress?.(`⚔️ Rally: dispatching ${params.rally.length} allies`);
@@ -792,7 +801,7 @@ If the sending stone is active, quests dispatch asynchronously and results arriv
 						dispatchSingle({ ally: params.ally, task: params.task, cwd: ctx.cwd, notify: safeNotify, timeoutMs: params.timeoutMs, checkInIntervalMs: params.checkInIntervalMs, onFrozen: safeFrozen, signal })
 							.then((r) => { reportBreath(r); postResultToStone(r); })
 							.catch((err: Error) => void stone.send({ from: "quest", type: "result", addressing: "primary-agent", content: `Quest failed: ${err.message}`, metadata: { error: true } }).catch(() => undefined))
-							.finally(() => stoneUnsub?.());
+							.finally(() => { stoneUnsub?.(); cleanupHeartbeat(); });
 						return makeResult(`\u{1F5E1}\uFE0F Dispatched \u2014 ${params.ally} \u00b7 est. ${estCost.toFixed(1)} pts`, { mode: "dispatched", allies: defNames, totalCost: estCost });
 					}
 					const result = await dispatchSingle({ ally: params.ally, task: params.task, cwd: ctx.cwd, notify, progress, timeoutMs: params.timeoutMs, checkInIntervalMs: params.checkInIntervalMs, onFrozen, signal });

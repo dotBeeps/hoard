@@ -63,6 +63,7 @@ export async function spawnPi(opts: SpawnOptions): Promise<SpawnResult> {
 					HOARD_GUARD_MODE: "ally",
 					HOARD_ALLY_TOOLS: opts.tools ?? "",
 					HOARD_ALLY_DEFNAME: opts.defName ?? "",
+							HOARD_ALLY_NAME: opts.allyName ?? "",
 					...(stonePort != null ? { HOARD_STONE_PORT: String(stonePort) } : {}),
 				},
 				stdio: ["ignore", "pipe", "pipe"],

@@ -59,6 +59,11 @@ function registerStoneSendTool(pi: ExtensionAPI, stoneAPI: StoneAPI, senderFrom:
 		execute: async (_id: string, params: { to?: string; message: string; type?: string }) => {
 			const addressing = params.to ?? "session-room";
 			const msgType = params.type ?? "status";
+
+			// Detect @mentions for urgency signaling
+			const hasMention = /@\w+/.test(params.message);
+			const metadata = hasMention ? { urgent: true } : undefined;
+
 			try {
 				await stoneAPI.send({
 					from: senderFrom,
@@ -66,6 +71,7 @@ function registerStoneSendTool(pi: ExtensionAPI, stoneAPI: StoneAPI, senderFrom:
 					type: msgType as "status",
 					addressing,
 					content: params.message,
+					...(metadata ? { metadata } : {}),
 				});
 				return { content: [{ type: "text" as const, text: `✉️ Sent to ${addressing}: ${params.message}` }] };
 			} catch (err) {
@@ -81,6 +87,7 @@ export default function (pi: ExtensionAPI, _ctx: ExtensionContext): void {
 	// Ally sessions get a client-only stone API with SSE subscription for bidirectional dialog
 	if (process.env["HOARD_GUARD_MODE"] === "ally") {
 		const allyDefName = process.env["HOARD_ALLY_DEFNAME"] ?? "ally";
+		const allyName = process.env["HOARD_ALLY_NAME"] || undefined;
 		const stonePort = Number(process.env["HOARD_STONE_PORT"]) || null;
 		const allyHandlers = new Set<(msg: StoneMessage) => void>();
 		const pendingMessages: StoneMessage[] = [];
@@ -95,7 +102,7 @@ export default function (pi: ExtensionAPI, _ctx: ExtensionContext): void {
 		};
 		(globalThis as any)[STONE_KEY] = allyStoneAPI; // eslint-disable-line @typescript-eslint/no-explicit-any
 
-		registerStoneSendTool(pi, allyStoneAPI, allyDefName);
+		registerStoneSendTool(pi, allyStoneAPI, allyDefName, allyName);
 
 		// ── SSE subscription: listen for messages from primary ──
 		let sseRequest: ReturnType<typeof http.get> | undefined;

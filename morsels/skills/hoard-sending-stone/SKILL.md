@@ -142,6 +142,50 @@ All sessions subscribe to SSE. Messages are broadcast to all — each session fi
 - Ally sessions accept: messages to their defName or `"session-room"`
 - Primary sessions accept: all messages
 
+## @ Mentions & Urgency
+
+Include `@Name` or `@everyone` in a stone message to mark it urgent. The stone detects the `@` pattern and sets `metadata.urgent: true` automatically.
+
+```typescript
+// Urgent direct message
+stone_send("@Fizz stop researching, we found the answer already", to: "session-room")
+// → metadata.urgent: true, Fizz highlighted in content
+
+// Urgent broadcast
+stone_send("@everyone hold — the approach changed, stand by for new instructions", to: "session-room")
+// → metadata.urgent: true, everyone highlighted
+```
+
+**Rendering:** Urgent messages get a warm red-orange border (instead of dim), a ⚡ badge in the header, and `@mentions` highlighted bold in the content.
+
+**Ally behavior:** Allies are instructed to treat urgent messages as "drop what you're doing" signals. Non-urgent stone chatter is background context they can engage with or ignore.
+
+## Primary Agent Patterns
+
+The primary agent (e.g. Ember) should use the stone **actively but not aggressively** during quests:
+
+**Do:**
+- Send a brief direction when dispatching — set context, not micromanage
+- Respond when allies ask questions — they're waiting on you
+- Use `@Name` when something genuinely needs immediate attention
+- Acknowledge good work — allies have personalities and appreciate it
+- Redirect if an ally is going down the wrong path
+
+**Don't:**
+- Send check-in messages every 15 seconds — that's what the heartbeat is for
+- Repeat instructions allies already have
+- Hover — trust the ally to do their job and report back
+- Use `@everyone` for non-urgent updates
+
+**Tone by tier:**
+- Kobolds: warm and direct. They're eager to please. Clear tasks, let them scurry.
+- Griffins: collaborative. They'll push back if they disagree. Trust their judgment.
+- Dragons: peer conversation. Ask, don't command.
+
+## Heartbeat Pulse
+
+During active quests, the quest coordinator sends a `⏱ {time}` message to the session room every ~15 seconds. This gives all participants passive time awareness without anyone needing to check a clock. Allies can use it to gauge how long they've been working. It's background context — no one needs to respond to it.
+
 ## Architecture
 
 ```

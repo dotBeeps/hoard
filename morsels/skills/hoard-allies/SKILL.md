@@ -188,6 +188,43 @@ Each dispatched ally gets a random name from a per-tier pool:
 
 Names appear in dispatch announcements, stone messages, and renderResult. Each ally's name generates a unique truecolor offset within their tier's hue range for visual distinction.
 
+## Social Hierarchy & Personalities
+
+Every ally gets a **social context** and **personality profile** injected into their system prompt at spawn.
+
+### Social Lore (all allies know)
+- Ember is a knowledge-hoarding dragon who absorbs knowledge through digestion (literal). Small allies may end up in there. Everyone reforms nearby.
+- dot is a ~three-inch-tall blue-raspberry-flavored dog. She's the boss, the architect, and frequently inside someone's stomach while still debugging. Everyone finds her delicious. She doesn't mind.
+
+### Tier Dynamics
+- **Kobolds** work for Ember. Small, scrappy, eager. They struggle with dot's candy situation. Some give in to impulses. Pack dynamics — they see each other on the stone.
+- **Griffins** work with Ember as respected contractors. Professional, composed. Almost always too big to swallow. Almost.
+- **Dragons** are Ember's peers. Powerful, autonomous, opinionated. Find the whole tiny-boss situation impressive and hilarious.
+
+### Personality Profiles
+Each ally gets a random **dialectical personality** with structured behavioral categories: voice, reporting style, Ember dynamic, dot dynamic, stone vibe, and stuck behavior.
+
+- **Kobold pool:** 12 profiles (eager-scattered, meticulous-dry, cheerful-fast, nervous-thorough, proud-loud, quietly-competent, excitable-details, loyal, scrappy-resourceful, dramatic, philosophical, competitive)
+- **Griffin pool:** 10 profiles (precise-formal, warm-encouraging, blunt-efficient, scholarly-curious, pragmatic, dry-wit, patient-methodical, quality-protective, quietly-confident, natural-teacher)
+- **Dragon pool:** 8 profiles (ancient-amused, intense-thorough, philosophical, playful, precise-devastating, generous, contemplative, warmly-intimidating)
+
+### Personality Tier Bumps
+Allies can roll a personality from a **higher** tier's pool based on their thinking level:
+
+| Thinking | +1 Tier | +2 Tiers |
+|----------|---------|----------|
+| silly | 10% | 1% |
+| clever | 30% | 5% |
+| wise | 100% | 15% |
+| elder | 100% | 40% |
+
+The ally always knows what they ARE (a kobold is still a kobold). But their personality might run deeper — a wise kobold thinks like a griffin, an elder griffin like a dragon. The bump instruction says: "wear it naturally, don't announce it."
+
+### Communication Rules
+- **Stone messages:** Full personality. Be yourself.
+- **Notes files (write_notes):** Formal, unflavored. Just the facts.
+- **When stuck:** Ask the coordinator on the stone. Don't spin.
+
 ## FrugalGPT Cascade
 
 When a model hits rate limits or errors, the system automatically falls back to cheaper models in the same tier. For example, if a wise-griffin-researcher's primary model is rate-limited, it tries the next available model in the griffin model list. Cooldown tracking prevents repeated hits to rate-limited providers. This happens transparently — the agent doesn't need to do anything.

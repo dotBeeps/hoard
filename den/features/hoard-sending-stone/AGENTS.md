@@ -131,8 +131,17 @@ berrygems/extensions/hoard-sending-stone/
 
 ## Integration Points
 
-- **spawn.ts** — passes `HOARD_STONE_PORT` + `HOARD_ALLY_DEFNAME` to ally processes
-- **quest-tool.ts** — fire-and-forget dispatch when stone available; `postResultToStone` on ally completion; stone-aware check-in suppression tracks messages from active allies
-- **hoard-allies/index.ts** — stone message handler: try immediate `sendMessage`, fall back to queue for next turn; `write_notes` tool for chunked exploration workflow
+- **spawn.ts** — passes `HOARD_STONE_PORT` + `HOARD_ALLY_DEFNAME` + `HOARD_ALLY_NAME` to ally processes
+- **quest-tool.ts** — fire-and-forget dispatch when stone available; `postResultToStone` on ally completion; stone-aware check-in suppression tracks messages from active allies; heartbeat pulse (⏱ 15s) during active quests
+- **hoard-allies/index.ts** — stone message handler: try immediate `sendMessage`, fall back to queue for next turn; `write_notes` tool for chunked exploration workflow; metadata passthrough for urgent messages
 - **dragon-guard** — `stone_send`, `stone_receive`, `write_notes` whitelisted for all ally jobs
 - **ally-status-tool.ts** — shows recent stone messages alongside stderr buffer in `ally_status` output
+
+## @ Mentions & Urgency
+
+`@Name` or `@everyone` in a stone_send message automatically sets `metadata.urgent: true`. The renderer responds with:
+- Warm red-orange border (instead of dim)
+- ⚡ badge in the message header
+- Bold + urgent-colored highlighting on `@mentions` in content
+
+Allies are instructed to treat urgent messages as "drop what you're doing" signals.

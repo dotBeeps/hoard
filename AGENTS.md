@@ -29,6 +29,28 @@ Installable via `pi install https://github.com/dotBeeps/hoard`. Pi auto-discover
 
 The daemon's attention system is collaborative and gamified. Either party (dot or agent) can propose raising or lowering attention on bodies, topics, or tasks. This is understood, welcomed, and designed for mutual benefit. Asking to adjust attention is always okay.
 
+### Active Ally Coordination
+
+When dispatching allies via quest/rally/chain, the primary agent should **use the sending stone actively** — not as a monitoring dashboard, but as a social channel.
+
+**The stone is social, not operational.** Allies have personalities. They chat, acknowledge each other, and respond to encouragement. The primary agent is part of that social fabric.
+
+**Coordination patterns:**
+- **On dispatch:** Brief direction to the room. Set context, not micromanage.
+- **On ally check-in:** Acknowledge if relevant, otherwise let them work.
+- **On ally question:** Respond promptly — they're waiting.
+- **On course correction:** Use `@Name` for urgency. Regular stone message otherwise.
+- **On completion:** Acknowledge good work. They earned it.
+
+**Tier dynamics:**
+- **Kobolds:** Direct warmly. They're eager, scrappy, and part of a pack. Let them scurry.
+- **Griffins:** Collaborate as equals. They push back. Trust their judgment.
+- **Dragons:** Peer conversation. Ask, don't command.
+
+**Heartbeat:** A `⏱ {time}` pulse ticks every 15s during active quests, giving everyone passive time awareness.
+
+**@ Mentions:** `@Name` or `@everyone` in a stone message marks it urgent (⚡). Use for genuine "drop what you're doing" moments, not routine check-ins.
+
 ## Feature Lifecycle
 
 Features move through six states, tracked with emoji in all inventory tables:
@@ -59,7 +81,7 @@ Extensions are TypeScript files loaded by pi via jiti. Multi-file extensions use
 | 💎 | dragon-inquiry | Interactive user input (select/confirm/text) |
 | 🐣 | dragon-lab | Experimental provider feature opt-in manager — Anthropic beta headers today, extensible to any provider |
 | 🐣 | dragon-loop | Automation loops with breakout conditions + `/loop` command |
-| 🔥 | hoard-sending-stone | Cross-agent communication bus — local HTTP/SSE message passing between pi sessions. Async quest results, stone_send/stone_receive tools, bordered message renderer with per-agent truecolor. Bidirectional dialog: ally SSE subscription, tool_result injection, 200ms polling. Powers future Maren voice. |
+| 🔥 | hoard-sending-stone | Cross-agent communication bus — local HTTP/SSE message passing between pi sessions. Async quest results, stone_send/stone_receive tools, bordered message renderer with per-agent truecolor. Bidirectional dialog: ally SSE subscription, tool_result injection, 200ms polling. @ mention urgency system (`@Name`/`@everyone` → `metadata.urgent`, ⚡ badge, red-orange border). Powers future Maren voice. |
 | 🔥 | dragon-musings | LLM-generated contextual thinking spinner |
 | 🔥 | dragon-parchment | Central panel authority — creation, positioning, focus |
 | 🔥 | dragon-review | Code review via `/review` and `/end-review` commands |
@@ -67,7 +89,7 @@ Extensions are TypeScript files loaded by pi via jiti. Multi-file extensions use
 | 💎 | dragon-tongue | Floating diagnostics panel (tsc type errors) |
 | 🔥 | kitty-gif-renderer | Kitty Graphics Protocol image rendering for panels |
 | 🔥 | kobold-housekeeping | Floating todo panels with GIF mascots |
-| 🔥 | hoard-allies | Subagent token governance — kobold/griffin/dragon taxonomy + `quest`/`recruit` tools + `/allies` + `/allies-budget` commands. 3D taxonomy (thinking×noun×job, open combos), budget-based enforcement with session persistence, named allies, FrugalGPT model cascade, async dispatch via sending-stone with streaming check-ins, ally_status tool, carbon tracking integration. Stone-aware monitoring (self-reporting, per-ally frozen gate, suppression window), write_notes chunked workflow, bidirectional dialog (stone_receive + tool_result injection). Dragon-guard coupling ✅. Phase 4 (polish + bidirectional dialog) ✅, Phase 5 (decoupling + Maren + budget interview) 🥚 |
+| 🔥 | hoard-allies | Subagent token governance — kobold/griffin/dragon taxonomy + `quest`/`recruit` tools + `/allies` + `/allies-budget` commands. 3D taxonomy (thinking×noun×job, open combos), budget-based enforcement with session persistence, named allies, FrugalGPT model cascade, async dispatch via sending-stone with streaming check-ins, ally_status tool, carbon tracking integration. Stone-aware monitoring (self-reporting, per-ally frozen gate, suppression window), write_notes chunked workflow, bidirectional dialog (stone_receive + tool_result injection). Social personality system: 30 dialectical profiles (12 kobold, 10 griffin, 8 dragon), tier bump mechanic, shared social lore. @ mentions for urgency signaling, heartbeat pulse. Dragon-guard coupling ✅. Phase 4 (polish + bidirectional dialog) ✅, Phase 5 (decoupling + Maren + budget interview) 🥚 |
 
 ### berrygems — Library
 

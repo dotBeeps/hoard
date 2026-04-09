@@ -447,3 +447,18 @@ elder-dragon-coder:    12 × 2.5 × 1.5 = 45.0 pts   ← deep implementation (fi
 - Orphaned check-in timers: if ally subprocess exits without producing output, the setInterval never clears and ghost check-ins fire forever until `/reload`
 - Silly kobolds sometimes ignore chunked exploration instructions and generate one massive response — prompt may need tier-specific reinforcement
 - `stone_receive` and `write_notes` appear as "Unknown tool" warnings in pi CLI args validation (cosmetic — tools still work via extension registration)
+
+### Phase 4.5 — Social Stone ✅
+- [x] **Ally name display fix** — names show as "Wort (silly-kobold-scout)" in stone messages, not just "Silly Kobold Scout"
+- [x] **`HOARD_ALLY_NAME` env var** — personal name passed through spawn → sending-stone → `senderDisplayName`
+- [x] **Social personality system** — `personalities.ts` with 30 dialectical profiles (12 kobold, 10 griffin, 8 dragon)
+- [x] **Shared lore** — all allies know about Ember (digestion), dot (candy-flavored boss, frequently inside someone), and the hoard hierarchy
+- [x] **Tier-specific social context** — kobolds (scrappy, impulse-prone around dot), griffins (professional, almost too big to swallow), dragons (peers, find dot hilarious)
+- [x] **Personality tier bumps** — silly 10%/1%, clever 30%/5%, wise 100%/15%, elder 100%/40% chance of +1/+2 tier personality
+- [x] **Communication rules** — stone messages = full personality, write_notes = formal/unflavored, when stuck = ask coordinator
+- [x] **@ mention urgency** — `@Name`/`@everyone` in stone_send → `metadata.urgent: true`
+- [x] **Urgent rendering** — red-orange border, ⚡ badge, bold highlighted mentions
+- [x] **Heartbeat pulse** — quest coordinator sends `⏱ {time}` to session-room every 15s during active quests
+- [x] **Metadata passthrough** — `metadata` field flows from stone_send through server/SSE to renderer
+- [x] **Skill updates** — sending-stone skill: primary agent patterns, @ mentions, heartbeat. allies skill: social hierarchy, personality system
+- [x] **AGENTS.md update** — Active Ally Coordination section, updated extension entries

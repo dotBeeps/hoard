@@ -1,6 +1,7 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { isToolCallEventType } from "@mariozechner/pi-coding-agent";
 import { readHoardSetting } from "../../lib/settings.ts";
+import { buildSocialContext } from "./personalities.ts";
 import { writeFileSync, mkdirSync, readdirSync, unlinkSync } from "node:fs";
 import { join, resolve, normalize } from "node:path";
 import { registerQuestTool } from "./quest-tool.ts";
@@ -450,6 +451,8 @@ Deliver your result and exit cleanly.`;
 function buildAllyPrompt(combo: AllyCombo, allyName: string | null): string {
 	return `${identityLine(allyName, combo)}
 
+${buildSocialContext(combo.noun, combo.adjective)}
+
 ${tierBehavior(combo)}
 
 ${jobPrompt(combo)}
@@ -854,7 +857,7 @@ export default function hoardAllies(pi: ExtensionAPI) {
 			const stoneApi = (globalThis as Record<symbol, { onMessage?: (h: (msg: unknown) => void) => () => void } | undefined>)[Symbol.for("hoard.stone")];
 			if (stoneApi?.onMessage) {
 				stoneApi.onMessage((raw) => {
-					const msg = raw as { from?: string; type?: string; content?: string; addressing?: string; displayName?: string; timestamp?: number };
+					const msg = raw as { from?: string; type?: string; content?: string; addressing?: string; displayName?: string; timestamp?: number; metadata?: Record<string, unknown> };
 					const from = msg.from ?? "ally";
 					const fromName = msg.displayName ?? from;
 					const to = msg.addressing ?? "session-room";
@@ -869,7 +872,7 @@ export default function hoardAllies(pi: ExtensionAPI) {
 						`- **Message:** ${msg.content ?? ""}`,
 					].join("\n");
 
-					const details = { from, to, displayName: msg.displayName, content: msg.content ?? "", timestamp: ts };
+					const details = { from, to, displayName: msg.displayName, content: msg.content ?? "", timestamp: ts, ...(msg.metadata ? { metadata: msg.metadata } : {}) };
 					const isForAgent = to === "primary-agent" || to === "session-room";
 					const shouldTrigger = isForAgent && (msg.type === "question" || msg.type === "result" || msg.type === "status");
 

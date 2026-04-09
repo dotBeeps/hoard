@@ -73,6 +73,8 @@ function nameColor(name: string, fromId: string): string {
 
 const RST = "\x1b[0m";
 const DIM = "\x1b[2m";
+const BOLD = "\x1b[1m";
+const URGENT_CLR = "\x1b[38;2;255;100;80m"; // warm red-orange for urgent messages
 
 interface StoneRenderOptions {
 	primaryDisplayName: string;
@@ -85,6 +87,15 @@ interface StoneDetails {
 	displayName?: string;
 	content: string;
 	timestamp?: string;
+	metadata?: Record<string, unknown>;
+}
+
+/**
+ * Highlight @mentions in message content.
+ * @Name and @everyone get bold + urgent color.
+ */
+function highlightMentions(text: string): string {
+	return text.replace(/@(\w+)/g, `${BOLD}${URGENT_CLR}@$1${RST}`);
 }
 
 /**
@@ -101,10 +112,18 @@ export function registerStoneRenderer(pi: ExtensionAPI, opts: StoneRenderOptions
 		if (!d) return new Text(fallback, 0, 0);
 
 		const senderName = d.displayName ?? resolveDisplayName(d.from);
+		const senderTitle = d.displayName && d.displayName !== resolveDisplayName(d.from)
+			? ` ${DIM}(${resolveDisplayName(d.from)})${RST}` : "";
+		const senderTitlePlain = d.displayName && d.displayName !== resolveDisplayName(d.from)
+			? ` (${resolveDisplayName(d.from)})` : "";
 		const receiverName = resolveDisplayName(d.to);
 		const ts = d.timestamp ?? new Date().toLocaleTimeString();
 		const senderClr = nameColor(senderName, d.from);
 		const receiverClr = nameColor(receiverName, d.to);
+
+		const isUrgent = !!(d.metadata as Record<string, unknown> | undefined)?.urgent;
+		const borderClr = isUrgent ? URGENT_CLR : DIM;
+		const urgentBadge = isUrgent ? ` ${URGENT_CLR}${BOLD}⚡${RST}` : "";
 
 		// Terminal-aware word wrapping
 		const cols = process.stdout.columns || 80;
@@ -132,16 +151,17 @@ export function registerStoneRenderer(pi: ExtensionAPI, opts: StoneRenderOptions
 		const wrappedLines = visibleLines.flatMap(wordWrap);
 
 		// Header
-		const header = `${senderClr}${senderName}${RST} ${DIM}→${RST} ${receiverClr}${receiverName}${RST} ${DIM}(${ts})${RST}`;
-		const headerPlain = `╭── 💬 ${senderName} → ${receiverName} (${ts}) `;
+		const header = `${senderClr}${senderName}${RST}${senderTitle} ${DIM}→${RST} ${receiverClr}${receiverName}${RST} ${DIM}(${ts})${RST}`;
+		const headerPlain = `╭── 💬 ${senderName}${senderTitlePlain} → ${receiverName} (${ts}) `;
 		const headerW = headerPlain.length;
 		const topFill = "─".repeat(Math.max(0, boxW - headerW - 1));
-		const topBar = `${DIM}╭── 💬 ${RST}${header} ${DIM}${topFill}╮${RST}`;
+		const topBar = `${borderClr}╭── 💬 ${RST}${header}${urgentBadge} ${borderClr}${topFill}╮${RST}`;
 
 		// Content lines — padded to innerW
 		const msgBody = wrappedLines.map((l) => {
+			const contentLine = isUrgent ? highlightMentions(l) : l;
 			const pad = " ".repeat(Math.max(0, innerW - l.length));
-			return `${DIM}│${RST} ${l}${pad} ${DIM}│${RST}`;
+			return `${borderClr}│${RST} ${contentLine}${pad} ${borderClr}│${RST}`;
 		}).join("\n");
 
 		// Overflow
@@ -149,12 +169,12 @@ export function registerStoneRenderer(pi: ExtensionAPI, opts: StoneRenderOptions
 			? (() => {
 				const text = `... ${bodyLines.length - opts.maxLines} more lines`;
 				const pad = " ".repeat(Math.max(0, innerW - text.length));
-				return `\n${DIM}│ ${text}${pad} │${RST}`;
+				return `\n${borderClr}│ ${text}${pad} │${RST}`;
 			})()
 			: "";
 
 		// Bottom
-		const botBar = `${DIM}╰${"─".repeat(Math.max(0, boxW - 2))}╯${RST}`;
+		const botBar = `${borderClr}╰${"─".repeat(Math.max(0, boxW - 2))}╯${RST}`;
 
 		return new Text(`${topBar}\n${msgBody}${overflowLine}\n${botBar}`, 0, 0);
 	});

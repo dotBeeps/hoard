@@ -1,6 +1,7 @@
 ---
 name: typescript-check
 description: "Run TypeScript type checking and linting, interpret errors, and fix common patterns. Use when checking for type errors, running tsc, debugging TS compiler output, or validating TypeScript before committing."
+license: MIT
 ---
 
 # TypeScript Verification

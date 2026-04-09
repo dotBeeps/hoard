@@ -1,6 +1,8 @@
 ---
 name: pi-sessions
 description: "Manage session state, branching, compaction, and persistence in pi extensions. Use when building stateful extensions, custom compaction strategies, session event handlers, or working with the session tree."
+license: MIT
+compatibility: "Designed for Pi (pi-coding-agent)"
 ---
 
 # Pi Sessions & State

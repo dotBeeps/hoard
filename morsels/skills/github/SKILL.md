@@ -1,6 +1,7 @@
 ---
 name: github
 description: "GitHub workflows via gh CLI: PRs, issues, CI runs, releases, reviews, and API queries. Use when creating pull requests, reviewing code, checking CI status, managing issues, making releases, or querying the GitHub API."
+license: MIT
 ---
 
 # GitHub CLI Workflows

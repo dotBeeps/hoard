@@ -1,6 +1,8 @@
 ---
 name: dragon-guard
 description: Three-tier permission system for tool calls — Dog (permission-gated), Puppy (read-only planning), Dragon (full implementation). Blocks potentially harmful tool calls and guides planning-first workflows.
+license: MIT
+compatibility: "Designed for Pi (pi-coding-agent)"
 ---
 
 # Dragon Guard — Permission-Gated Tool Calls

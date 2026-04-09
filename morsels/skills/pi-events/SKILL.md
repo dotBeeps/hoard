@@ -1,6 +1,8 @@
 ---
 name: pi-events
 description: "Intercept, transform, and react to pi events — tool calls, input, system prompt injection, model changes, and message streaming. Use when hooking into the agent lifecycle, blocking tool calls, modifying input, injecting context, or reacting to model/session changes."
+license: MIT
+compatibility: "Designed for Pi (pi-coding-agent)"
 ---
 
 # Pi Event Hooks

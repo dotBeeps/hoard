@@ -1,6 +1,8 @@
 ---
 name: extension-designer
 description: "Design and build pi extensions with custom tools, TUI components, overlays, commands, and event hooks. Use when creating or modifying pi extensions, registering custom tools, building interactive TUI components, or working with .pi/extensions/ files."
+license: MIT
+compatibility: "Designed for Pi (pi-coding-agent)"
 ---
 
 # Extension Designer

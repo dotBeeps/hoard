@@ -1,6 +1,8 @@
 ---
 name: hoard-allies
 description: Dispatch subagents using the hoard kobold/griffin/dragon taxonomy. Use when planning subagent tasks, delegating work, or deciding which model tier to use for parallel/chained execution.
+license: MIT
+compatibility: "Designed for Pi (pi-coding-agent)"
 ---
 
 # Hoard Allies — Subagent Dispatch Strategy

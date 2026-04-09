@@ -1,6 +1,7 @@
 ---
 name: api-design
 description: "API design patterns: REST conventions, GraphQL schemas, OpenAPI specs, versioning, error handling, pagination, authentication, and rate limiting. Use when designing APIs, writing OpenAPI specs, implementing REST endpoints, or building GraphQL schemas."
+license: MIT
 ---
 
 # API Design Patterns

@@ -1,6 +1,7 @@
 ---
 name: python-testing
 description: "Python testing with pytest, unittest, and testing best practices. Covers fixtures, parametrize, mocking, assertions, markers, plugins, coverage, and debugging. Use when writing Python tests, debugging test failures, or setting up pytest."
+license: MIT
 ---
 
 # Python Testing

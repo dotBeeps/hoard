@@ -1,6 +1,8 @@
 ---
 name: kobold-housekeeping
 description: "Track tasks with tagged todos and floating panels. Use when managing work items, tracking progress, showing task lists, or grouping todos by tag in persistent overlay panels."
+license: MIT
+compatibility: "Designed for Pi (pi-coding-agent)"
 ---
 
 # Task Tracking with Todos

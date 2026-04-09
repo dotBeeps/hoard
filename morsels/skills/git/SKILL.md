@@ -1,6 +1,7 @@
 ---
 name: git
 description: "Git conventions: branching strategy, rebase vs merge, interactive rebase, history surgery, stash, conflict resolution. Use when working with git branches, rebasing, cherry-picking, bisecting, resolving conflicts, or navigating git history."
+license: MIT
 ---
 
 # Git Conventions

@@ -1,6 +1,8 @@
 ---
 name: dragon-image-fetch
 description: "Fetch animated GIF images from Giphy, Tenor, URLs, or local files. Optionally generate vibe-matched search queries via LLM. Use when building extensions that need to load images, or when implementing image-aware tools."
+license: MIT
+compatibility: "Designed for Pi (pi-coding-agent)"
 ---
 
 # Dragon Image Fetch

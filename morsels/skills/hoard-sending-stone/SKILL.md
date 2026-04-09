@@ -1,6 +1,8 @@
 ---
 name: hoard-sending-stone
 description: Send and receive messages between pi sessions via the hoard sending stone — a local HTTP/SSE communication bus. Use when you need to message another agent, ask for help, report results, or check in on allies.
+license: MIT
+compatibility: "Designed for Pi (pi-coding-agent)"
 ---
 
 # Sending Stone — Cross-Agent Communication

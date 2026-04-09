@@ -1,6 +1,8 @@
 ---
 name: kitty-gif-renderer
 description: "Render animated GIF images using the Kitty terminal graphics protocol. Use when building panel extensions that need to display inline animated images, or when integrating float/inline image rendering alongside text content."
+license: MIT
+compatibility: "Designed for Pi (pi-coding-agent)"
 ---
 
 # Kitty GIF Renderer

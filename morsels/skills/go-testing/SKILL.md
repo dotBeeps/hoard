@@ -1,6 +1,7 @@
 ---
 name: go-testing
 description: "Go testing patterns with the testing package, testify, table-driven tests, benchmarks, and fuzzing. Use when writing Go tests, debugging test failures, running benchmarks, or setting up test infrastructure."
+license: MIT
 ---
 
 # Go Testing

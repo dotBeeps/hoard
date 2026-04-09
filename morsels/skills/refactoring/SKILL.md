@@ -1,6 +1,7 @@
 ---
 name: refactoring
 description: "Code refactoring patterns: extract method/class, rename, move, inline, SOLID principles, design patterns, and safe restructuring strategies. Use when restructuring code, applying design patterns, improving code organization, or reducing technical debt."
+license: MIT
 ---
 
 # Refactoring Patterns

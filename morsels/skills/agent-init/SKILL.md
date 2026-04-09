@@ -1,6 +1,7 @@
 ---
 name: agent-init
 description: "Investigate a directory, interview the user, and create or update its AGENTS.md file. Use when initializing a project for AI coding agents, creating AGENTS.md, or setting up agent instructions."
+license: MIT
 ---
 
 # Agent Init

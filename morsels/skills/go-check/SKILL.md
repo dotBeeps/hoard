@@ -1,6 +1,7 @@
 ---
 name: go-check
 description: "Run Go verification tools: go vet, golangci-lint, go test. Interpret output and fix common issues. Use when checking Go code for errors, running linters, debugging test failures, or validating Go before committing."
+license: MIT
 ---
 
 # Go Verification

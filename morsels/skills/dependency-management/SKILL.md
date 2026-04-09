@@ -1,6 +1,7 @@
 ---
 name: dependency-management
 description: "Dependency management across ecosystems: bun (preferred Node PM), uv (Python), cargo (Rust), Go modules, and Gradle (Java/Kotlin). Covers adding/removing deps, lockfiles, workspaces, security auditing, and version strategies. Use when managing dependencies, resolving version conflicts, setting up workspaces, or auditing packages."
+license: MIT
 ---
 
 # Dependency Management

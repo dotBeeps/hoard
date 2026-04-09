@@ -1,6 +1,7 @@
 ---
 name: skill-designer
 description: "Design and create Agent Skills (agentskills.io spec). Use when building new SKILL.md files, scaffolding skill directories, or reviewing existing skills for quality. Covers frontmatter, naming, description writing, body structure, progressive disclosure, templates, and validation."
+license: MIT
 ---
 
 # Skill Designer

@@ -1,6 +1,7 @@
 ---
 name: commit
 description: "Create git commits following Conventional Commits. Handles staging, message formatting, scope detection, amending, and fixup commits. Use when committing changes, amending commits, or creating fixup commits."
+license: MIT
 ---
 
 # Commit

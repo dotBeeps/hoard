@@ -1,6 +1,7 @@
 ---
 name: docker
 description: "Docker and container best practices: Dockerfiles, multi-stage builds, layer optimization, Compose, health checks, security, and debugging. Use when writing Dockerfiles, optimizing container images, setting up Docker Compose, or debugging container issues."
+license: MIT
 ---
 
 # Docker & Containers

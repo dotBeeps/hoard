@@ -1,6 +1,8 @@
 ---
 name: dragon-parchment
 description: "Build and integrate floating overlay panels using the dragon-parchment API. Use when creating new panel extensions, adding panels to existing extensions, or working with the globalThis panel infrastructure."
+license: MIT
+compatibility: "Designed for Pi (pi-coding-agent)"
 ---
 
 # Panel Development

@@ -1,6 +1,7 @@
 ---
 name: github-markdown
 description: "GitHub Flavored Markdown conventions: task lists, callout alerts, collapsible sections, mermaid diagrams, tables, and cross-references. Use when writing markdown for GitHub READMEs, issues, PRs, discussions, or wiki pages."
+license: MIT
 ---
 
 # GitHub Flavored Markdown

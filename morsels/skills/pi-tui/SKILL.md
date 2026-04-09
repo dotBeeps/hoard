@@ -1,6 +1,8 @@
 ---
 name: pi-tui
 description: "Build custom TUI components for pi extensions — overlays, widgets, footers, custom editors. Use when creating interactive terminal UI, rendering custom tool output, building overlay panels, or replacing the input editor."
+license: MIT
+compatibility: "Designed for Pi (pi-coding-agent)"
 ---
 
 # Pi TUI Components

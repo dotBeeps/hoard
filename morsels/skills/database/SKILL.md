@@ -1,6 +1,7 @@
 ---
 name: database
 description: "Database patterns: SQL conventions, schema design, migrations, indexing, ORMs (Prisma, SQLAlchemy, GORM, Drizzle), query optimization, and common pitfalls. Use when designing schemas, writing migrations, optimizing queries, or working with ORMs."
+license: MIT
 ---
 
 # Database Patterns

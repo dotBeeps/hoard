@@ -1,6 +1,7 @@
 ---
 name: js-testing
 description: "JavaScript/TypeScript testing with Jest, Vitest, and Node test runner. Covers test structure, mocking, assertions, fixtures, snapshots, coverage, and debugging failing tests. Use when writing tests, debugging test failures, setting up test frameworks, or working with jest/vitest/node:test."
+license: MIT
 ---
 
 # JavaScript/TypeScript Testing

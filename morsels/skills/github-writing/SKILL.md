@@ -1,6 +1,7 @@
 ---
 name: github-writing
 description: "Write effective GitHub documents: PR descriptions, issues, READMEs, CONTRIBUTING guides, release notes, repo templates, and community docs. Use when drafting any document that lives on GitHub — PRs, issues, READMEs, wikis, releases, or repository setup files."
+license: MIT
 ---
 
 # GitHub Writing

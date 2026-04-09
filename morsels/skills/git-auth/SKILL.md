@@ -1,6 +1,8 @@
 ---
 name: git-auth
 description: "SSH key management with rbw/Bitwarden passphrase automation and git auth troubleshooting. Use when hitting SSH permission errors, unlocking SSH keys, managing ssh-agent, or when git/github operations need authentication."
+license: MIT
+compatibility: "Requires rbw (Bitwarden CLI) for passphrase automation"
 ---
 
 # Git Authentication

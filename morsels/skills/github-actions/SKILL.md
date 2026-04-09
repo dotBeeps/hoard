@@ -1,6 +1,7 @@
 ---
 name: github-actions
 description: "GitHub Actions CI/CD workflows: syntax, triggers, jobs, steps, matrix builds, caching, artifacts, secrets, reusable workflows, and composite actions. Use when creating or debugging GitHub Actions workflows, setting up CI/CD pipelines, or working with .github/workflows/ files."
+license: MIT
 ---
 
 # GitHub Actions CI/CD

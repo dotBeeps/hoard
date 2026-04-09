@@ -5,15 +5,19 @@
 
 ## What This Is
 
-**storybook-daemon** is the formless core of the dragon — mind, soul, and connectors. A Go system daemon with an always-beating central thought loop, deterministic ethical contract enforcement, attention economy, and connections to bodies that give it form in the world.
+**storybook-daemon** is the formless core of the dragon — mind, soul, and connectors. A Go system daemon with an attention-gated thought loop, deterministic ethical contract enforcement, attention economy, and connections to bodies that give it form in the world.
 
 The daemon runs independently of any single pi session. It persists, it remembers (Obsidian-compatible vault), it thinks (attention-gated thought cycles), and it enforces ethics (soul package — deterministic, not advisory).
+
+**Doggy** is the primary interface: a Qt/QML chat client connecting to one or more persona doggy bodies via HTTP+SSE. Each agent gets a chat thread; tool invocations render in dedicated Qt windows. Agents can be proactive (heartbeat-driven) or reactive (message-triggered only).
+
+> **⏸ Proactive ticking deferred** — autonomous heartbeat-driven thought cycles are parked pending LLM provider + auth decisions. Pi OAuth is pi-session-only and does not work in the daemon. Reactive mode (`POST /message` → nudge heart → one thought cycle → SSE stream) is the unblocked path forward.
 
 ## Relationship to the Hoard
 
 - **The daemon IS the dragon** without a body. Everything else orbits it.
-- **Bodies** (dragon-pi, dragon-cubed, others) are how the daemon interacts with the world. The daemon can inhabit (active) or direct (passive) bodies.
-- **berrygems** are tools the dragon uses _through_ her pi body. The daemon doesn't import berrygems — it connects to pi sessions that have berrygems loaded.
+- **Bodies** (doggy, hoard, mcp, others) are how the daemon interacts with the world. The daemon can inhabit (active) or direct (passive) bodies.
+- **berrygems** are tools the dragon uses _through_ her pi body. The daemon doesn't import berrygems — it connects to pi sessions that have berrygems loaded. Berrygems that currently render Pi-specific panels will have native Qt window equivalents in doggy.
 - **morsels** are portable knowledge. The daemon's thought cycles may reference morsel-level knowledge, but skills are consumed by the pi body, not the daemon directly.
 - **ETHICS.md** is the binding ethical contract. The `soul/` package enforces it deterministically. The `consent/` package manages risk-informed consent tiers. The `memory/` package respects private shelves. **These are not optional.**
 
@@ -70,13 +74,13 @@ The daemon enforces [ETHICS.md](../ETHICS.md) deterministically. Key code-ethics
 
 ## Phase Status
 
-| Phase               | Status | Description                                                                                                                                                                                             |
-| ------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1 — Foundation      | ✅     | Persona loading, fsnotify body, vault memory, basic heart loop                                                                                                                                          |
-| 2 — Soul            | ✅     | Consent tiers, private shelves, framing audit, ethical enforcement                                                                                                                                      |
-| 2.5 — Soul Shore-up | ✅     | Private shelf blocking, consent tier determinism, framing patterns                                                                                                                                      |
-| 3 — New Bodies      | 🐣     | GitHub body ✅, maw body ✅ (HTTP+SSE pi dialog), MCP body ✅ (memory/attention/stone via MCP protocol), multi-persona orchestration ✅ (storybook.go + run-all CLI), pi session + shell bodies planned |
-| 4 — Qt/QML          | 🥚     | Desktop window — Qt/QML frontend talking to doggy/MCP bodies                                                                                                                                            |
+| Phase               | Status | Description                                                                                                                                                                                                   |
+| ------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 — Foundation      | ✅     | Persona loading, fsnotify body, vault memory, basic heart loop                                                                                                                                                |
+| 2 — Soul            | ✅     | Consent tiers, private shelves, framing audit, ethical enforcement                                                                                                                                            |
+| 2.5 — Soul Shore-up | ✅     | Private shelf blocking, consent tier determinism, framing patterns                                                                                                                                            |
+| 3 — New Bodies      | 🐣     | GitHub body ✅, doggy body ✅ (HTTP+SSE dot interface), MCP body ✅ (memory/attention/stone via MCP protocol), multi-persona orchestration ✅ (storybook.go + run-all CLI), pi session + shell bodies planned |
+| 4 — Doggy Qt client | 🥚     | Qt/QML chat client — multi-agent threads, tool windows, attention panel, input bar; berrygem panel tools migrated to native Qt windows; ⏸ proactive ticking blocked on auth                                  |
 
 ## Attention Economy
 

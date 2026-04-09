@@ -9,7 +9,11 @@
 
 ## What It Does
 
-The formless core of the dragon — mind, soul, and connectors. A Go system daemon with an always-beating central thought loop, deterministic ethical contract enforcement, attention economy, and connections to bodies (pi sessions, Minecraft, filesystem, GitHub) that give the dragon form in the world. Obsidian-compatible memory persists across sessions. This is how Ember runs nonstop.
+The formless core of the dragon — mind, soul, and connectors. A Go system daemon with an attention-gated thought loop, deterministic ethical contract enforcement, attention economy, and connections to bodies that give the daemon form in the world. Obsidian-compatible memory persists across sessions.
+
+**Doggy** is the primary interface: a Qt/QML chat client that connects to one or more persona doggy bodies (HTTP+SSE). Each agent gets its own chat thread. Tool invocations surface in dedicated Qt windows rather than chat. Some agents are proactive (heartbeat-driven); others are reactive (respond only when messaged). Doggy handles both the same way via the SSE stream.
+
+Berrygems that currently render Pi-specific panels (dragon-guard, dragon-scroll, dragon-digestion, etc.) will have native Qt window equivalents integrated into doggy instead.
 
 ## Specs
 
@@ -107,7 +111,17 @@ The daemon currently has one body type (hoard repo watcher). Phase 3 expands wha
 
 Spec: **[phase4-maw-spec.md](./phase4-maw-spec.md)**
 
-**Doggy** — dot's body. A body (`internal/body/doggy/`) that exposes the daemon's inner life to dot via HTTP+SSE. Paired with a Qt/QML desktop app (`hoard/doggy/`).
+**Doggy** is dot's chat client and tool observatory. The daemon side (`internal/body/doggy/`) is an HTTP+SSE body; the client side is a Qt/QML app that connects to it.
+
+**Goal state:**
+
+- One chat thread per agent; each persona's doggy body runs on its own port
+- Tool invocations render in dedicated Qt windows (not inline in chat)
+- Proactive agents (heartbeat-driven) and reactive agents (message-triggered) both stream into the same UI via SSE
+- Berrygems with Pi-specific panels (dragon-guard, dragon-scroll, dragon-digestion, dragon-parchment, dragon-inquiry, dragon-tongue, kitty-gif-renderer, etc.) get native Qt window equivalents here
+
+**Auth / proactive ticking — ⏸ deferred:**
+Autonomous heartbeat-driven thought cycles are parked until LLM provider + auth is decided. Pi OAuth is pi-session-only and does not work in the daemon context. Reactive mode — `POST /message` nudges the heart, which runs one thought cycle and streams the result — is the unblocked path forward once auth lands.
 
 **4A ✅ Doggy body** (2026-04-08):
 
@@ -119,9 +133,10 @@ Spec: **[phase4-maw-spec.md](./phase4-maw-spec.md)**
 - `internal/body/doggy/doggy_test.go` — 8 tests
 - `internal/daemon/daemon.go` — "doggy" case, outputWirer interface, cycleCapture adapter, soul.Deps.Cycle wiring
 
-**4B 🥚 Qt scaffold + stream** — DoggyConnection SSE client, ThoughtStream.qml
-**4C 🥚 State panel** — attention gauge, body list, contract indicators
-**4D 🥚 Input bar** — direct message send
+**4B 🥚 Qt scaffold + stream** — DoggyConnection SSE client, multi-agent chat threads, ThoughtStream.qml
+**4C 🥚 Tool windows** — dedicated Qt panels per tool type (replaces Pi-specific berrygem panels)
+**4D 🥚 State panel** — attention gauge, body list, contract indicators
+**4E 🥚 Input bar** — direct message send per agent
 
 ### Phase 5 — Polish + Inclinations
 

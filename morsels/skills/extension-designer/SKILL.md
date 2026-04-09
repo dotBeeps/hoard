@@ -268,7 +268,7 @@ pi.registerShortcut("alt+m", {
 
 ## Prompt Integration
 
-Help the LLM discover and use your tool correctly with `promptSnippet` and `promptGuidelines`:
+**Every tool MUST have `promptSnippet` and `promptGuidelines`.** Without them, the tool is invisible in the system prompt — the LLM only sees a bare XML schema block with no behavioral context. This is especially critical for subagent (ally) sessions where small models deprioritize verbose persona prompts.
 
 ```typescript
 pi.registerTool({
@@ -282,8 +282,9 @@ pi.registerTool({
 });
 ```
 
-- `promptSnippet` — one line, always visible in the prompt. Make it scannable.
-- `promptGuidelines` — array of usage hints. Each should teach the LLM one behavior.
+- `promptSnippet` — one line shown in the "Available tools" section of the system prompt. **Without this, custom tools are omitted from that section entirely.** Make it scannable.
+- `promptGuidelines` — array of usage hints appended to the system prompt "Guidelines" section. Each should teach the LLM one behavior. Without these, the LLM has no behavioral rules for your tool.
+- `description` — still needed for the tool's XML schema block, but alone it's insufficient for reliable tool usage.
 
 ## Inter-Extension Communication
 
@@ -336,6 +337,9 @@ For panel extensions specifically, see the `dragon-parchment` skill.
 ❌ **Registering multiple tools in one file** — god files grow fast.
 ✅ One file per tool registration. 300+ lines in an extension file = split candidate.
 
+❌ **Registering tools without `promptSnippet`/`promptGuidelines`** — tool is invisible in the system prompt. The LLM sees only a bare schema block with no usage guidance, leading to misuse or non-use (especially by smaller ally models).
+✅ Always set both. Make guidance tool-intrinsic, not dependent on persona prompts.
+
 ❌ **Using `as` casts on parsed/external input** — silent type lies.
 ✅ Validate with a function returning `T | null`. See TypeScript skill for details.
 
@@ -378,6 +382,7 @@ Current shared libs:
 - [ ] `done()` called in all overlay exit paths (escape, cancel, confirm)
 - [ ] Tool errors signaled by throwing, not return values
 - [ ] `signal?.aborted` checked for cancellation in long-running tools
+- [ ] Tools have `promptSnippet` (system prompt visibility) and `promptGuidelines` (behavioral rules)
 
 ## Reference
 

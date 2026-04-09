@@ -823,6 +823,13 @@ export default function hoardAllies(pi: ExtensionAPI) {
 		name: "write_notes",
 		label: "Write Notes",
 		description: "Write working notes to .pi/ally-notes/. Use to save intermediate findings, partial analyses, or draft sections while working. Break large tasks into smaller chunks — write notes after each chunk, then compile a final summary. This keeps you active and prevents long silences during output generation.",
+		promptSnippet: "Write working notes to .pi/ally-notes/ for intermediate findings and draft sections",
+		promptGuidelines: [
+			"Use write_notes to save intermediate findings, partial analyses, or draft sections while working",
+			"Break large tasks into smaller chunks — write notes after each chunk, then compile a final summary",
+			"This keeps you active and prevents long silences during output generation",
+			"Use descriptive filenames (e.g. 'findings-part1.md', 'quest-123/analysis.md')",
+		],
 		parameters: Type.Object({
 			path: Type.String({ description: "Filename within .pi/ally-notes/ (e.g. 'findings-part1.md'). Subdirectories allowed (e.g. 'quest-123/part1.md')." }),
 			content: Type.String({ description: "Content to write" }),

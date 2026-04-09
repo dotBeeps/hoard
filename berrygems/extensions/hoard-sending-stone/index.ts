@@ -46,6 +46,13 @@ function registerStoneSendTool(pi: ExtensionAPI, stoneAPI: StoneAPI, senderFrom:
 	(pi.registerTool as any)({
 		name: "stone_send",
 		description: "Send a message via the sending stone to the room, a specific agent, or dot. Use to communicate with running allies, ask questions, or broadcast updates.",
+		promptSnippet: "Send messages to allies, the primary agent, or the room via the sending stone",
+		promptGuidelines: [
+			"Use stone_send to communicate with other agents — status updates, questions, or results",
+			"Address messages: 'session-room' (broadcast), 'primary-agent' (to lead), or an ally defName (direct)",
+			"Include message type: 'status' for updates, 'question' for queries, 'result' for deliverables, 'progress' for check-ins",
+			"Use @Name in messages for urgent pings — marks the message with ⚡ priority",
+		],
 		parameters: Type.Object({
 			to: Type.Optional(Type.String({ description: "Who to address: \"primary-agent\", \"user\", \"guild-master\", \"session-room\", or an ally defName. Default: \"session-room\"" })),
 			message: Type.String({ description: "The message to send" }),
@@ -151,6 +158,12 @@ export default function (pi: ExtensionAPI, _ctx: ExtensionContext): void {
 		(pi.registerTool as any)({
 			name: "stone_receive",
 			description: "Check for incoming messages from the primary agent or other allies. Waits up to `wait` seconds for a message to arrive. Use after sending a question via stone_send to wait for a reply.",
+			promptSnippet: "Check for incoming stone messages from the primary agent or other allies",
+			promptGuidelines: [
+				"Use stone_receive to poll for replies after sending a question via stone_send",
+				"Messages are also injected passively into tool_result responses — you don't always need to explicitly call stone_receive",
+				"Keep wait times short (5-10s) to avoid blocking your work — check back if needed",
+			],
 			parameters: Type.Object({
 				wait: Type.Optional(Type.Number({ description: "Max seconds to wait for a message (default: 30, max: 120)" })),
 			}),

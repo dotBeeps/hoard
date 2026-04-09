@@ -446,7 +446,7 @@ elder-dragon-coder:    12 × 2.5 × 1.5 = 45.0 pts   ← deep implementation (fi
 - ~~Global frozen gate — one ally's alert suppresses all others~~ ✅ Fixed: per-ally `lastFrozenPerAlly` map
 - Orphaned check-in timers: if ally subprocess exits without producing output, the setInterval never clears and ghost check-ins fire forever until `/reload`
 - Silly kobolds sometimes ignore chunked exploration instructions and generate one massive response — prompt may need tier-specific reinforcement
-- `stone_receive` and `write_notes` appear as "Unknown tool" warnings in pi CLI args validation (cosmetic — tools still work via extension registration)
+- ~~`stone_receive` and `write_notes` appear as "Unknown tool" warnings in pi CLI args validation (cosmetic — tools still work via extension registration)~~ ✅ Fixed: added `promptSnippet` + `promptGuidelines` to all three extension tools (stone_send, stone_receive, write_notes). Tools now first-class in system prompt.
 
 ### Phase 4.5 — Social Stone ✅
 - [x] **Ally name display fix** — names show as "Wort (silly-kobold-scout)" in stone messages, not just "Silly Kobold Scout"

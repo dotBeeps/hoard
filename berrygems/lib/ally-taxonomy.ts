@@ -93,7 +93,7 @@ export const JOB_TOOLS: Record<Job, string> = {
 export const JOB_DEFAULTS: Record<Job, { timeoutMs: number; checkInIntervalMs: number }> = {
 	scout:      { timeoutMs:  60_000, checkInIntervalMs: 15_000 },
 	reviewer:   { timeoutMs: 120_000, checkInIntervalMs: 20_000 },
-	coder:      { timeoutMs: 180_000, checkInIntervalMs: 25_000 },
-	researcher: { timeoutMs: 300_000, checkInIntervalMs: 30_000 },
-	planner:    { timeoutMs: 180_000, checkInIntervalMs: 25_000 },
+	coder:      { timeoutMs: 180_000, checkInIntervalMs: 30_000 },
+	researcher: { timeoutMs: 300_000, checkInIntervalMs: 45_000 },
+	planner:    { timeoutMs: 180_000, checkInIntervalMs: 30_000 },
 };

@@ -40,6 +40,25 @@ const panels = (globalThis as any)[Symbol.for("hoard.parchment")];
 panels?.register("my-panel", { handle, invalidate, dispose });
 ```
 
+### Tool Registration
+
+Every `pi.registerTool()` call **must** include `promptSnippet` and `promptGuidelines`:
+
+```typescript
+pi.registerTool({
+	name: "my_tool",
+	description: "Full description for the XML schema block",
+	promptSnippet: "One-line summary for the Available Tools section",
+	promptGuidelines: [
+		"When to use this tool and what to expect",
+		"Common mistakes to avoid",
+	],
+	// ...
+});
+```
+
+Without these, pi omits the tool from the system prompt's "Available tools" and "Guidelines" sections. The LLM only sees a bare XML schema block with no behavioral context — leading to misuse or non-use, especially by smaller ally models.
+
 ### Settings
 
 All under `hoard.*` in `~/.pi/agent/settings.json`. See root AGENTS.md for the full namespace map.

@@ -30,6 +30,7 @@ The primary session owns the server; ally sessions get a send-only client.
 - Server validates `from` (string, required) and `content` (string, required) on every POST; 400 on failure
 - `stone.port` setting: `0` or `undefined` = auto-assign; otherwise binds to the specified port
 - `stone_send` tool schema uses `Type.Union` of four string literals: `"question"`, `"status"`, `"result"`, `"progress"`
+- `stone_send` and `stone_receive` both include `promptSnippet` and `promptGuidelines` — these are **required** for extension tools to appear in the system prompt's "Available tools" and "Guidelines" sections. Without them, the LLM only sees a bare XML schema block.
 - `stone_receive` tool is ally-only — polls `pendingMessages[]` at 200ms interval, max 120s wait
 - Rendering logic lives exclusively in `renderer.ts`; `index.ts` only calls `registerStoneRenderer()`
 - `Symbol.for("hoard.stone.internals")` holds `{ port, sseReq, handlers }` — survives `/reload` without leaking listeners

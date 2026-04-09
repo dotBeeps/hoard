@@ -228,7 +228,7 @@ async function dispatchSingle(opts: DispatchOptions): Promise<QuestResult> {
 				const activityStr = recentLine
 					? `\n   └ ${recentLine.slice(0, 120)}`
 					: " · no output yet";
-				const frozen = effectiveCheckInMs > 0 && sinceActivityMs > effectiveCheckInMs * 2;
+				const frozen = effectiveCheckInMs > 0 && sinceActivityMs > effectiveCheckInMs * 4;
 				if (frozen) onFrozen?.(allyName, quietSecs, ally);
 				const msg = `⏳ ${allyName} the ${defName} — ${secs}s elapsed${frozen ? ` (⚠️ quiet ${quietSecs}s)` : ""}${activityStr}`;
 				progress?.(msg); // update tool box if streaming is available

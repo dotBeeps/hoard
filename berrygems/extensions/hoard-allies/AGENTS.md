@@ -45,6 +45,7 @@ hoard-allies/
 - **FrugalGPT cascade** — `github-copilot → anthropic → google`. Free quota before paid API.
 - **Stone-aware monitoring** — quest dispatcher subscribes to stone `onMessage`, tracks `allyLastStoneMs` per ally. Timer check-ins suppressed within `SUPPRESS_WINDOW_MS` (35s) when ally self-reports. Per-ally frozen gate (`lastFrozenPerAlly`), case-insensitive matching, recurring report requirement (value > 0).
 - **Chunked exploration** — ally system prompt instructs: read → `write_notes` → `stone_send` progress → repeat → compile. Prevents long inference silences.
+- **Tool prompt integration** — all extension-registered tools (`write_notes`, `stone_send`, `stone_receive`) include `promptSnippet` and `promptGuidelines`. This is required for the LLM to see tools in the system prompt. See `extension-designer` skill for the pattern.
 - **Bidirectional dialog** — allies subscribe to primary's SSE stream, poll via `stone_receive`, get passive injection via `tool_result` hook.
 - **write_notes scoping** — path-traversal guarded with `normalize(resolve(...))` check, scoped to `.pi/ally-notes/`.
 - **Clean exit prompt** — allies told to deliver results and stop. No loitering, no offering to do more work.

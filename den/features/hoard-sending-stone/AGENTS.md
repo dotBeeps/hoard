@@ -129,6 +129,12 @@ berrygems/extensions/hoard-sending-stone/
 └── types.ts    — StoneMessage, StoneAPI, STONE_KEY
 ```
 
+## Tool Prompt Integration
+
+Both `stone_send` and `stone_receive` (ally-only) include `promptSnippet` and `promptGuidelines` in their `registerTool()` calls. This is **required** for the tools to appear in pi's system prompt "Available tools" and "Guidelines" sections. Without them, extension tools are invisible to the LLM — it only sees bare XML schema blocks.
+
+See `extension-designer` skill for the full pattern.
+
 ## Integration Points
 
 - **spawn.ts** — passes `HOARD_STONE_PORT` + `HOARD_ALLY_DEFNAME` + `HOARD_ALLY_NAME` to ally processes

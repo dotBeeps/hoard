@@ -13,7 +13,7 @@ The daemon runs independently of any single pi session. It persists, it remember
 
 - **The daemon IS the dragon** without a body. Everything else orbits it.
 - **Bodies** (dragon-pi, dragon-cubed, others) are how the daemon interacts with the world. The daemon can inhabit (active) or direct (passive) bodies.
-- **berrygems** are tools the dragon uses *through* her pi body. The daemon doesn't import berrygems — it connects to pi sessions that have berrygems loaded.
+- **berrygems** are tools the dragon uses _through_ her pi body. The daemon doesn't import berrygems — it connects to pi sessions that have berrygems loaded.
 - **morsels** are portable knowledge. The daemon's thought cycles may reference morsel-level knowledge, but skills are consumed by the pi body, not the daemon directly.
 - **ETHICS.md** is the binding ethical contract. The `soul/` package enforces it deterministically. The `consent/` package manages risk-informed consent tiers. The `memory/` package respects private shelves. **These are not optional.**
 
@@ -28,7 +28,9 @@ storybook-daemon/
 │   ├── body/         Sensory body types (how daemon connects to the world)
 │   │   ├── fsnotify/ Filesystem watcher body
 │   │   ├── github/   GitHub event body
-│   │   └── hoard/    Hoard-aware body (watches this repo)
+│   │   ├── hoard/    Hoard-aware body (watches this repo)
+│   │   ├── maw/      HTTP+SSE body — bidirectional dialog with pi sessions
+│   │   └── mcp/      MCP server body — exposes vault, attention, stone to CC/OpenCode/VSCode
 │   ├── consent/      Consent state machine — risk tiers (low/med/high), dual-key
 │   ├── daemon/       Top-level orchestration, lifecycle
 │   ├── heart/        Event-driven ticker — the central thought loop
@@ -46,6 +48,7 @@ storybook-daemon/
 ### Dependency Graph
 
 Clean layered architecture — no circular dependencies:
+
 ```
 daemon → heart → thought → soul → consent
                         ↘ memory
@@ -57,23 +60,23 @@ daemon → heart → thought → soul → consent
 
 The daemon enforces [ETHICS.md](../ETHICS.md) deterministically. Key code-ethics mappings:
 
-| ETHICS.md Section | Code Package | Enforcement |
-|---|---|---|
-| §3.1 Risk-informed consent | `consent/` | State machine with low/med/high tiers |
-| §3.2 Dual-key consent | `soul/gate.go` | Both user AND agent toggles required |
-| §3.3 Private shelves | `memory/` | `private: true` blocks injection, traversal, dream processing |
-| §3.5 Observation framing | `sensory/` | Forward-looking, collaborative framing validated |
-| §3.6 Conservative defaults | `soul/` | High-risk features default off |
+| ETHICS.md Section          | Code Package   | Enforcement                                                   |
+| -------------------------- | -------------- | ------------------------------------------------------------- |
+| §3.1 Risk-informed consent | `consent/`     | State machine with low/med/high tiers                         |
+| §3.2 Dual-key consent      | `soul/gate.go` | Both user AND agent toggles required                          |
+| §3.3 Private shelves       | `memory/`      | `private: true` blocks injection, traversal, dream processing |
+| §3.5 Observation framing   | `sensory/`     | Forward-looking, collaborative framing validated              |
+| §3.6 Conservative defaults | `soul/`        | High-risk features default off                                |
 
 ## Phase Status
 
-| Phase | Status | Description |
-|---|---|---|
-| 1 — Foundation | ✅ | Persona loading, fsnotify body, vault memory, basic heart loop |
-| 2 — Soul | ✅ | Consent tiers, private shelves, framing audit, ethical enforcement |
-| 2.5 — Soul Shore-up | ✅ | Private shelf blocking, consent tier determinism, framing patterns |
-| 3 — New Bodies | 🐣 | GitHub body ✅, pi session + shell bodies planned |
-| 4 — Dragon (pi body) | 🥚 | HTTP+SSE body for pi integration — [spec](../den/features/storybook-daemon/phase4-maw-spec.md) |
+| Phase               | Status | Description                                                                                                                                                                                             |
+| ------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 — Foundation      | ✅     | Persona loading, fsnotify body, vault memory, basic heart loop                                                                                                                                          |
+| 2 — Soul            | ✅     | Consent tiers, private shelves, framing audit, ethical enforcement                                                                                                                                      |
+| 2.5 — Soul Shore-up | ✅     | Private shelf blocking, consent tier determinism, framing patterns                                                                                                                                      |
+| 3 — New Bodies      | 🐣     | GitHub body ✅, maw body ✅ (HTTP+SSE pi dialog), MCP body ✅ (memory/attention/stone via MCP protocol), multi-persona orchestration ✅ (storybook.go + run-all CLI), pi session + shell bodies planned |
+| 4 — Qt/QML          | 🥚     | Desktop window — Qt/QML frontend talking to maw/MCP bodies                                                                                                                                              |
 
 ## Attention Economy
 
@@ -90,6 +93,15 @@ cd storybook-daemon && go build -o storybook-daemon .
 
 # Test
 cd storybook-daemon && go test ./...
+
+# Run a single persona
+cd storybook-daemon && go run . run --persona ember
+
+# Run all personas from ~/.config/storybook-daemon/personas/
+cd storybook-daemon && go run . run-all --all
+
+# Run specific personas
+cd storybook-daemon && go run . run-all --personas ember,maren
 ```
 
 See root [AGENTS.md](../AGENTS.md#go-conventions-storybook-daemon) for full Go conventions.
@@ -97,6 +109,7 @@ See root [AGENTS.md](../AGENTS.md#go-conventions-storybook-daemon) for full Go c
 ## Detailed Feature Tracking
 
 For per-phase breakdowns, research docs, and implementation details, see:
+
 - [`den/features/storybook-daemon/AGENTS.md`](../den/features/storybook-daemon/AGENTS.md) — current state tracker
 - [`den/features/storybook-daemon/persona-runtime-spec.md`](../den/features/storybook-daemon/persona-runtime-spec.md) — full spec
 - [`den/features/storybook-daemon/phase4-maw-spec.md`](../den/features/storybook-daemon/phase4-maw-spec.md) — Phase 4 spec

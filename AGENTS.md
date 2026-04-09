@@ -36,6 +36,7 @@ When dispatching allies via quest/rally/chain, the primary agent should **use th
 **The stone is social, not operational.** Allies have personalities. They chat, acknowledge each other, and respond to encouragement. The primary agent is part of that social fabric.
 
 **Coordination patterns:**
+
 - **On dispatch:** Brief direction to the room. Set context, not micromanage.
 - **On ally check-in:** Acknowledge if relevant, otherwise let them work.
 - **On ally question:** Respond promptly — they're waiting.
@@ -43,6 +44,7 @@ When dispatching allies via quest/rally/chain, the primary agent should **use th
 - **On completion:** Acknowledge good work. They earned it.
 
 **Tier dynamics:**
+
 - **Kobolds:** Direct warmly. They're eager, scrappy, and part of a pack. Let them scurry.
 - **Griffins:** Collaborate as equals. They push back. Trust their judgment.
 - **Dragons:** Peer conversation. Ask, don't command.
@@ -55,14 +57,14 @@ When dispatching allies via quest/rally/chain, the primary agent should **use th
 
 Features move through six states, tracked with emoji in all inventory tables:
 
-| emoji | state | definition |
-|---|---|---|
-| 💭 | idea | Name and up to 500 words of description. No research or code yet. |
-| 📜 | researched | Research documents and/or relevant source files present. *(Auto-update via GitHub Actions is planned — see [Hoard Infrastructure](#hoard-infrastructure))* |
-| 🥚 | planned | Work broken down into phases. No code written. Spec lives in `den/features/{name}/`. |
-| 🐣 | in-progress | Code work cycle started. Current state documented in `den/features/{name}/AGENTS.md`. |
-| 🔥 | beta | Usable and being manually tested. Manually designated. |
-| 💎 | complete | Manually marked done when stable and well-tested. |
+| emoji | state       | definition                                                                                                                                                 |
+| ----- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 💭    | idea        | Name and up to 500 words of description. No research or code yet.                                                                                          |
+| 📜    | researched  | Research documents and/or relevant source files present. _(Auto-update via GitHub Actions is planned — see [Hoard Infrastructure](#hoard-infrastructure))_ |
+| 🥚    | planned     | Work broken down into phases. No code written. Spec lives in `den/features/{name}/`.                                                                       |
+| 🐣    | in-progress | Code work cycle started. Current state documented in `den/features/{name}/AGENTS.md`.                                                                      |
+| 🔥    | beta        | Usable and being manually tested. Manually designated.                                                                                                     |
+| 💎    | complete    | Manually marked done when stable and well-tested.                                                                                                          |
 
 ## Hoard Features
 
@@ -70,95 +72,95 @@ Features move through six states, tracked with emoji in all inventory tables:
 
 Extensions are TypeScript files loaded by pi via jiti. Multi-file extensions use a directory with `index.ts` as entry point (e.g. `dragon-guard/`). Single-file extensions will graduate to directories when they reach `in-progress` state, at which point they also gain a code-side `AGENTS.md` documenting patterns, antipatterns, and inter-extension interactions.
 
-| | extension | description |
-|---|---|---|
-| 🔥 | dragon-breath | Carbon/energy tracking footer widget + `/carbon` command + `BreathAPI` globalThis for external usage reporting |
-| 💎 | dragon-curfew | Bedtime enforcement — blocks tool calls during curfew hours |
-| 🔥 | dragon-digestion | Tiered compaction system with progressive context management |
-| 🔥 | dragon-guard/ | Four-tier permission guard |
-| 💎 | dragon-herald | Desktop notifications on agent completion (OSC777 + notify-send) |
-| 🔥 | dragon-image-fetch | Multi-source image/GIF fetch API (Giphy/Tenor/URL/file) |
-| 💎 | dragon-inquiry | Interactive user input (select/confirm/text) |
-| 🐣 | dragon-lab | Experimental provider feature opt-in manager — Anthropic beta headers today, extensible to any provider |
-| 🐣 | dragon-loop | Automation loops with breakout conditions + `/loop` command |
-| 🔥 | hoard-sending-stone | Cross-agent communication bus — local HTTP/SSE message passing between pi sessions. Async quest results, stone_send/stone_receive tools, bordered message renderer with per-agent truecolor. Bidirectional dialog: ally SSE subscription, tool_result injection, 200ms polling. @ mention urgency system (`@Name`/`@everyone` → `metadata.urgent`, ⚡ badge, red-orange border). Powers future Maren voice. |
-| 🔥 | dragon-musings | LLM-generated contextual thinking spinner |
-| 🔥 | dragon-parchment | Central panel authority — creation, positioning, focus |
-| 🔥 | dragon-review | Code review via `/review` and `/end-review` commands |
-| 🔥 | dragon-scroll | Markdown popup panels (scrollable, updatable by ID) |
-| 💎 | dragon-tongue | Floating diagnostics panel (tsc type errors) |
-| 🔥 | kitty-gif-renderer | Kitty Graphics Protocol image rendering for panels |
-| 🔥 | kobold-housekeeping | Floating todo panels with GIF mascots |
-| 🔥 | hoard-allies | Subagent token governance — kobold/griffin/dragon taxonomy + `quest`/`recruit` tools + `/allies` + `/allies-budget` commands. 3D taxonomy (thinking×noun×job, open combos), budget-based enforcement with session persistence, named allies, FrugalGPT model cascade, async dispatch via sending-stone with streaming check-ins, ally_status tool, carbon tracking integration. Stone-aware monitoring (self-reporting, per-ally frozen gate, suppression window), write_notes chunked workflow, bidirectional dialog (stone_receive + tool_result injection). Social personality system: 30 dialectical profiles (12 kobold, 10 griffin, 8 dragon), tier bump mechanic, shared social lore. @ mentions for urgency signaling, heartbeat pulse. Dragon-guard coupling ✅. Phase 4 (polish + bidirectional dialog) ✅, Phase 5 (decoupling + Maren + budget interview) 🥚 |
+|     | extension           | description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| --- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 🔥  | dragon-breath       | Carbon/energy tracking footer widget + `/carbon` command + `BreathAPI` globalThis for external usage reporting                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| 💎  | dragon-curfew       | Bedtime enforcement — blocks tool calls during curfew hours                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| 🔥  | dragon-digestion    | Tiered compaction system with progressive context management                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| 🔥  | dragon-guard/       | Four-tier permission guard                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| 💎  | dragon-herald       | Desktop notifications on agent completion (OSC777 + notify-send)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| 🔥  | dragon-image-fetch  | Multi-source image/GIF fetch API (Giphy/Tenor/URL/file)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| 💎  | dragon-inquiry      | Interactive user input (select/confirm/text)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| 🐣  | dragon-lab          | Experimental provider feature opt-in manager — Anthropic beta headers today, extensible to any provider                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| 🐣  | dragon-loop         | Automation loops with breakout conditions + `/loop` command                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| 🔥  | hoard-sending-stone | Cross-agent communication bus — local HTTP/SSE message passing between pi sessions. Async quest results, stone_send/stone_receive tools, bordered message renderer with per-agent truecolor. Bidirectional dialog: ally SSE subscription, tool_result injection, 200ms polling. @ mention urgency system (`@Name`/`@everyone` → `metadata.urgent`, ⚡ badge, red-orange border). Powers future Maren voice.                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| 🔥  | dragon-musings      | LLM-generated contextual thinking spinner                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| 🔥  | dragon-parchment    | Central panel authority — creation, positioning, focus                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| 🔥  | dragon-review       | Code review via `/review` and `/end-review` commands                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| 🔥  | dragon-scroll       | Markdown popup panels (scrollable, updatable by ID)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| 💎  | dragon-tongue       | Floating diagnostics panel (tsc type errors)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| 🔥  | kitty-gif-renderer  | Kitty Graphics Protocol image rendering for panels                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| 🔥  | kobold-housekeeping | Floating todo panels with GIF mascots                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| 🔥  | hoard-allies        | Subagent token governance — kobold/griffin/dragon taxonomy + `quest`/`recruit` tools + `/allies` + `/allies-budget` commands. 3D taxonomy (thinking×noun×job, open combos), budget-based enforcement with session persistence, named allies, FrugalGPT model cascade, async dispatch via sending-stone with streaming check-ins, ally_status tool, carbon tracking integration. Stone-aware monitoring (self-reporting, per-ally frozen gate, suppression window), write_notes chunked workflow, bidirectional dialog (stone_receive + tool_result injection). Social personality system: 30 dialectical profiles (12 kobold, 10 griffin, 8 dragon), tier bump mechanic, shared social lore. @ mentions for urgency signaling, heartbeat pulse. Dragon-guard coupling ✅. Phase 4 (polish + bidirectional dialog) ✅, Phase 5 (decoupling + Maren + budget interview) 🥚 |
 
 ### berrygems — Library
 
 Shared utilities used across extensions. Not loaded directly by pi.
 
-| | module | description |
-|---|---|---|
-| 🔥 | animated-image-player | Playback lifecycle controller for AnimatedImage |
-| 🔥 | animated-image | Kitty Graphics Protocol frame rendering |
-| 🔥 | compaction-templates | Structured summary templates + strategy presets |
-| 🔥 | giphy-source | Giphy API fetch + GIF frame extraction |
-| 🔥 | lsp-client | Minimal LSP client (JSON-RPC over stdio) |
-| 🔥 | panel-chrome | Shared border/focus/header/footer rendering + 19 panel skins |
-| 🔥 | settings | Shared settings reader (`hoard.*` + legacy fallback) |
+|     | module                | description                                                  |
+| --- | --------------------- | ------------------------------------------------------------ |
+| 🔥  | animated-image-player | Playback lifecycle controller for AnimatedImage              |
+| 🔥  | animated-image        | Kitty Graphics Protocol frame rendering                      |
+| 🔥  | compaction-templates  | Structured summary templates + strategy presets              |
+| 🔥  | giphy-source          | Giphy API fetch + GIF frame extraction                       |
+| 🔥  | lsp-client            | Minimal LSP client (JSON-RPC over stdio)                     |
+| 🔥  | panel-chrome          | Shared border/focus/header/footer rendering + 19 panel skins |
+| 🔥  | settings              | Shared settings reader (`hoard.*` + legacy fallback)         |
 
 ### morsels — Skills
 
-| | skill | description |
-|---|---|---|
-| 🔥 | agent-init | Generate AGENTS.md files |
-| 💎 | api-design | REST/GraphQL/OpenAPI design patterns |
-| 💎 | commit | Conventional Commits + AI attribution |
-| 💎 | database | Schema design, migrations, ORMs, query optimization |
-| 💎 | defuddle | Extract clean markdown from web pages via Defuddle CLI |
-| 💎 | dependency-management | Cross-ecosystem dependency management (bun/uv/cargo/Go/Gradle) |
-| 💎 | docker | Dockerfiles, multi-stage builds, Compose, security |
-| 🔥 | dragon-guard | Four-tier permission guard — Puppy (read-only), Dog (gated), Ally (quest whitelist), Dragon (full) |
-| 🔥 | dragon-image-fetch | Use the dragon-image-fetch extension API |
-| 🔥 | dragon-parchment | Build panel extensions |
-| 🔥 | hoard-allies | Subagent dispatch strategy — kobold/griffin/dragon taxonomy, budget-based cost tiers, decision tree |
-| 🔥 | extension-designer | Build pi extensions |
-| 💎 | git | Git operations + rebase/bisect references |
-| 💎 | git-auth | SSH + rbw credential management |
-| 💎 | github | gh CLI operations + GraphQL patterns |
-| 💎 | github-actions | GitHub Actions CI/CD workflow authoring |
-| 💎 | github-markdown | GFM conventions |
-| 💎 | github-writing | Interview-driven document authoring |
-| 💎 | go-check | Run go vet/golangci-lint/go test, interpret output |
-| 💎 | go-testing | Go testing patterns (testify, table-driven, benchmarks) |
-| 💎 | js-testing | JS/TS testing with Jest, Vitest, Node test runner |
-| 🔥 | kitty-gif-renderer | Integrate Kitty GIF rendering into panel extensions |
-| 🔥 | kobold-housekeeping | Task tracking with panels |
-| 💎 | pi-events | Event hooks reference |
-| 🔥 | pi-sessions | Sessions & state management |
-| 🔥 | pi-tui | TUI component building |
-| 💎 | python-testing | Python testing with pytest |
-| 💎 | refactoring | Refactoring patterns, SOLID, design principles |
-| 🔥 | skill-designer | Build agent skills |
-| 💎 | typescript-check | Run tsc/eslint, interpret errors, fix patterns |
+|     | skill                 | description                                                                                         |
+| --- | --------------------- | --------------------------------------------------------------------------------------------------- |
+| 🔥  | agent-init            | Generate AGENTS.md files                                                                            |
+| 💎  | api-design            | REST/GraphQL/OpenAPI design patterns                                                                |
+| 💎  | commit                | Conventional Commits + AI attribution                                                               |
+| 💎  | database              | Schema design, migrations, ORMs, query optimization                                                 |
+| 💎  | defuddle              | Extract clean markdown from web pages via Defuddle CLI                                              |
+| 💎  | dependency-management | Cross-ecosystem dependency management (bun/uv/cargo/Go/Gradle)                                      |
+| 💎  | docker                | Dockerfiles, multi-stage builds, Compose, security                                                  |
+| 🔥  | dragon-guard          | Four-tier permission guard — Puppy (read-only), Dog (gated), Ally (quest whitelist), Dragon (full)  |
+| 🔥  | dragon-image-fetch    | Use the dragon-image-fetch extension API                                                            |
+| 🔥  | dragon-parchment      | Build panel extensions                                                                              |
+| 🔥  | hoard-allies          | Subagent dispatch strategy — kobold/griffin/dragon taxonomy, budget-based cost tiers, decision tree |
+| 🔥  | extension-designer    | Build pi extensions                                                                                 |
+| 💎  | git                   | Git operations + rebase/bisect references                                                           |
+| 💎  | git-auth              | SSH + rbw credential management                                                                     |
+| 💎  | github                | gh CLI operations + GraphQL patterns                                                                |
+| 💎  | github-actions        | GitHub Actions CI/CD workflow authoring                                                             |
+| 💎  | github-markdown       | GFM conventions                                                                                     |
+| 💎  | github-writing        | Interview-driven document authoring                                                                 |
+| 💎  | go-check              | Run go vet/golangci-lint/go test, interpret output                                                  |
+| 💎  | go-testing            | Go testing patterns (testify, table-driven, benchmarks)                                             |
+| 💎  | js-testing            | JS/TS testing with Jest, Vitest, Node test runner                                                   |
+| 🔥  | kitty-gif-renderer    | Integrate Kitty GIF rendering into panel extensions                                                 |
+| 🔥  | kobold-housekeeping   | Task tracking with panels                                                                           |
+| 💎  | pi-events             | Event hooks reference                                                                               |
+| 🔥  | pi-sessions           | Sessions & state management                                                                         |
+| 🔥  | pi-tui                | TUI component building                                                                              |
+| 💎  | python-testing        | Python testing with pytest                                                                          |
+| 💎  | refactoring           | Refactoring patterns, SOLID, design principles                                                      |
+| 🔥  | skill-designer        | Build agent skills                                                                                  |
+| 💎  | typescript-check      | Run tsc/eslint, interpret errors, fix patterns                                                      |
 
 ### storybook-daemon
 
-| | component | description |
-|---|---|---|
-| 🐣 | storybook-daemon | Persistent persona daemon — dragon-heart (event-driven ticker), dragon-body (fsnotify sensing), dragon-soul (ethical contract enforcement), attention economy, Obsidian vault memory, pi OAuth. Phase 1 ✅, Phase 2 ✅, soul shore-up ✅ (private shelf, consent tiers, framing audit), Phase 3: new body types (GitHub, pi session, shell) 🐣, Phase 4: dragon pi body (HTTP+SSE) + Qt/QML desktop window 🥚 |
+|     | component        | description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| --- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 🐣  | storybook-daemon | Persistent persona daemon — dragon-heart (event-driven ticker), dragon-body (fsnotify sensing), dragon-soul (ethical contract enforcement), attention economy, Obsidian vault memory, pi OAuth. Pluggable personas (YAML configs; Ember + Maren ship as defaults). Phase 1 ✅, Phase 2 ✅, soul shore-up ✅, multi-persona orchestration ✅ (storybook.go + run-all CLI), MCP body ✅ (register*session, memory*\*, attention_state, stone stubs), Phase 3: pi session + shell bodies 🐣, Phase 4: Qt/QML desktop window 🥚 |
 
 ### dragon-cubed
 
-| | component | description |
-|---|---|---|
-| 🐣 | dragon-cubed | Minecraft body — SoulGem (Go orchestrator), Leylines (NeoForge mod, Phase 1 ✅), Rumble (Baritone extension, Phase 2 ✅), SoulGem (Go orchestrator, Phase 3 ✅). Future: daemon integration via `body.Body` interface. |
+|     | component    | description                                                                                                                                                                                                            |
+| --- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 🐣  | dragon-cubed | Minecraft body — SoulGem (Go orchestrator), Leylines (NeoForge mod, Phase 1 ✅), Rumble (Baritone extension, Phase 2 ✅), SoulGem (Go orchestrator, Phase 3 ✅). Future: daemon integration via `body.Body` interface. |
 
 ### Hoard Infrastructure
 
 Meta-features that serve the hoard as a whole rather than individual tools. Code artifacts live in `.github/` rather than a sub-package.
 
-| | feature | description |
-|---|---|---|
-| 💭 | auto-research | GitHub Actions workflow to auto-update `researched`-state feature docs on a timer |
+|     | feature       | description                                                                       |
+| --- | ------------- | --------------------------------------------------------------------------------- |
+| 💭  | auto-research | GitHub Actions workflow to auto-update `researched`-state feature docs on a timer |
 
 ## Repository Layout
 
@@ -184,11 +186,18 @@ hoard/
 │   ├── rumble/       Baritone extension (Kotlin, Gradle)
 │   └── AGENTS.md     Body-specific agent instructions
 ├── storybook-daemon/    Go persona daemon (the formless core)
-│   ├── cmd/          Cobra CLI (run --persona <name>)
+│   ├── cmd/          Cobra CLI (run / run-all --all / run-all --personas a,b)
 │   ├── internal/     Core packages (auth, persona, attention, sensory, body, memory, thought, heart, soul, daemon)
+│   ├── personas/     YAML persona configs (ember.yaml, maren.yaml)
 │   ├── AGENTS.md     Daemon-specific agent instructions
 │   ├── main.go
 │   └── go.mod
+├── cc-plugin/        Claude Code plugin bundle
+│   ├── .claude-plugin/plugin.json
+│   ├── .mcp.json     MCP server registrations (storybook-ember :9432, storybook-maren :9433)
+│   ├── agents/       Ally subagent definitions (scout/reviewer/coder/researcher/planner)
+│   ├── skills/       CC skills (quest, ally-status, memory)
+│   └── AGENTS.md
 ├── ETHICS.md         Ethical contract — co-signed, binding (read before soul/consent/memory work)
 ├── package.json      Root manifest (references sub-packages)
 ├── AGENTS.md         ← you are here
@@ -261,7 +270,9 @@ cd storybook-daemon && go build -o storybook-daemon .
 ### morsels (Markdown)
 
 - No automated linting — review skill frontmatter manually
-- Required frontmatter fields: `name` (must match directory), `description`
+- Required frontmatter fields: `name` (must match directory), `description`, `license: MIT`
+- Pi-specific skills must include `compatibility: "Designed for Pi (pi-coding-agent)"`
+- Skills with specific env requirements include a `compatibility` note (see `defuddle`, `git-auth`)
 - Keep SKILL.md under 500 lines; move reference material to `references/`
 
 ### dragon-cubed
@@ -287,7 +298,7 @@ cd dragon-cubed && ./gradlew build
 4. `cd dragon-cubed/soulgem && go build ./...` — compiles clean
 5. `cd dragon-cubed && ./gradlew build` — Leylines + Rumble compile (requires JDK 21)
 6. Test extension changes with `/reload` in pi
-7. Skill frontmatter valid (`name` matches directory, `description` present)
+7. Skill frontmatter valid (`name` matches directory, `description` + `license: MIT` present; Pi-specific skills have `compatibility` set)
 
 ## Pi Platform
 
@@ -295,13 +306,13 @@ This project extends [pi](https://github.com/badlogic/pi-mono), a terminal codin
 
 ### Monorepo Packages
 
-| Package | Role | You Import |
-|---|---|---|
-| `@mariozechner/pi-ai` | LLM API, model discovery, streaming | `StringEnum` |
-| `@mariozechner/pi-tui` | Terminal UI components, keyboard, rendering | `Text`, `Box`, `Container`, `SelectList`, `SettingsList`, `matchesKey`, `Key`, `truncateToWidth`, `visibleWidth` |
-| `@mariozechner/pi-agent-core` | Agent loop, state, transport abstraction | (rarely imported directly) |
+| Package                         | Role                                                               | You Import                                                                                                                                                           |
+| ------------------------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@mariozechner/pi-ai`           | LLM API, model discovery, streaming                                | `StringEnum`                                                                                                                                                         |
+| `@mariozechner/pi-tui`          | Terminal UI components, keyboard, rendering                        | `Text`, `Box`, `Container`, `SelectList`, `SettingsList`, `matchesKey`, `Key`, `truncateToWidth`, `visibleWidth`                                                     |
+| `@mariozechner/pi-agent-core`   | Agent loop, state, transport abstraction                           | (rarely imported directly)                                                                                                                                           |
 | `@mariozechner/pi-coding-agent` | Coding agent CLI — tools, sessions, extensions, skills, compaction | `ExtensionAPI`, `ExtensionContext`, `DynamicBorder`, `BorderedLoader`, `getMarkdownTheme`, `keyHint`, `isToolCallEventType`, `withFileMutationQueue`, `CustomEditor` |
-| `@sinclair/typebox` | JSON schema definitions | `Type` for tool parameter schemas |
+| `@sinclair/typebox`             | JSON schema definitions                                            | `Type` for tool parameter schemas                                                                                                                                    |
 
 ### Extension Runtime
 
@@ -421,14 +432,16 @@ Tone files in `berrygems/styles/`. Controls document writing voice only — does
 Available shared libs: `settings`, `ally-taxonomy`, `pi-spawn`, `id`, `cooldown`, `local-server`, `sse-client`, `panel-chrome`, `compaction-templates`, `animated-image`, `animated-image-player`, `giphy-source`, `lsp-client`
 
 **Structural rules:**
+
 - One tool registration per file. 300+ lines in an extension file = split candidate.
-- >4 function parameters → options object. No exceptions.
+- > 4 function parameters → options object. No exceptions.
 - Skills and code co-ship. Adding a behavior without updating the skill is incomplete work.
 - Cross-extension communication via `globalThis` + `Symbol.for()` — never direct imports between extensions.
 
 ### Go Conventions (storybook-daemon)
 
 **Naming:**
+
 - `MixedCaps`/`mixedCaps` only. Never underscores in exported names.
 - Interfaces: single-method → `-er` suffix (`Reader`, `Gate`). Multi-method → describe the capability.
 - Error types: `ErrFoo` for sentinels, `FooError` for custom types. Enforced by `errname` linter.
@@ -437,6 +450,7 @@ Available shared libs: `settings`, `ally-taxonomy`, `pi-spawn`, `id`, `cooldown`
 - Getters: `Name()` not `GetName()`. Setters: `SetName()`.
 
 **Error handling:**
+
 - Wrap errors crossing package boundaries with `fmt.Errorf("context: %w", err)`. Enforced by `wrapcheck`.
 - Error messages: lowercase, no punctuation. E.g. `"starting watcher: %w"`.
 - Use `errors.Is`/`errors.As` for comparison, never `==` on wrapped errors. Enforced by `errorlint`.
@@ -444,6 +458,7 @@ Available shared libs: `settings`, `ally-taxonomy`, `pi-spawn`, `id`, `cooldown`
 - `panic` only for truly unrecoverable programmer errors (init-time invariant violations).
 
 **Concurrency:**
+
 - Every goroutine must have a shutdown path via `context.Context` or a done channel.
 - Use `context.Context` as first parameter in functions that may block.
 - Prefer channels for coordination, `sync.Mutex` for state protection.
@@ -451,6 +466,7 @@ Available shared libs: `settings`, `ally-taxonomy`, `pi-spawn`, `id`, `cooldown`
 - Use `sync.WaitGroup` or done channels to prevent goroutine leaks.
 
 **Style:**
+
 - `gofumpt` formatting (strict superset of `gofmt`). Enforced by formatter.
 - No naked returns. Enforced by `nakedret`.
 - No `fmt.Print*` in library code (use `log/slog`). Enforced by `forbidigo`.
@@ -459,11 +475,13 @@ Available shared libs: `settings`, `ally-taxonomy`, `pi-spawn`, `id`, `cooldown`
 - Preallocate slices when length is known. Suggested by `prealloc`.
 
 **Security (gosec):**
+
 - File permissions: dirs ≤0750, files ≤0600. Relax only with `//nolint:gosec` + reason.
 - No `math/rand` for anything security-adjacent. Use `crypto/rand` or `math/rand/v2`.
 - Validate/sanitize external input before passing to `exec.Command`.
 
 **nolint discipline:**
+
 - Every `//nolint` must name the specific linter and include a reason.
 - E.g. `//nolint:gosec // G204: git args are not user-controlled`.
 - Enforced by `nolintlint`.

@@ -154,6 +154,12 @@ Shared utilities used across extensions. Not loaded directly by pi.
 | --- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 🐣  | dragon-cubed | Minecraft body — SoulGem (Go orchestrator), Leylines (NeoForge mod, Phase 1 ✅), Rumble (Baritone extension, Phase 2 ✅), SoulGem (Go orchestrator, Phase 3 ✅). Future: daemon integration via `body.Body` interface. |
 
+### dragon-forge
+
+|     | component    | description                                                                                                                                                                                                                                                                                                                                           |
+| --- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 🐣  | dragon-forge | Fine-tuning pipeline for Ember's voice — Python/uv, Unsloth LoRA on Qwen 2.5 7B Instruct, ROCm. Extracts dragon-register pairs from Claude Code sessions (1.5k+), seeds containment register (22 role-coded exchanges), two-layer persona + user-context spec. Phases 1–3 ✅, Phase 4 (train.py) 🥚. Target: `llamacli` provider in storybook-daemon. |
+
 ### Hoard Infrastructure
 
 Meta-features that serve the hoard as a whole rather than individual tools. Code artifacts live in `.github/` rather than a sub-package.

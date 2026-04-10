@@ -12,11 +12,16 @@ import (
 	"strconv"
 	"syscall"
 
+	anthropicsdk "github.com/anthropics/anthropic-sdk-go"
+
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/attention"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/auth"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/body"
 	hoardbody "github.com/dotBeeps/hoard/storybook-daemon/internal/body/hoard"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/heart"
+	"github.com/dotBeeps/hoard/storybook-daemon/internal/llm"
+	anthropicllm "github.com/dotBeeps/hoard/storybook-daemon/internal/llm/anthropic"
+	llamacllm "github.com/dotBeeps/hoard/storybook-daemon/internal/llm/llamacli"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/memory"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/persona"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/psi"
@@ -55,10 +60,10 @@ func (d *Daemon) Run(ctx context.Context) error {
 	ledger := attention.New(d.persona, d.log)
 	agg := sensory.New(20)
 
-	// Load pi OAuth credentials.
-	oauth, err := auth.LoadPiOAuth(d.log)
+	// Build the LLM provider. OAuth is only loaded when the anthropic provider is used.
+	provider, err := d.buildProvider()
 	if err != nil {
-		return fmt.Errorf("loading pi oauth: %w", err)
+		return fmt.Errorf("building LLM provider: %w", err)
 	}
 
 	// Open memory vault.
@@ -112,7 +117,7 @@ func (d *Daemon) Run(ctx context.Context) error {
 		}
 	}()
 
-	cycle := thought.New(d.persona, ledger, agg, bodies, vault, oauth, d.log)
+	cycle := thought.New(d.persona, ledger, agg, bodies, vault, provider, d.log)
 
 	// Wire thought output to psi interfaces that act as output sinks (e.g. doggy SSE stream).
 	cycleOut := cycleCapture{c: cycle}
@@ -349,5 +354,70 @@ func (d *Daemon) buildInterface(cfg persona.InterfaceConfig, ledger *attention.L
 		return psimcp.New(cfg.ID, port, vault, ledger, d.log), nil
 	default:
 		return nil, fmt.Errorf("unsupported interface type %q (supported: doggy, mcp)", cfg.Type)
+	}
+}
+
+// buildProvider constructs the LLM provider from the persona's llm config.
+// For the anthropic provider, pi OAuth credentials are loaded from disk.
+// For the llamacli provider, no network credentials are required.
+func (d *Daemon) buildProvider() (llm.Provider, error) {
+	cfg := d.persona.LLM
+
+	switch cfg.Provider {
+	case "llamacli":
+		binaryPath := cfg.BinaryPath
+		if binaryPath == "" {
+			home, err := os.UserHomeDir()
+			if err != nil {
+				return nil, fmt.Errorf("resolving home dir for llama-cli default path: %w", err)
+			}
+			binaryPath = filepath.Join(home, "AI", "llama.cpp", "build-rocm", "bin", "llama-cli")
+		}
+		if cfg.ModelPath == "" {
+			return nil, fmt.Errorf("llamacli provider requires llm.model_path in persona config")
+		}
+		gpuLayers := cfg.GPULayers
+		if gpuLayers == 0 {
+			gpuLayers = 999 // offload all layers to GPU by default
+		}
+		maxTokens := cfg.MaxTokens
+		if maxTokens == 0 {
+			maxTokens = 2048
+		}
+		temperature := cfg.Temperature
+		if temperature == 0 {
+			temperature = 0.7
+		}
+		d.log.Info("LLM provider: llamacli",
+			"binary", binaryPath,
+			"model", cfg.ModelPath,
+			"gpu_layers", gpuLayers,
+			"max_tokens", maxTokens,
+		)
+		return llamacllm.New(llamacllm.Config{
+			BinaryPath:  binaryPath,
+			ModelPath:   cfg.ModelPath,
+			GPULayers:   gpuLayers,
+			Threads:     cfg.Threads,
+			ContextSize: cfg.ContextSize,
+			MaxTokens:   maxTokens,
+			Temperature: temperature,
+		}, d.log), nil
+
+	default: // "anthropic" or empty string
+		oauth, err := auth.LoadPiOAuth(d.log)
+		if err != nil {
+			return nil, fmt.Errorf("loading pi oauth for anthropic provider: %w", err)
+		}
+		model := anthropicsdk.Model(cfg.Model)
+		if model == "" {
+			model = anthropicsdk.ModelClaudeHaiku4_5
+		}
+		maxTokens := int64(cfg.MaxTokens)
+		if maxTokens == 0 {
+			maxTokens = 1024
+		}
+		d.log.Info("LLM provider: anthropic", "model", model, "max_tokens", maxTokens)
+		return anthropicllm.New(oauth, model, maxTokens, d.log), nil
 	}
 }

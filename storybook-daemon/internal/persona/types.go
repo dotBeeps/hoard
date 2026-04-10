@@ -4,11 +4,39 @@ package persona
 // Persona is the top-level persona YAML structure.
 type Persona struct {
 	Persona    Config            `yaml:"persona"`
+	LLM        LLMConfig         `yaml:"llm"`
 	Attention  AttentionConfig   `yaml:"attention"`
 	Costs      CostConfig        `yaml:"costs"`
 	Bodies     []BodyConfig      `yaml:"bodies"`
 	Interfaces []InterfaceConfig `yaml:"interfaces"`
 	Contracts  []Contract        `yaml:"contracts"`
+}
+
+// LLMConfig configures the LLM provider for this persona.
+// If Provider is empty, "anthropic" is used as the default.
+type LLMConfig struct {
+	// Provider selects the backend: "anthropic" or "llamacli".
+	Provider string `yaml:"provider"`
+	// Model is the model identifier for the anthropic provider (e.g. "claude-haiku-4-5").
+	// Ignored by llamacli.
+	Model string `yaml:"model"`
+	// MaxTokens is the maximum number of tokens to generate (default: 1024 for anthropic, 2048 for llamacli).
+	MaxTokens int `yaml:"max_tokens"`
+
+	// Fields below are llamacli-specific.
+
+	// BinaryPath is the path to the llama-cli binary (default: ~/AI/llama.cpp/build-rocm/bin/llama-cli).
+	BinaryPath string `yaml:"binary_path"`
+	// ModelPath is the path to the GGUF model file.
+	ModelPath string `yaml:"model_path"`
+	// GPULayers is the number of layers to offload to GPU (default: 999 = all).
+	GPULayers int `yaml:"gpu_layers"`
+	// Threads is the number of CPU threads for generation (default: 0 = llama.cpp default).
+	Threads int `yaml:"threads"`
+	// ContextSize is the context window in tokens (default: 0 = model default).
+	ContextSize int `yaml:"context_size"`
+	// Temperature controls randomness (default: 0.7).
+	Temperature float64 `yaml:"temperature"`
 }
 
 // Config holds character identity settings.

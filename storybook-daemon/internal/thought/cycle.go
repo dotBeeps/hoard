@@ -10,11 +10,9 @@ import (
 	"strings"
 	"time"
 
-	anthropic "github.com/anthropics/anthropic-sdk-go"
-
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/attention"
-	"github.com/dotBeeps/hoard/storybook-daemon/internal/auth"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/body"
+	"github.com/dotBeeps/hoard/storybook-daemon/internal/llm"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/memory"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/persona"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/sensory"
@@ -31,8 +29,7 @@ type Cycle struct {
 	sensory     *sensory.Aggregator
 	bodies      map[string]body.Body
 	vault       *memory.Vault
-	oauth       *auth.PiOAuth
-	client      anthropic.Client
+	provider    llm.Provider
 	log         *slog.Logger
 	outputHooks []OutputHook
 }
@@ -44,7 +41,7 @@ func New(
 	agg *sensory.Aggregator,
 	bodies []body.Body,
 	vault *memory.Vault,
-	oauth *auth.PiOAuth,
+	provider llm.Provider,
 	log *slog.Logger,
 ) *Cycle {
 	bodyMap := make(map[string]body.Body, len(bodies))
@@ -52,14 +49,13 @@ func New(
 		bodyMap[b.ID()] = b
 	}
 	return &Cycle{
-		persona: p,
-		ledger:  ledger,
-		sensory: agg,
-		bodies:  bodyMap,
-		vault:   vault,
-		oauth:   oauth,
-		client:  anthropic.NewClient(), // base client; auth injected per-call via oauth
-		log:     log,
+		persona:  p,
+		ledger:   ledger,
+		sensory:  agg,
+		bodies:   bodyMap,
+		vault:    vault,
+		provider: provider,
+		log:      log,
 	}
 }
 
@@ -80,83 +76,42 @@ func (c *Cycle) Run(ctx context.Context) error {
 	start := time.Now()
 	c.log.Info("thought cycle starting", "persona", c.persona.Persona.Name)
 
-	// 1. Get a fresh OAuth token for this cycle.
-	authOpt, err := c.oauth.Option(ctx)
-	if err != nil {
-		return fmt.Errorf("getting auth token: %w", err)
-	}
-
-	// 2. Assemble sensory snapshot (body states + events + pinned memories).
+	// 1. Assemble sensory snapshot (body states + events + pinned memories).
 	bodyStates, err := c.gatherBodyStates(ctx)
 	if err != nil {
 		c.log.Warn("partial body state failure", "err", err)
 	}
 	snap := c.sensory.Snapshot(c.ledger.Pool(), bodyStates)
 
-	// 3. Build system prompt, tools, and context message.
+	// 2. Build system prompt, tools, and context message.
 	systemPrompt := c.buildSystemPrompt()
 	tools := c.buildTools()
 	contextMsg := c.buildContextMessage(snap)
 
-	// 4. Run the LLM conversation loop (handles multi-turn tool use).
-	messages := []anthropic.MessageParam{
-		anthropic.NewUserMessage(anthropic.NewTextBlock(contextMsg)),
-	}
-
+	// 3. Run the provider — it manages its own multi-turn loop if needed.
 	var totalCost int
-	for {
-		resp, err := c.client.Messages.New(ctx, anthropic.MessageNewParams{
-			Model:     anthropic.ModelClaudeHaiku4_5,
-			MaxTokens: 1024,
-			System: []anthropic.TextBlockParam{
-				{Text: systemPrompt},
-			},
-			Tools:    tools,
-			Messages: messages,
-		}, authOpt)
-		if err != nil {
-			return fmt.Errorf("LLM call: %w", err)
-		}
-
-		c.log.Debug("LLM response received",
-			"stop_reason", resp.StopReason,
-			"content_blocks", len(resp.Content),
-		)
-
-		// Collect tool calls and dispatch them.
-		var toolResults []anthropic.ContentBlockParamUnion
-		for _, block := range resp.Content {
-			switch v := block.AsAny().(type) {
-			case anthropic.TextBlock:
-				if strings.TrimSpace(v.Text) != "" {
-					_, _ = fmt.Fprintf(os.Stdout, "\n[%s thought] %s\n", c.persona.Persona.Name, v.Text)
-					c.fireOutput(v.Text)
-				}
-			case anthropic.ToolUseBlock:
-				result, cost, execErr := c.dispatchTool(ctx, v)
-				totalCost += cost
-				resultText := result
-				if execErr != nil {
-					resultText = fmt.Sprintf("error: %s", execErr)
-					c.log.Warn("tool execution failed", "tool", v.Name, "err", execErr)
-				}
-				toolResults = append(toolResults, anthropic.NewToolResultBlock(v.ID, resultText, execErr != nil))
+	err = c.provider.Run(ctx, systemPrompt, contextMsg, tools,
+		func(text string) {
+			if strings.TrimSpace(text) != "" {
+				_, _ = fmt.Fprintf(os.Stdout, "\n[%s thought] %s\n", c.persona.Persona.Name, text)
+				c.fireOutput(text)
 			}
-		}
-
-		messages = append(messages, resp.ToParam())
-
-		if resp.StopReason == anthropic.StopReasonEndTurn || resp.StopReason == anthropic.StopReasonStopSequence {
-			break
-		}
-		if resp.StopReason == anthropic.StopReasonToolUse && len(toolResults) > 0 {
-			messages = append(messages, anthropic.NewUserMessage(toolResults...))
-			continue
-		}
-		break
+		},
+		func(call llm.ToolCall) (string, bool) {
+			result, cost, execErr := c.dispatchTool(ctx, call)
+			totalCost += cost
+			if execErr != nil {
+				c.log.Warn("tool execution failed", "tool", call.Name, "err", execErr)
+				return fmt.Sprintf("error: %s", execErr), true
+			}
+			return result, false
+		},
+	)
+	if err != nil {
+		return fmt.Errorf("LLM run: %w", err)
 	}
 
-	// 5. Deduct accumulated attention cost.
+	// 4. Deduct accumulated attention cost.
 	if totalCost > 0 {
 		if err := c.ledger.Spend("thought_cycle", totalCost); err != nil {
 			c.log.Warn("attention spend failed", "cost", totalCost, "err", err)
@@ -251,101 +206,78 @@ func (c *Cycle) buildContextMessage(snap sensory.Snapshot) string {
 	return sb.String()
 }
 
-// buildTools merges built-in persona tools with body-specific tools.
-func (c *Cycle) buildTools() []anthropic.ToolUnionParam {
-	var tools []anthropic.ToolUnionParam
-
-	builtins := []struct {
-		name        string
-		description string
-		props       map[string]any
-		required    []string
-	}{
+// buildTools assembles the tool definitions from builtins and connected bodies.
+func (c *Cycle) buildTools() []llm.Tool {
+	builtins := []llm.Tool{
 		{
-			name:        "think",
-			description: "Express inner thought or reasoning. Use freely — thinking is cheap.",
-			props: map[string]any{
+			Name:        "think",
+			Description: "Express inner thought or reasoning. Use freely — thinking is cheap.",
+			Properties: map[string]any{
 				"content": map[string]any{"type": "string", "description": "Inner monologue content."},
 			},
-			required: []string{"content"},
+			Required: []string{"content"},
 		},
 		{
-			name:        "speak",
-			description: "Voice something aloud — to the world, to yourself, to no one in particular.",
-			props: map[string]any{
+			Name:        "speak",
+			Description: "Voice something aloud — to the world, to yourself, to no one in particular.",
+			Properties: map[string]any{
 				"content": map[string]any{"type": "string", "description": "What to say."},
 			},
-			required: []string{"content"},
+			Required: []string{"content"},
 		},
 		{
-			name:        "remember",
-			description: "Write something to persistent memory. Stored as a markdown note in the vault.",
-			props: map[string]any{
+			Name:        "remember",
+			Description: "Write something to persistent memory. Stored as a markdown note in the vault.",
+			Properties: map[string]any{
 				"key":     map[string]any{"type": "string", "description": "Unique memory key."},
 				"content": map[string]any{"type": "string", "description": "What to remember."},
 				"kind": map[string]any{
 					"type":        "string",
 					"enum":        []string{"observation", "decision", "insight", "wondering", "fragment"},
-					"description": "The nature of this memory. 'wondering' for half-formed things; 'fragment' for things that don't fit yet.",
+					"description": "The nature of this memory.",
 				},
 				"tags":   map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Optional tags."},
-				"pinned": map[string]any{"type": "boolean", "description": "If true, this memory surfaces in every thought cycle."},
+				"pinned": map[string]any{"type": "boolean", "description": "If true, surfaces in every thought cycle."},
 			},
-			required: []string{"key", "content"},
+			Required: []string{"key", "content"},
 		},
 		{
-			name:        "search_memory",
-			description: "Search past memories by keyword. Returns matching note summaries.",
-			props: map[string]any{
+			Name:        "search_memory",
+			Description: "Search past memories by keyword. Returns matching note summaries.",
+			Properties: map[string]any{
 				"query": map[string]any{"type": "string", "description": "Keywords to search for."},
 			},
-			required: []string{"query"},
+			Required: []string{"query"},
 		},
 	}
 
-	for _, b := range builtins {
-		tools = append(tools, anthropic.ToolUnionParam{
-			OfTool: &anthropic.ToolParam{
-				Name:        b.name,
-				Description: anthropic.String(b.description),
-				InputSchema: anthropic.ToolInputSchemaParam{
-					Type:       "object",
-					Properties: b.props,
-				},
-			},
-		})
-	}
+	tools := make([]llm.Tool, 0, len(builtins))
+	tools = append(tools, builtins...)
 
 	for _, b := range c.bodies {
 		for _, td := range b.Tools() {
-			props := td.Parameters["properties"]
-			tools = append(tools, anthropic.ToolUnionParam{
-				OfTool: &anthropic.ToolParam{
-					Name:        td.Name,
-					Description: anthropic.String(td.Description),
-					InputSchema: anthropic.ToolInputSchemaParam{
-						Type:       "object",
-						Properties: props,
-					},
-				},
+			props, _ := td.Parameters["properties"].(map[string]any)
+			tools = append(tools, llm.Tool{
+				Name:        td.Name,
+				Description: td.Description,
+				Properties:  props,
 			})
 		}
 	}
-
 	return tools
 }
 
 // dispatchTool executes a single tool call and returns (result, attentionCost, error).
-func (c *Cycle) dispatchTool(ctx context.Context, block anthropic.ToolUseBlock) (string, int, error) {
+func (c *Cycle) dispatchTool(ctx context.Context, call llm.ToolCall) (string, int, error) {
 	var args map[string]any
-	if err := json.Unmarshal(block.Input, &args); err != nil {
+	if err := json.Unmarshal(call.Input, &args); err != nil {
 		return "", 0, fmt.Errorf("parsing tool args: %w", err)
 	}
 
-	c.log.Debug("dispatching tool", "name", block.Name, "id", block.ID)
+	c.log.Debug("dispatching tool", "name", call.Name, "id", call.ID)
 	costs := c.persona.Costs
 
-	switch block.Name {
+	switch call.Name {
 	case "think":
 		content, _ := args["content"].(string)
 		_, _ = fmt.Fprintf(os.Stdout, "\n💭 [%s] %s\n", c.persona.Persona.Name, content)
@@ -375,8 +307,6 @@ func (c *Cycle) dispatchTool(ctx context.Context, block anthropic.ToolUseBlock) 
 		switch memory.Kind(kindStr) {
 		case memory.KindDecision, memory.KindInsight, memory.KindWondering, memory.KindFragment, memory.KindJournal:
 			kind = memory.Kind(kindStr)
-		case memory.KindObservation:
-			// default, already set
 		}
 		note, err := c.vault.Write(key, kind, content, tags, pinned, memory.TierUnset)
 		if err != nil {
@@ -403,15 +333,15 @@ func (c *Cycle) dispatchTool(ctx context.Context, block anthropic.ToolUseBlock) 
 	default:
 		for _, b := range c.bodies {
 			for _, td := range b.Tools() {
-				if td.Name == block.Name {
-					result, err := b.Execute(ctx, block.Name, args)
+				if td.Name == call.Name {
+					result, err := b.Execute(ctx, call.Name, args)
 					if err != nil {
-						return "", costs.Perceive, fmt.Errorf("body tool %s: %w", block.Name, err)
+						return "", costs.Perceive, fmt.Errorf("body tool %s: %w", call.Name, err)
 					}
 					return result, costs.Perceive, nil
 				}
 			}
 		}
-		return "", 0, fmt.Errorf("unknown tool: %s", block.Name)
+		return "", 0, fmt.Errorf("unknown tool: %s", call.Name)
 	}
 }

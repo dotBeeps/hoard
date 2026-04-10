@@ -4,7 +4,7 @@
 > **Governed by [ETHICS.md](../../../ETHICS.md)** — binding ethical contract, enforced deterministically in `soul/`.
 > **Code-level AGENTS.md:** [`dragon-daemon/AGENTS.md`](../../../dragon-daemon/AGENTS.md) — read that for development guidance.
 
-**Status:** 🐣 in-progress (Phase 1 ✅, Phase 2 ✅, soul shore-up ✅, Phase 4A ✅, lint clean ✅)
+**Status:** 🐣 in-progress (Phase 1 ✅, Phase 2 ✅, soul shore-up ✅, Phase 4A ✅, lint clean ✅, local LLM provider ✅)
 **Code:** `dragon-daemon/` (Go module)
 
 ## What It Does
@@ -120,8 +120,32 @@ Spec: **[phase4-maw-spec.md](./phase4-maw-spec.md)**
 - Proactive agents (heartbeat-driven) and reactive agents (message-triggered) both stream into the same UI via SSE
 - Berrygems with Pi-specific panels (dragon-guard, dragon-scroll, dragon-digestion, dragon-parchment, dragon-inquiry, dragon-tongue, kitty-gif-renderer, etc.) get native Qt window equivalents here
 
-**Auth / proactive ticking — ⏸ deferred:**
-Autonomous heartbeat-driven thought cycles are parked until LLM provider + auth is decided. Pi OAuth is pi-session-only and does not work in the daemon context. Reactive mode — `POST /message` nudges the heart, which runs one thought cycle and streams the result — is the unblocked path forward once auth lands.
+**Auth / proactive ticking — ✅ unblocked (for llamacli personas):**
+The `llm.Provider` abstraction decouples inference from Pi OAuth. Personas using the `llamacli` provider (local llama-cli subprocess) require no network credentials and can run proactive heartbeat-driven thought cycles. Anthropic-backed personas still require Pi OAuth; reactive mode remains the unblocked path for those.
+
+### Phase 3.5 ✅ — Local LLM Provider (2026-04-10)
+
+Decoupled the thought cycle from the Anthropic SDK via a `llm.Provider` interface. Two backends implemented:
+
+**`internal/llm/provider.go`** — `Provider` interface with `Run(ctx, system, userContext, tools, onText, dispatch)`. Callback-based: `onText` streams text output, `dispatch` handles tool calls. Each backend manages its own internal loop.
+
+**`internal/llm/anthropic/`** — Extracted from `thought/cycle.go`. Wraps the Anthropic SDK; manages the full multi-turn tool-use loop internally. Still requires Pi OAuth via `auth.LoadPiOAuth`.
+
+**`internal/llm/llamacli/`** — Spawns `llama-cli` as a subprocess in single-turn, non-interactive mode (`--single-turn --jinja --simple-io --no-display-prompt`). Parses DeepSeek R1's `<think>...</think>` inner monologue, discards it, passes the reply to `onText`. GPU offload via `-ngl` (default: 999 = all layers). Tool calls not dispatched in v1 — plain text output only. `SplitThinkBlock` is exported and tested.
+
+**`internal/persona/types.go`** — New `LLMConfig` struct with `provider`, `model`, `binary_path`, `model_path`, `gpu_layers`, `threads`, `context_size`, `max_tokens`, `temperature`. Defaults: llamacli binary at `~/AI/llama.cpp/build-rocm/bin/llama-cli`, all GPU layers, 2048 max tokens, 0.7 temperature.
+
+**`internal/daemon/daemon.go`** — New `buildProvider()` selects backend from persona config. OAuth loaded only for anthropic provider.
+
+**`internal/thought/cycle.go`** — `anthropic.Client` + `auth.PiOAuth` replaced with `llm.Provider`. Tool dispatch uses `llm.ToolCall`. Fully provider-agnostic.
+
+To activate local inference, add to persona YAML:
+
+```yaml
+llm:
+  provider: llamacli
+  model_path: /home/dot/AI/models/deepseek-r1-14b/DeepSeek-R1-Distill-Qwen-14B-Q4_K_M.gguf
+```
 
 **4A ✅ Doggy psi interface** (2026-04-08, refactored to psi 2026-04-09):
 
@@ -148,7 +172,10 @@ Autonomous heartbeat-driven thought cycles are parked until LLM provider + auth 
 
 ## Key Design Decisions
 
-- **Package renames**: `ticker/` → `heart/`. New packages: `soul/`, `psi/`. These reflect the "dragon triad" conceptual model.
+- **`llm.Provider` interface**: Multi-turn tool loop moved inside each provider. `llamacli` does one subprocess call per cycle; `anthropic` manages its own tool-use round-trips. The Cycle is fully provider-agnostic — no Anthropic SDK types in `thought/`.
+- **llamacli backend**: Single-turn, non-interactive subprocess. DeepSeek R1 `<think>` blocks are parsed and discarded; the reply is passed to `onText`. Tool dispatch is stubbed (v1) — the model speaks plain text. GPU offload via `-ngl 999` by default.
+- **Auth decoupled from inference**: OAuth only loaded when `provider: anthropic`. Local personas run without any network credentials.
+- **Package renames**: `ticker/` → `heart/`. New packages: `soul/`, `psi/`, `llm/`. These reflect the "dragon triad" conceptual model.
 - **Bodies vs psi interfaces**: Bodies are external systems the daemon inhabits and senses from (`body/hoard`, planned: github, shell). Psi interfaces are communication surfaces the daemon exposes — channels through which dot and tools reach in. They share a lifecycle (Start/Stop/Events) but psi has no State/Tools/Execute.
 - **Gate vs Audit**: Pre-beat gates block; post-beat audits log and flag. Gates are hard stops, audits are integrity checks.
 - **ErrDeclarative sentinel**: `ParseGate` returns `ErrDeclarative` for non-enforceable rules instead of `(nil, nil)`. Avoids nilnil lint violations and makes the intent explicit.
@@ -174,11 +201,15 @@ dragon-daemon/
     psi/psi.go                    Interface + OutputSink contracts
     psi/doggy/doggy.go            HTTP+SSE dot interface: thought stream, state, message ingestion
     psi/mcp/mcp.go                MCP tool server: vault, attention, stone, session registry
-    daemon/daemon.go              lifecycle orchestrator, body + psi fan-in, OutputSink wiring
+    daemon/daemon.go              lifecycle orchestrator, buildProvider(), body + psi fan-in, OutputSink wiring
     heart/heart.go                heartbeat with jitter + event-driven nudge
+    llm/provider.go               Provider interface + Tool/ToolCall types
+    llm/anthropic/provider.go     Anthropic SDK wrapper — multi-turn tool loop, Pi OAuth
+    llm/llamacli/provider.go      llama-cli subprocess — single-turn, DeepSeek R1 <think> parsing, SplitThinkBlock
+    llm/llamacli/provider_test.go SplitThinkBlock tests
     memory/note.go                Note struct + frontmatter + Kind enum
     memory/vault.go               Obsidian-compatible read/write/search/append + write hooks
-    persona/types.go              config structs (Config, Contract, etc.)
+    persona/types.go              config structs (Config, LLMConfig, Contract, etc.)
     persona/loader.go             YAML load + validate
     sensory/types.go              Snapshot, BodyState, Event
     sensory/aggregator.go         event queue + snapshot assembly
@@ -191,7 +222,7 @@ dragon-daemon/
     soul/memory_audit.go          write-through vault audit + auto-journal
     soul/consent_gate.go          consent-tier pre-beat gate
     soul/framing_audit.go         forward-only framing post-beat audit
-    thought/cycle.go              sensory → LLM → tools → ledger + OutputCapture hooks
+    thought/cycle.go              sensory → llm.Provider → tools → ledger + OutputCapture hooks
 ```
 
 ## Config

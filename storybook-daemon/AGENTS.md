@@ -11,7 +11,7 @@ The daemon runs independently of any single pi session. It persists, it remember
 
 **Doggy** is the primary interface: a Qt/QML chat client connecting to one or more persona doggy psi interfaces via HTTP+SSE. Each agent gets a chat thread; tool invocations render in dedicated Qt windows. Agents can be proactive (heartbeat-driven) or reactive (message-triggered only).
 
-> **⏸ Proactive ticking deferred** — autonomous heartbeat-driven thought cycles are parked pending LLM provider + auth decisions. Pi OAuth is pi-session-only and does not work in the daemon. Reactive mode (`POST /message` → nudge heart → one thought cycle → SSE stream) is the unblocked path forward.
+> **✅ Auth blocker resolved** — the `llm.Provider` abstraction decouples inference from Pi OAuth. Personas backed by `llamacli` (local llama-cli subprocess) require no network credentials and can run proactive heartbeat-driven thought cycles today. Anthropic-backed personas still require Pi OAuth (reactive path). See the `llm:` section of persona YAML.
 
 ## Relationship to the Hoard
 
@@ -29,21 +29,25 @@ storybook-daemon/
 ├── cmd/              Cobra CLI (run --persona <name>)
 ├── internal/
 │   ├── attention/    Budget/economy — collaborative, gamified
-│   ├── auth/         OAuth token management (pi integration)
+│   ├── auth/         OAuth token management (pi integration, anthropic provider only)
 │   ├── body/         Sensory bodies — external systems the daemon inhabits
 │   │   ├── hoard/    Hoard-aware body (watches this repo)
 │   │   └── github/   GitHub event body (planned)
+│   ├── llm/          LLM provider abstraction
+│   │   ├── provider.go    Provider interface + Tool/ToolCall types
+│   │   ├── anthropic/     Anthropic SDK wrapper — multi-turn tool loop, Pi OAuth
+│   │   └── llamacli/      llama-cli subprocess — single-turn, DeepSeek R1 <think> parsing
 │   ├── psi/          Psi interfaces — communication surfaces exposed to the world
 │   │   ├── doggy/    HTTP+SSE dot interface (chat stream, state, message ingestion)
 │   │   └── mcp/      MCP tool server (vault, attention, stone for CC/VSCode/etc.)
 │   ├── consent/      Consent state machine — risk tiers (low/med/high), dual-key
-│   ├── daemon/       Top-level orchestration, lifecycle
+│   ├── daemon/       Top-level orchestration, lifecycle, provider construction
 │   ├── heart/        Event-driven ticker — the central thought loop
 │   ├── memory/       Obsidian-compatible vault — private shelves, wikilinks
-│   ├── persona/      YAML persona loading
+│   ├── persona/      YAML persona loading (includes LLMConfig)
 │   ├── sensory/      Observation types + queue
 │   ├── soul/         Ethical contract enforcement — deterministic gates
-│   └── thought/      Thought cycle processing
+│   └── thought/      Thought cycle — provider-agnostic, tool dispatch
 ├── AGENTS.md         ← you are here
 ├── .golangci.yml     Strict linter config (v2 format)
 ├── main.go
@@ -55,11 +59,14 @@ storybook-daemon/
 Clean layered architecture — no circular dependencies:
 
 ```
-daemon → heart → thought → soul → consent
-                        ↘ memory
+daemon → heart → thought → llm/provider (interface)
+                         → soul → consent
+                         ↘ memory
               → body/* → sensory
               → psi/*  → sensory
               → attention
+llm/anthropic → auth (Pi OAuth)
+llm/llamacli  → (no external deps — spawns llama-cli subprocess)
 ```
 
 ## Ethical Enforcement
@@ -76,13 +83,14 @@ The daemon enforces [ETHICS.md](../ETHICS.md) deterministically. Key code-ethics
 
 ## Phase Status
 
-| Phase                | Status | Description                                                                                                                                                                                                 |
-| -------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1 — Foundation       | ✅     | Persona loading, fsnotify body, vault memory, basic heart loop                                                                                                                                              |
-| 2 — Soul             | ✅     | Consent tiers, private shelves, framing audit, ethical enforcement                                                                                                                                          |
-| 2.5 — Soul Shore-up  | ✅     | Private shelf blocking, consent tier determinism, framing patterns                                                                                                                                          |
-| 3 — New Bodies + Psi | 🐣     | GitHub body ✅, doggy psi ✅ (HTTP+SSE dot interface), MCP psi ✅ (memory/attention/stone via MCP protocol), multi-persona orchestration ✅ (storybook.go + run-all CLI), pi session + shell bodies planned |
-| 4 — Doggy Qt client  | 🥚     | Qt/QML chat client — multi-agent threads, tool windows, attention panel, input bar; berrygem panel tools migrated to native Qt windows; ⏸ proactive ticking blocked on auth                                |
+| Phase                | Status | Description                                                                                                                                                                                                                                                        |
+| -------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1 — Foundation       | ✅     | Persona loading, fsnotify body, vault memory, basic heart loop                                                                                                                                                                                                     |
+| 2 — Soul             | ✅     | Consent tiers, private shelves, framing audit, ethical enforcement                                                                                                                                                                                                 |
+| 2.5 — Soul Shore-up  | ✅     | Private shelf blocking, consent tier determinism, framing patterns                                                                                                                                                                                                 |
+| 3 — New Bodies + Psi | 🐣     | GitHub body ✅, doggy psi ✅ (HTTP+SSE dot interface), MCP psi ✅ (memory/attention/stone via MCP protocol), multi-persona orchestration ✅ (storybook.go + run-all CLI), pi session + shell bodies planned                                                        |
+| 3.5 — Local LLM      | ✅     | `internal/llm/` provider abstraction; `llamacli` backend (llama-cli subprocess, DeepSeek R1 `<think>` parsing, single-turn, GPU offload); `anthropic` backend extracted from cycle; `LLMConfig` in persona YAML; proactive ticking unblocked for llamacli personas |
+| 4 — Doggy Qt client  | 🥚     | Qt/QML chat client — multi-agent threads, tool windows, attention panel, input bar; berrygem panel tools migrated to native Qt windows                                                                                                                             |
 
 ## Attention Economy
 

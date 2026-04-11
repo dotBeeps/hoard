@@ -2,6 +2,7 @@
 name: skill-designer
 description: "Design and create Agent Skills (agentskills.io spec). Use when building new SKILL.md files, scaffolding skill directories, or reviewing existing skills for quality. Covers frontmatter, naming, description writing, body structure, progressive disclosure, templates, and validation."
 license: MIT
+compatibility: "Designed for Pi (pi-coding-agent); Claude Code uses skill-creator + superpowers:writing-skills instead."
 ---
 
 # Skill Designer
@@ -39,6 +40,7 @@ Language or framework rules the agent should follow. Examples: `typescript`, `go
 **Sections to include:** Idioms, Style, Types/Typing, Error Handling, Testing, Structure, Concurrency (if applicable).
 
 **Key traits:**
+
 - Bullets state the rule, then explain WHY — `Prefer X over Y — reason`
 - "Never" and "Always" used sparingly and precisely
 - Anti-patterns paired with correct approach
@@ -53,6 +55,7 @@ Step-by-step instructions for using a specific tool or completing a task. Exampl
 **Pattern:** H1 title → Prerequisites → Quick Reference → Numbered workflow → Code blocks.
 
 **Key traits:**
+
 - Code blocks show actual executable commands with inline comments
 - Numbered workflow steps (Write → Validate → Fix → Ship)
 - Decision trees for branching logic ("If X, do Y; otherwise Z")
@@ -66,6 +69,7 @@ Coaching-style guidance for open-ended creative or architectural work. Examples:
 **Pattern:** H1 title → Inputs to Gather → Philosophy → Principles → Detailed Guidelines → Anti-Patterns → Deliverables → Quality Checklist.
 
 **Key traits:**
+
 - Asks clarifying questions before starting ("Ask 2–4 questions")
 - Design thinking section before implementation details
 - Anti-patterns with concrete bad examples
@@ -124,15 +128,15 @@ description: "Does stuff with TypeScript." # Missing trigger context
 
 ```yaml
 ---
-name: my-skill                    # Required. Must match directory name.
-description: "What + When"        # Required. Max 1024 chars. The activation trigger.
-license: MIT                      # Optional. License name or file reference.
+name: my-skill # Required. Must match directory name.
+description: "What + When" # Required. Max 1024 chars. The activation trigger.
+license: MIT # Optional. License name or file reference.
 compatibility: "Requires Node 18" # Optional. Max 500 chars. Environment needs.
-metadata:                         # Optional. Arbitrary key-value pairs.
+metadata: # Optional. Arbitrary key-value pairs.
   author: my-org
   version: "1.0"
-allowed-tools: Bash Read          # Optional. Space-delimited pre-approved tools.
-disable-model-invocation: false   # Optional. Hide from system prompt if true.
+allowed-tools: Bash Read # Optional. Space-delimited pre-approved tools.
+disable-model-invocation: false # Optional. Hide from system prompt if true.
 ---
 ```
 
@@ -142,11 +146,11 @@ disable-model-invocation: false   # Optional. Hide from system prompt if true.
 
 Skills load in three tiers — design for this:
 
-| Tier | What Loads | When | Budget |
-|------|-----------|------|--------|
-| **Catalog** | `name` + `description` | Session start (always) | ~50–100 tokens |
-| **Instructions** | Full `SKILL.md` body | When agent activates skill | <5000 tokens recommended |
-| **Resources** | `scripts/`, `references/`, `assets/` | When instructions reference them | As needed |
+| Tier             | What Loads                           | When                             | Budget                   |
+| ---------------- | ------------------------------------ | -------------------------------- | ------------------------ |
+| **Catalog**      | `name` + `description`               | Session start (always)           | ~50–100 tokens           |
+| **Instructions** | Full `SKILL.md` body                 | When agent activates skill       | <5000 tokens recommended |
+| **Resources**    | `scripts/`, `references/`, `assets/` | When instructions reference them | As needed                |
 
 ### Guidelines
 
@@ -174,18 +178,21 @@ my-skill/
 Run through this after drafting a skill:
 
 ### Frontmatter
+
 - [ ] `name` is lowercase, hyphens only, matches directory name
 - [ ] `description` states WHAT + WHEN with specific trigger keywords
 - [ ] `description` is 100–200 characters (max 1024)
 - [ ] No missing required fields (`name`, `description`)
 
 ### Body Structure
+
 - [ ] Correct archetype template used (convention / tool / design)
 - [ ] H1 title, H2 sections — no deeper than H3 for scannability
 - [ ] Under 500 lines / ~5000 tokens
 - [ ] Detailed reference material split into `references/` files
 
 ### Content Quality
+
 - [ ] Rules include rationale ("Prefer X — because Y")
 - [ ] Anti-patterns shown alongside correct patterns
 - [ ] Code blocks use actual executable commands (not pseudocode)
@@ -193,12 +200,14 @@ Run through this after drafting a skill:
 - [ ] No ambiguous guidance — specific and actionable
 
 ### Progressive Disclosure
+
 - [ ] Only `name` + `description` needed to decide relevance
 - [ ] Full SKILL.md is self-sufficient once loaded
 - [ ] File references use relative paths from skill root
 - [ ] Referenced files are focused and individually useful
 
 ### Tone
+
 - [ ] Prescriptive for convention skills ("Always", "Never" with rationale)
 - [ ] Procedural for tool skills (numbered steps, decision trees)
 - [ ] Coaching for design skills (questions before guidance)
@@ -279,13 +288,13 @@ For full templates with example content, see [references/templates.md](reference
 
 ## Common Mistakes
 
-| Mistake | Fix |
-|---------|-----|
+| Mistake                               | Fix                                              |
+| ------------------------------------- | ------------------------------------------------ |
 | Vague description ("helps with code") | Add specific verbs, file types, trigger contexts |
-| Body > 500 lines | Split into `references/` files |
-| Rules without rationale | Add "— because..." after each rule |
-| Absolute paths in body | Use relative paths from skill root |
-| No anti-patterns section | Show wrong approach alongside correct one |
-| H4+ heading nesting | Flatten to H2/H3 — agents scan, not read |
-| Instructions say "you could" | Say "Do X" — be directive, not suggestive |
-| Name doesn't match directory | Rename directory or update `name` field |
+| Body > 500 lines                      | Split into `references/` files                   |
+| Rules without rationale               | Add "— because..." after each rule               |
+| Absolute paths in body                | Use relative paths from skill root               |
+| No anti-patterns section              | Show wrong approach alongside correct one        |
+| H4+ heading nesting                   | Flatten to H2/H3 — agents scan, not read         |
+| Instructions say "you could"          | Say "Do X" — be directive, not suggestive        |
+| Name doesn't match directory          | Rename directory or update `name` field          |

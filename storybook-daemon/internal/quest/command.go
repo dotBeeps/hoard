@@ -65,9 +65,14 @@ func BuildCommand(ctx context.Context, q *Quest, daemonPort int) (*CommandResult
 	case "claude":
 		tools := ResolveTools(q.Combo.Job)
 		effort := claudeEffort(q.Combo.Adjective)
+		// Strip provider prefix: "anthropic/claude-haiku-4-5" → "claude-haiku-4-5"
+		modelName := q.Model
+		if _, after, found := strings.Cut(q.Model, "/"); found {
+			modelName = after
+		}
 		cmd = exec.CommandContext(ctx, "claude",
 			"--print",
-			"--model", q.Model,
+			"--model", modelName,
 			"--append-system-prompt-file", promptFile,
 			"--allowedTools", tools,
 			"--effort", effort,

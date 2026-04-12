@@ -242,6 +242,8 @@ func (m *Manager) runQuest(q *Quest, timeout time.Duration) {
 			stderr := q.LastStderr
 			m.mu.Unlock()
 
+			m.logFn("quest run error: ", q.ID, " exit=", exitCode, " stderr=", stderr, " response=", response)
+
 			retryable, cooldown := IsRetryable(stderr, exitCode)
 			if retryable {
 				nextModel, ok := m.cascader.NextModel(q.Combo.Noun, q.Model)

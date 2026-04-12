@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -16,7 +17,9 @@ import (
 
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/attention"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/memory"
+	"github.com/dotBeeps/hoard/storybook-daemon/internal/quest"
 	"github.com/dotBeeps/hoard/storybook-daemon/internal/sensory"
+	"github.com/dotBeeps/hoard/storybook-daemon/internal/stone"
 )
 
 // session holds the metadata from a register_session call.
@@ -31,11 +34,13 @@ type session struct {
 // vault and attention state to external AI coding tools via the Model Context
 // Protocol.
 type Interface struct {
-	id     string
-	port   int
-	vault  *memory.Vault
-	ledger *attention.Ledger
-	log    *slog.Logger
+	id       string
+	port     int
+	vault    *memory.Vault
+	ledger   *attention.Ledger
+	broker   *Broker
+	questMgr *quest.Manager
+	log      *slog.Logger
 
 	mu       sync.Mutex
 	sessions map[string]session
@@ -45,12 +50,16 @@ type Interface struct {
 }
 
 // New creates an MCP Interface that serves on the given port.
+// questMgr may be nil; a default Manager will be created internally.
 func New(id string, port int, vault *memory.Vault, ledger *attention.Ledger, log *slog.Logger) *Interface {
+	qm := quest.NewManager(nil, func(args ...any) { log.Info(fmt.Sprint(args...)) })
 	return &Interface{
 		id:       id,
 		port:     port,
 		vault:    vault,
 		ledger:   ledger,
+		broker:   NewBroker(256),
+		questMgr: qm,
 		log:      log,
 		sessions: make(map[string]session),
 	}
@@ -168,6 +177,63 @@ type attentionStateOutput struct {
 	Status string `json:"status"`
 }
 
+type stoneSendInput struct {
+	SessionID string         `json:"session_id" jsonschema:"session that owns this message"`
+	From      string         `json:"from" jsonschema:"sender identifier (defName or primary-agent)"`
+	To        string         `json:"to" jsonschema:"recipient: primary-agent, session-room, or ally defName"`
+	Type      string         `json:"type" jsonschema:"message type: result, progress, question, check_in, status"`
+	Content   string         `json:"content" jsonschema:"message content"`
+	Metadata  map[string]any `json:"metadata,omitempty" jsonschema:"optional metadata"`
+}
+
+type stoneSendOutput struct {
+	Status    string `json:"status"`
+	ID        string `json:"id"`
+	Timestamp int64  `json:"timestamp"`
+}
+
+type stoneReceiveInput struct {
+	SessionID   string `json:"session_id" jsonschema:"session to receive messages from"`
+	AddressedTo string `json:"addressed_to" jsonschema:"filter: only messages addressed to this ID"`
+	WaitMs      int    `json:"wait_ms,omitempty" jsonschema:"long-poll timeout in ms (default 60000, max 120000)"`
+	SinceID     string `json:"since_id,omitempty" jsonschema:"only return messages after this ID"`
+}
+
+type stoneReceiveOutput struct {
+	Messages []stone.Message `json:"messages"`
+}
+
+type questDispatchInput struct {
+	SessionID string               `json:"session_id" jsonschema:"session that owns these quests"`
+	Mode      string               `json:"mode" jsonschema:"dispatch mode: single, rally, or chain"`
+	Quests    []quest.QuestRequest `json:"quests" jsonschema:"quests to dispatch"`
+}
+
+type questDispatchOutput struct {
+	Status  string            `json:"status"`
+	GroupID string            `json:"group_id"`
+	Quests  []quest.QuestInfo `json:"quests"`
+}
+
+type questStatusInput struct {
+	SessionID string   `json:"session_id" jsonschema:"session to query"`
+	QuestIDs  []string `json:"quest_ids,omitempty" jsonschema:"specific quest IDs (omit for all)"`
+}
+
+type questStatusOutput struct {
+	Quests []quest.QuestInfo `json:"quests"`
+}
+
+type questCancelInput struct {
+	SessionID string `json:"session_id" jsonschema:"session that owns the quest"`
+	QuestID   string `json:"quest_id" jsonschema:"quest to cancel"`
+}
+
+type questCancelOutput struct {
+	Status  string `json:"status"`
+	QuestID string `json:"quest_id"`
+}
+
 type stubOutput struct {
 	Status  string `json:"status"`
 	Message string `json:"message"`
@@ -203,18 +269,28 @@ func (b *Interface) registerTools(server *gomcp.Server) {
 
 	gomcp.AddTool(server, &gomcp.Tool{
 		Name:        "stone_send",
-		Description: "Send a message via sending stone (not yet implemented).",
-	}, b.handleStub)
+		Description: "Send a message via the sending stone. Messages are routed to the specified recipient within the session.",
+	}, b.handleStoneSend)
 
 	gomcp.AddTool(server, &gomcp.Tool{
 		Name:        "stone_receive",
-		Description: "Receive messages from sending stone (not yet implemented).",
-	}, b.handleStub)
+		Description: "Receive messages from the sending stone. Long-polls up to wait_ms for new messages addressed to the specified recipient.",
+	}, b.handleStoneReceive)
+
+	gomcp.AddTool(server, &gomcp.Tool{
+		Name:        "quest_dispatch",
+		Description: "Dispatch one or more ally quests. Returns immediately with quest IDs. Results arrive via stone.",
+	}, b.handleQuestDispatch)
 
 	gomcp.AddTool(server, &gomcp.Tool{
 		Name:        "quest_status",
-		Description: "Check quest status (not yet implemented).",
-	}, b.handleStub)
+		Description: "Check status of dispatched quests. Omit quest_ids to get all quests for the session.",
+	}, b.handleQuestStatus)
+
+	gomcp.AddTool(server, &gomcp.Tool{
+		Name:        "quest_cancel",
+		Description: "Cancel a running quest. Sends SIGTERM to the subprocess.",
+	}, b.handleQuestCancel)
 }
 
 // ── Tool handlers ───────────────────────────────────────────
@@ -230,6 +306,8 @@ func (b *Interface) handleRegisterSession(_ context.Context, _ *gomcp.CallToolRe
 	b.mu.Lock()
 	b.sessions[input.SessionID] = s
 	b.mu.Unlock()
+
+	b.broker.RegisterSession(input.SessionID)
 
 	b.log.Info("mcp: session registered",
 		"session_id", input.SessionID,
@@ -352,6 +430,120 @@ func (b *Interface) handleAttentionState(_ context.Context, _ *gomcp.CallToolReq
 		Pool:   b.ledger.Pool(),
 		Status: b.ledger.Status(),
 	}, nil
+}
+
+func (b *Interface) handleStoneSend(ctx context.Context, _ *gomcp.CallToolRequest, input stoneSendInput) (*gomcp.CallToolResult, stoneSendOutput, error) {
+	b.mu.Lock()
+	_, ok := b.sessions[input.SessionID]
+	b.mu.Unlock()
+	if !ok {
+		return nil, stoneSendOutput{}, fmt.Errorf("unknown session: %s", input.SessionID)
+	}
+
+	// Pre-stamp ID and Timestamp so we can echo them back; broker will no-op
+	// its own stamping when it sees non-zero values.
+	now := time.Now().UnixMilli()
+	id := "stone-" + strconv.FormatInt(now, 10)
+
+	msg := stone.Message{
+		ID:         id,
+		From:       input.From,
+		Addressing: input.To,
+		Type:       input.Type,
+		Content:    input.Content,
+		Metadata:   input.Metadata,
+		Timestamp:  now,
+	}
+	if err := b.broker.Send(ctx, input.SessionID, msg); err != nil {
+		return nil, stoneSendOutput{}, err
+	}
+
+	return nil, stoneSendOutput{
+		Status:    "sent",
+		ID:        id,
+		Timestamp: now,
+	}, nil
+}
+
+func (b *Interface) handleStoneReceive(ctx context.Context, _ *gomcp.CallToolRequest, input stoneReceiveInput) (*gomcp.CallToolResult, stoneReceiveOutput, error) {
+	b.mu.Lock()
+	_, ok := b.sessions[input.SessionID]
+	b.mu.Unlock()
+	if !ok {
+		return nil, stoneReceiveOutput{}, fmt.Errorf("unknown session: %s", input.SessionID)
+	}
+
+	waitMs := input.WaitMs
+	if waitMs <= 0 {
+		waitMs = 60_000
+	}
+	if waitMs > 120_000 {
+		waitMs = 120_000
+	}
+
+	msgs, err := b.broker.Receive(ctx, input.SessionID, input.AddressedTo, input.SinceID, time.Duration(waitMs)*time.Millisecond)
+	if err != nil {
+		return nil, stoneReceiveOutput{}, err
+	}
+
+	return nil, stoneReceiveOutput{Messages: msgs}, nil
+}
+
+func (b *Interface) handleQuestDispatch(ctx context.Context, _ *gomcp.CallToolRequest, input questDispatchInput) (*gomcp.CallToolResult, questDispatchOutput, error) {
+	b.mu.Lock()
+	_, ok := b.sessions[input.SessionID]
+	b.mu.Unlock()
+	if !ok {
+		return nil, questDispatchOutput{}, fmt.Errorf("unknown session: %s", input.SessionID)
+	}
+
+	req := quest.DispatchRequest{
+		Mode:   input.Mode,
+		Quests: input.Quests,
+	}
+	infos, err := b.questMgr.Dispatch(ctx, input.SessionID, req)
+	if err != nil {
+		return nil, questDispatchOutput{}, err
+	}
+
+	groupID := "group-" + input.SessionID[:8]
+	if len(infos) > 0 {
+		groupID = infos[0].QuestID
+	}
+
+	return nil, questDispatchOutput{
+		Status:  "dispatched",
+		GroupID: groupID,
+		Quests:  infos,
+	}, nil
+}
+
+func (b *Interface) handleQuestStatus(_ context.Context, _ *gomcp.CallToolRequest, input questStatusInput) (*gomcp.CallToolResult, questStatusOutput, error) {
+	b.mu.Lock()
+	_, ok := b.sessions[input.SessionID]
+	b.mu.Unlock()
+	if !ok {
+		return nil, questStatusOutput{}, fmt.Errorf("unknown session: %s", input.SessionID)
+	}
+
+	infos := b.questMgr.Status(input.SessionID, input.QuestIDs)
+	return nil, questStatusOutput{Quests: infos}, nil
+}
+
+func (b *Interface) handleQuestCancel(_ context.Context, _ *gomcp.CallToolRequest, input questCancelInput) (*gomcp.CallToolResult, questCancelOutput, error) {
+	b.mu.Lock()
+	_, ok := b.sessions[input.SessionID]
+	b.mu.Unlock()
+	if !ok {
+		return nil, questCancelOutput{}, fmt.Errorf("unknown session: %s", input.SessionID)
+	}
+
+	err := b.questMgr.Cancel(input.SessionID, input.QuestID)
+	if err != nil {
+		return nil, questCancelOutput{Status: "not_found", QuestID: input.QuestID}, nil
+	}
+
+	return nil, questCancelOutput{Status: "cancelled", QuestID: input.QuestID}, nil
 }
 
 type stubInput struct {

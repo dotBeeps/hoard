@@ -8,7 +8,6 @@
 class ThoughtModel : public QAbstractListModel
 {
     Q_OBJECT
-    QML_ELEMENT
 
     Q_PROPERTY(int count READ count NOTIFY countChanged FINAL)
     Q_PROPERTY(bool autoScroll READ autoScroll WRITE setAutoScroll NOTIFY autoScrollChanged FINAL)

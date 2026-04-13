@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -69,6 +70,9 @@ func (p *Provider) Run(
 	)
 
 	cmd := exec.CommandContext(ctx, p.cfg.BinaryPath, args...)
+
+	// Pin to the discrete GPU — without this, ROCm may try the iGPU and segfault.
+	cmd.Env = append(os.Environ(), "HIP_VISIBLE_DEVICES=0")
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {

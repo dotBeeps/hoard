@@ -13,7 +13,6 @@
 class DaemonState : public QObject
 {
     Q_OBJECT
-    QML_ELEMENT
 
     Q_PROPERTY(int attention READ attention NOTIFY attentionChanged FINAL)
     Q_PROPERTY(QVariantList nerves READ nerves NOTIFY nervesChanged FINAL)

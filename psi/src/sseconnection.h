@@ -12,7 +12,6 @@
 class SseConnection : public QObject
 {
     Q_OBJECT
-    QML_ELEMENT
 
     Q_PROPERTY(bool connected READ isConnected NOTIFY connectedChanged FINAL)
     Q_PROPERTY(QUrl baseUrl READ baseUrl WRITE setBaseUrl NOTIFY baseUrlChanged FINAL)

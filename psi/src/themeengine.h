@@ -8,8 +8,6 @@
 class ThemeEngine : public QObject
 {
     Q_OBJECT
-    QML_NAMED_ELEMENT(Theme)
-    QML_SINGLETON
 
     Q_PROPERTY(QColor background READ background CONSTANT FINAL)
     Q_PROPERTY(QColor surface READ surface CONSTANT FINAL)

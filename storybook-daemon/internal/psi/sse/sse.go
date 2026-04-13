@@ -29,6 +29,7 @@ type Interface struct {
 
 	mu      sync.Mutex
 	clients map[chan string]struct{}
+	events  chan sensory.Event // inbound messages → dragon-heart nudge
 
 	server *http.Server
 	cancel context.CancelFunc
@@ -44,6 +45,7 @@ func New(id string, port int, ledger *attention.Ledger, agg *sensory.Aggregator,
 		agg:     agg,
 		log:     log,
 		clients: make(map[chan string]struct{}),
+		events:  make(chan sensory.Event, 16),
 	}
 }
 
@@ -61,9 +63,10 @@ func (b *Interface) ID() string { return b.id }
 // Type returns the static discriminator string for this interface kind.
 func (b *Interface) Type() string { return "sse" }
 
-// Events returns nil — inbound messages are pushed directly to the aggregator
-// via POST /message rather than via an events channel.
-func (b *Interface) Events() <-chan sensory.Event { return nil }
+// Events returns the inbound event channel. Messages arriving via POST /message
+// are pushed here so the dragon-heart nudges immediately — a psychic link
+// shouldn't wait for the heart to beat.
+func (b *Interface) Events() <-chan sensory.Event { return b.events }
 
 // Start launches the HTTP server. It returns as soon as the server goroutine
 // is running; ctx cancellation triggers a graceful shutdown.
@@ -226,11 +229,19 @@ func (b *Interface) handleMessage(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "text required", http.StatusBadRequest)
 		return
 	}
-	b.agg.Enqueue(sensory.Event{
+	ev := sensory.Event{
 		Source:  "sse",
 		Kind:    "message",
 		Content: req.Text,
 		At:      time.Now(),
-	})
+	}
+	select {
+	case b.events <- ev:
+		// Event pushed — fanInIfaceEvents will enqueue + nudge the heart.
+	default:
+		// Channel full — enqueue directly so the message isn't lost.
+		b.agg.Enqueue(ev)
+		b.log.Warn("sse: event channel full, message enqueued without nudge")
+	}
 	w.WriteHeader(http.StatusNoContent)
 }

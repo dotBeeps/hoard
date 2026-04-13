@@ -28,7 +28,7 @@ Rectangle {
                 { label: "observe", color: Theme.colorObserve },
                 { label: "beat", color: Theme.colorBeat },
                 { label: "dot", color: "#7ec8e3" },
-                { label: "ally", color: Theme.tierKobold },
+                { label: "ally", color: Theme.tierAlly },
                 { label: "quest", color: "#c9a0dc" }
             ]
 

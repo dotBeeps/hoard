@@ -3,6 +3,11 @@ import QtQuick.Layouts
 
 Item {
     id: delegateRoot
+
+    property string content: ""
+    property string typeLabel: ""
+    property string vaultKey: ""
+
     implicitHeight: 26
 
     Rectangle {

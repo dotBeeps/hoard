@@ -3,6 +3,12 @@ import QtQuick.Layouts
 
 Item {
     id: delegateRoot
+
+    property string content: ""
+    property date timestamp
+    property string allyName: ""
+    property string typeLabel: ""
+
     implicitHeight: stoneRow.implicitHeight + 10
 
     Rectangle {
@@ -17,7 +23,7 @@ Item {
         Rectangle {
             width: 2
             height: parent.height
-            color: Theme.tierKobold
+            color: Theme.tierAlly
             radius: 1
         }
 
@@ -42,7 +48,7 @@ Item {
                 font.pixelSize: 11
                 font.family: "monospace"
                 font.bold: true
-                color: Theme.tierKobold
+                color: Theme.tierAlly
                 Layout.alignment: Qt.AlignTop
             }
             Text {

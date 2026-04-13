@@ -3,6 +3,10 @@ import QtQuick.Layouts
 
 Item {
     id: delegateRoot
+
+    property string content: ""
+    property date timestamp
+
     implicitHeight: 22
 
     RowLayout {

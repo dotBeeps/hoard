@@ -26,11 +26,11 @@ Rectangle {
                 height: 8
                 radius: 4
                 anchors.verticalCenter: parent.verticalCenter
-                color: State.connected ? "#4ade80" : "#ef4444"
+                color: Daemon.connected ? "#4ade80" : "#ef4444"
 
                 SequentialAnimation on opacity {
                     id: pulseAnim
-                    running: !State.connected
+                    running: !Daemon.connected
                     loops: Animation.Infinite
                     onRunningChanged: if (!running) parent.opacity = 1.0
                     NumberAnimation { to: 0.3; duration: 800 }
@@ -39,7 +39,7 @@ Rectangle {
             }
 
             Text {
-                text: State.connected ? "SSE connected" : "SSE disconnected"
+                text: Daemon.connected ? "SSE connected" : "SSE disconnected"
                 font.pixelSize: 11
                 color: Theme.textDim
             }

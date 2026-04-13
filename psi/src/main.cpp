@@ -46,7 +46,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty("Theme", theme);
     engine.rootContext()->setContextProperty("Sse", sse);
     engine.rootContext()->setContextProperty("Thoughts", thoughts);
-    engine.rootContext()->setContextProperty("State", state);
+    engine.rootContext()->setContextProperty("Daemon", state);
 
     // Load via resource URL — context properties work reliably with load().
     const QUrl mainUrl(QStringLiteral("qrc:/qt/qml/Psi/qml/Main.qml"));

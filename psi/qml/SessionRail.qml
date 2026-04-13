@@ -34,7 +34,7 @@ Rectangle {
                 width: 10
                 height: 10
                 radius: 5
-                color: State.connected ? "#4ade80" : "#ef4444"
+                color: Daemon.connected ? "#4ade80" : "#ef4444"
                 border.width: 1
                 border.color: Theme.surface
             }

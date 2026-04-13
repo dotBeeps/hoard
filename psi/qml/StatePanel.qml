@@ -33,11 +33,11 @@ Rectangle {
                     color: Theme.border
 
                     Rectangle {
-                        width: parent.width * Math.min(State.attention / 1000, 1.0)
+                        width: parent.width * Math.min(Daemon.attention / 1000, 1.0)
                         height: parent.height
                         radius: 4
                         color: {
-                            var ratio = State.attention / 1000
+                            var ratio = Daemon.attention / 1000
                             if (ratio > 0.5) return "#4ade80"
                             if (ratio > 0.25) return Theme.accentMuted
                             return "#ef4444"
@@ -50,7 +50,7 @@ Rectangle {
                 }
 
                 Text {
-                    text: State.attention + " / 1000"
+                    text: Daemon.attention + " / 1000"
                     font.pixelSize: 11
                     font.family: "monospace"
                     color: Theme.textMuted
@@ -71,7 +71,7 @@ Rectangle {
             }
 
             Text {
-                visible: State.nerves.length === 0
+                visible: Daemon.nerves.length === 0
                 text: "no nerves connected"
                 font.pixelSize: 11
                 color: Theme.textDim
@@ -79,7 +79,7 @@ Rectangle {
             }
 
             Repeater {
-                model: State.nerves
+                model: Daemon.nerves
 
                 RowLayout {
                     required property var modelData
@@ -115,7 +115,7 @@ Rectangle {
             }
 
             Text {
-                visible: State.contracts.length === 0
+                visible: Daemon.contracts.length === 0
                 text: "no contracts loaded"
                 font.pixelSize: 11
                 color: Theme.textDim
@@ -123,7 +123,7 @@ Rectangle {
             }
 
             Repeater {
-                model: State.contracts
+                model: Daemon.contracts
 
                 RowLayout {
                     required property var modelData
@@ -169,11 +169,11 @@ Rectangle {
                 font.family: "monospace"
                 color: Theme.textMuted
 
-                readonly property bool hasBeat: State.lastBeat.getTime() > 0
+                readonly property bool hasBeat: Daemon.lastBeat.getTime() > 0
                 text: hasBeat ? beatAge() : "no beats yet"
 
                 function beatAge() {
-                    var ms = Date.now() - State.lastBeat.getTime()
+                    var ms = Date.now() - Daemon.lastBeat.getTime()
                     var s = Math.floor(ms / 1000)
                     if (s < 60) return s + "s ago"
                     var m = Math.floor(s / 60)

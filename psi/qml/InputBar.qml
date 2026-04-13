@@ -16,8 +16,8 @@ Rectangle {
 
             Layout.fillWidth: true
             Layout.fillHeight: true
-            placeholderText: State.connected ? "message Ember..." : "disconnected"
-            enabled: State.connected
+            placeholderText: Daemon.connected ? "message Ember..." : "disconnected"
+            enabled: Daemon.connected
             font.pixelSize: 13
             font.family: "monospace"
             color: Theme.text

@@ -30,11 +30,7 @@ func testPersona() *persona.Persona {
 			Rate:  10,
 		},
 		Costs: persona.CostConfig{
-			Think:    1,
-			Speak:    1,
-			Remember: 1,
-			Search:   1,
-			Perceive: 1,
+			Beat: 1,
 		},
 	}
 }

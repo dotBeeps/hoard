@@ -36,3 +36,4 @@ runs/
 
 # Superpowers brainstorming session state
 .superpowers/
+AGENTS.override.md

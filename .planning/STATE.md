@@ -2,19 +2,19 @@
 gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: "**Goal:** An annotated `v1.0.0` tag exists on GitHub at a commit where CI is green; `pi install github:dotbeeps/pantry#v1.0.0` resolves and produces a working install; `main` is protected so future pushes can't silently break the tracks-main install."
-status: executing
-last_updated: "2026-04-23T03:32:26.754Z"
+status: phase_complete
+last_updated: "2026-04-23T04:00:00.000Z"
 progress:
   total_phases: 5
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 5
-  completed_plans: 0
-  percent: 0
+  completed_plans: 5
+  percent: 20
 ---
 
 # STATE: pantry v1.0 stabilization
 
-**Last updated:** 2026-04-22
+**Last updated:** 2026-04-23
 
 ## Project Reference
 
@@ -25,17 +25,16 @@ progress:
 
 ## Current Position
 
-Phase: 1 (Amputation Cleanup & tsc-Green) — EXECUTING
-Plan: 1 of 5
+Phase 1 COMPLETE (2026-04-23). Ready for Phase 2.
 
-- **Phase:** 1 — Amputation Cleanup & tsc-Green
-- **Plan:** None (plans TBD; run `/gsd-plan-phase 1` to decompose)
-- **Status:** Executing Phase 1
-- **Progress:** 0/5 phases complete
+- **Phase:** 2 — Tests & Quality Infrastructure (next)
+- **Plan:** None (plans TBD; run `/gsd-discuss-phase 2` to capture context, then `/gsd-plan-phase 2`)
+- **Status:** Phase 1 complete; Phase 2 not started
+- **Progress:** 1/5 phases complete (20%)
 
 ### Phase Progress
 
-- [ ] Phase 1: Amputation Cleanup & tsc-Green
+- [x] Phase 1: Amputation Cleanup & tsc-Green (completed 2026-04-23; 5 plans, 5/5 success criteria green, verifier PASSED)
 - [ ] Phase 2: Tests & Quality Infrastructure
 - [ ] Phase 3: Documentation & License
 - [ ] Phase 4: CI Pipeline
@@ -45,7 +44,8 @@ Plan: 1 of 5
 
 - Requirements mapped: 17/17 (100%)
 - Orphaned requirements: 0
-- Active blockers: 1 — `tsc --project berrygems/tsconfig.json` is RED (dragon-breath import path bug); Phase 1 fixes this as its top-priority deliverable
+- Active blockers: 0 (tsc is GREEN; AMP-04 dragon-breath import fix landed in Phase 1)
+- Phase 1 deliverables: AMP-01..05 all closed; 5 husk dirs removed; 22 `(globalThis as any)` call sites migrated to typed `PANTRY_KEYS` + `registerGlobal<T>`/`getGlobal<T>`; `.claude/` and `AGENTS.override.md` swept
 
 ## Accumulated Context
 
@@ -67,14 +67,13 @@ Plan: 1 of 5
 
 ### Blockers
 
-- **Phase 1 must land first.** `tsc` RED blocks every downstream verification. Amputation residue in morsels + `.claude/` hooks would be tested/documented into permanence if not swept before Phases 2/3.
+- None. Phase 1 landed. `tsc` is green. Downstream phases (Tests, Docs, CI, Release) are unblocked.
 
 ### Anti-Features (guard against scope creep per PITFALLS §10)
 
 - NOT in scope this milestone (enumerated so agents don't silently re-add):
   - Splitting `dragon-digestion.ts` or any other oversized extension (queue for v1.1).
   - Removing the `dotsPiEnhancements.*` legacy settings namespace.
-  - Typed `getGlobal<T>(key: symbol)` helper replacing the `(globalThis as any)[Symbol.for(...)]` pattern.
   - Dragon-guard settings schema fine-tuning.
   - Net-new berrygems or morsels.
   - npm publish, agentskills.io publication, cross-OS CI, cross-harness adapters.
@@ -83,11 +82,14 @@ Plan: 1 of 5
 
 ## Session Continuity
 
-- **Next action:** `/gsd-plan-phase 1` — decompose Phase 1 (Amputation Cleanup & tsc-Green) into executable plans.
-- **On return:** read this file + `.planning/ROADMAP.md` + `.planning/REQUIREMENTS.md`. Start with Phase 1's first plan.
+- **Next action:** `/gsd-discuss-phase 2 --chain` — capture context, plan, and execute Phase 2 (Tests & Quality Infrastructure).
+- **On return:** read this file + `.planning/ROADMAP.md` + `.planning/REQUIREMENTS.md` + `.planning/phases/01-amputation-cleanup-tsc-green/01-VERIFICATION.md` (Phase 1 sign-off).
+- **Known Phase 2 spike required (research flag):** `@marcfargas/pi-test-harness@0.5.0` coverage for `resources_discover` / `session_before_compact` / context-event mutation is unconfirmed — budget a spike on `dragon-guard` (richest directory extension) before fanning out across 17 extensions.
 
 ---
 
 _State initialized: 2026-04-22 after roadmap creation_
+_Phase 1 completed: 2026-04-23 — all 5 success criteria green, verifier PASSED_
 
 **Planned Phase:** 1 (Amputation Cleanup & tsc-Green) — 5 plans — 2026-04-23T03:03:18.926Z
+**Completed Phase:** 1 (Amputation Cleanup & tsc-Green) — 5/5 plans, 5/5 SC — 2026-04-23T04:00:00.000Z

@@ -17,7 +17,7 @@ AMP (tsc-green + residue sweep) → Tests & Infrastructure → Docs & License (p
 
 ## Phases
 
-- [ ] **Phase 1: Amputation Cleanup & tsc-Green** — Remove husks, sweep stale `hoard.*`/path references, centralize `PANTRY_KEYS`, return `tsc` to zero errors
+- [x] **Phase 1: Amputation Cleanup & tsc-Green** — Remove husks, sweep stale `hoard.*`/path references, centralize `PANTRY_KEYS`, return `tsc` to zero errors _(completed 2026-04-23)_
 - [ ] **Phase 2: Tests & Quality Infrastructure** — Wire Vitest + pi-test-harness + Zod frontmatter schema; ship lib unit tests, extension integration tests, and morsel frontmatter lint
 - [ ] **Phase 3: Documentation & License** — Rewrite README, generate berrygem + morsel inventories (with `--check` drift gate), per-directory-extension READMEs, MIT LICENSE at root
 - [ ] **Phase 4: CI Pipeline** — GitHub Actions workflow on `ubuntu-latest` running tsc + tests + lint + docs-drift + both install-smoke gates
@@ -44,6 +44,7 @@ AMP (tsc-green + residue sweep) → Tests & Infrastructure → Docs & License (p
 **Plans:** 5 plans
 
 Plans:
+
 - [ ] 01-01-PLAN.md — AMP-04: fix dragon-breath import path, unblock tsc (wave 1)
 - [ ] 01-02-PLAN.md — AMP-01: delete five amputation-husk directories (wave 2)
 - [ ] 01-03-PLAN.md — AMP-02: sweep .claude/ hoard paths and rewrite AGENTS.override.md template (wave 2)
@@ -132,13 +133,13 @@ Plans:
 
 ## Progress
 
-| Phase                             | Plans Complete | Status      | Completed |
-| --------------------------------- | -------------- | ----------- | --------- |
-| 1. Amputation Cleanup & tsc-Green | 0/?            | Not started | -         |
-| 2. Tests & Quality Infrastructure | 0/?            | Not started | -         |
-| 3. Documentation & License        | 0/?            | Not started | -         |
-| 4. CI Pipeline                    | 0/?            | Not started | -         |
-| 5. Release v1.0.0                 | 0/?            | Not started | -         |
+| Phase                             | Plans Complete | Status      | Completed  |
+| --------------------------------- | -------------- | ----------- | ---------- |
+| 1. Amputation Cleanup & tsc-Green | 5/5            | Complete    | 2026-04-23 |
+| 2. Tests & Quality Infrastructure | 0/?            | Not started | -          |
+| 3. Documentation & License        | 0/?            | Not started | -          |
+| 4. CI Pipeline                    | 0/?            | Not started | -          |
+| 5. Release v1.0.0                 | 0/?            | Not started | -          |
 
 ## Traceability
 

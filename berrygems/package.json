@@ -6,6 +6,11 @@
     "pi-package"
   ],
   "license": "MIT",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:smoke": "vitest run tests/smoke/install.test.ts"
+  },
   "devDependencies": {
     "@marcfargas/pi-test-harness": "^0.5.0",
     "@mariozechner/pi-agent-core": "^0.69.0",

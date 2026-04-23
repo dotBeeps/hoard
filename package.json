@@ -14,6 +14,9 @@
       "morsels/skills"
     ]
   },
+  "scripts": {
+    "lint:skills": "node --experimental-strip-types scripts/lint-skills.ts"
+  },
   "devDependencies": {
     "yaml": "^2.8.3",
     "zod": "^4.3.6"

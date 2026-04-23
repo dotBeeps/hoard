@@ -18,7 +18,7 @@ AMP (tsc-green + residue sweep) → Tests & Infrastructure → Docs & License (p
 ## Phases
 
 - [x] **Phase 1: Amputation Cleanup & tsc-Green** — Remove husks, sweep stale `hoard.*`/path references, centralize `PANTRY_KEYS`, return `tsc` to zero errors _(completed 2026-04-23)_
-- [ ] **Phase 2: Tests & Quality Infrastructure** — Wire Vitest + pi-test-harness + Zod frontmatter schema; ship lib unit tests, extension integration tests, and morsel frontmatter lint
+- [x] **Phase 2: Tests & Quality Infrastructure** — Wire Vitest + pi-test-harness + Zod frontmatter schema; ship lib unit tests, extension integration tests, and morsel frontmatter lint _(completed 2026-04-23)_
 - [ ] **Phase 3: Documentation & License** — Rewrite README, generate berrygem + morsel inventories (with `--check` drift gate), per-directory-extension READMEs, MIT LICENSE at root
 - [ ] **Phase 4: CI Pipeline** — GitHub Actions workflow on `ubuntu-latest` running tsc + tests + lint + docs-drift + both install-smoke gates
 - [ ] **Phase 5: Release v1.0.0** — Cut annotated `v1.0.0` tag, GitHub Release, branch protection, verify `pi install github:dotbeeps/pantry#v1.0.0` resolves
@@ -69,7 +69,16 @@ Plans:
 4. `node --experimental-strip-types scripts/lint-skills.ts` walks every `morsels/skills/*/SKILL.md`, validates frontmatter against the shared Zod schema at `scripts/lib/frontmatter.ts` (required `name`, `description ≤ 1024`, `license: "MIT"`, typed `compatibility`), and rejects stale `Symbol.for("hoard.*")` + unregistered `pantry.*` key references in skill bodies; exits non-zero on any violation with per-file diagnostics.
 5. Grep-gate: `rg 'from "\.\./\.\./?extensions/' berrygems/tests/**/*.test.ts` returns zero (prevents module-cache false-greens per PITFALLS §2).
 
-**Plans:** TBD
+**Plans:** 6 plans
+
+Plans:
+
+- [x] 02-01-PLAN.md — Test infra (Vitest config, tsconfig.tests.json, tests tree scaffold, devDeps, scripts) (wave 1)
+- [x] 02-02-PLAN.md — Lib unit tests (12 modules) + settings.ts Zod safeParse layer (wave 2)
+- [x] 02-03-PLAN.md — TEST-03 dragon-guard harness spike + helpers/createPiTestSession.ts (wave 2)
+- [x] 02-04-PLAN.md — TEST-03 fanout (16 remaining extensions) + cross-extension canary (wave 3)
+- [x] 02-05-PLAN.md — TEST-04 scripts/lint-skills.ts + scripts/lib/frontmatter.ts (wave 3)
+- [x] 02-06-PLAN.md — Smoke test tests/smoke/install.test.ts (wave 4)
 
 ---
 
@@ -136,7 +145,7 @@ Plans:
 | Phase                             | Plans Complete | Status      | Completed  |
 | --------------------------------- | -------------- | ----------- | ---------- |
 | 1. Amputation Cleanup & tsc-Green | 5/5            | Complete    | 2026-04-23 |
-| 2. Tests & Quality Infrastructure | 0/?            | Not started | -          |
+| 2. Tests & Quality Infrastructure | 6/6            | Complete    | 2026-04-23 |
 | 3. Documentation & License        | 0/?            | Not started | -          |
 | 4. CI Pipeline                    | 0/?            | Not started | -          |
 | 5. Release v1.0.0                 | 0/?            | Not started | -          |

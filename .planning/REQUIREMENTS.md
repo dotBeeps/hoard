@@ -17,10 +17,10 @@ Requirements for the post-amputation stabilization milestone (v1.0). Each maps t
 
 ### Testing
 
-- [ ] **TEST-01**: A test runner is wired into `berrygems/` (Vitest 4.1.5 with `viteModuleRunner: false`); `pnpm --dir berrygems test` invokes it and exits zero with no tests collected
-- [ ] **TEST-02**: Every module in `berrygems/lib/` has a unit-test file at `berrygems/tests/lib/<name>.test.ts`; tests use real filesystem via `os.tmpdir()` (no DB/FS mocks)
-- [ ] **TEST-03**: Every extension under `berrygems/extensions/` has an integration-test file at `berrygems/tests/extensions/<name>.test.ts` that uses `@marcfargas/pi-test-harness` `createTestSession` and asserts tool registration + any `Symbol.for("pantry.<name>")` publication the extension claims
-- [ ] **TEST-04**: A standalone `scripts/lint-skills.ts` script validates every `morsels/skills/*/SKILL.md` frontmatter against a Zod schema (required fields: `name`, `description ≤1024`, `license: "MIT"`, typed `compatibility`) and rejects stale `Symbol.for("hoard.*")` + unregistered `pantry.*` key references in skill bodies
+- [x] **TEST-01**: A test runner is wired into `berrygems/` (Vitest 4.1.5 with `viteModuleRunner: false`); `pnpm --dir berrygems test` invokes it and exits zero with no tests collected _(completed Phase 2)_
+- [x] **TEST-02**: Every module in `berrygems/lib/` has a unit-test file at `berrygems/tests/lib/<name>.test.ts`; tests use real filesystem via `os.tmpdir()` (no DB/FS mocks) _(completed Phase 2 — 12 modules, 70 tests)_
+- [x] **TEST-03**: Every extension under `berrygems/extensions/` has an integration-test file at `berrygems/tests/extensions/<name>.test.ts` that uses `@marcfargas/pi-test-harness` `createTestSession` and asserts tool registration + any `Symbol.for("pantry.<name>")` publication the extension claims _(completed Phase 2 — 17 extensions + cross-extension canary)_
+- [x] **TEST-04**: A standalone `scripts/lint-skills.ts` script validates every `morsels/skills/*/SKILL.md` frontmatter against a Zod schema (required fields: `name`, `description ≤1024`, `license: "MIT"`, typed `compatibility`) and rejects stale `Symbol.for("hoard.*")` + unregistered `pantry.*` key references in skill bodies _(completed Phase 2 — 54 skills passing)_
 
 ### Continuous Integration
 

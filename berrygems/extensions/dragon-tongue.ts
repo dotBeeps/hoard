@@ -33,12 +33,13 @@ import {
   type LspDiagnosticEvent,
   type LspServerConfig,
 } from "../lib/lsp-client.ts";
+import { PANTRY_KEYS, getGlobal } from "../lib/globals.ts";
 
 // ── Panel Manager Access ──
 
-const PANELS_KEY = Symbol.for("pantry.parchment");
+// panels API is untyped at the inter-extension boundary
 function getPanels(): any {
-  return (globalThis as any)[PANELS_KEY];
+  return getGlobal(PANTRY_KEYS.parchment);
 }
 
 // ── Types ──

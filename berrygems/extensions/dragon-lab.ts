@@ -8,7 +8,7 @@
 // Dragon-lab is for external provider experiments: Anthropic betas, future
 // Google/OpenAI opt-ins, etc.
 //
-// globalThis API: Symbol.for("pantry.lab")
+// globalThis API: PANTRY_KEYS.lab (via getGlobal/registerGlobal in lib/globals.ts)
 // Settings:       pantry.lab.*
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";

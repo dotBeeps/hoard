@@ -41,11 +41,12 @@ import {
   STRATEGY_PRESETS,
   type StrategyPreset,
 } from "../lib/compaction-templates.ts";
+import { PANTRY_KEYS, getGlobal } from "../lib/globals.ts";
 
 // ── Panel Manager Access ──
-const PANELS_KEY = Symbol.for("pantry.parchment");
+// panels API is untyped at the inter-extension boundary
 function getPanels(): any {
-  return (globalThis as any)[PANELS_KEY];
+  return getGlobal(PANTRY_KEYS.parchment);
 }
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
@@ -111,7 +112,7 @@ interface DigestSettingsV2 extends DigestSettings {
   summaryModel: string;
   anchoredUpdates: boolean;
   // anthropicContextEdits removed — dragon-lab now owns this.
-  // Check: (globalThis as any)[Symbol.for("pantry.lab")]?.isActive("anthropic.context-management")
+  // Check: getGlobal<DragonLabAPI>(PANTRY_KEYS.lab)?.isActive("anthropic.context-management")
   digestRemarks: boolean;
   tierOverrides: {
     alert?: number;
@@ -2617,9 +2618,7 @@ export default function (pi: ExtensionAPI) {
     if (ctx.model?.provider !== "anthropic") return;
 
     const v2Anthropic = digestState.digestSettingsV2;
-    const lab = (globalThis as any)[Symbol.for("pantry.lab")] as
-      | import("./dragon-lab").DragonLabAPI
-      | undefined;
+    const lab = getGlobal<import("./dragon-lab").DragonLabAPI>(PANTRY_KEYS.lab);
     if (
       !v2Anthropic.tieredMode ||
       !lab?.isActive("anthropic.context-management")

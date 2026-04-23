@@ -40,6 +40,7 @@ import {
   MODE_LABEL,
   type GuardMode,
 } from "./state.ts";
+import { PANTRY_KEYS, getGlobal } from "../../lib/globals.ts";
 
 // ── Constants ──
 
@@ -51,9 +52,9 @@ Return plain text only.`;
 
 // ── Panel Manager Access ──
 
-const PANELS_KEY = Symbol.for("pantry.parchment");
+// panels API is untyped at the inter-extension boundary
 function getPanels(): any {
-  return (globalThis as any)[PANELS_KEY];
+  return getGlobal(PANTRY_KEYS.parchment);
 }
 
 const GUARD_PANEL_ID = "dragon-guard";

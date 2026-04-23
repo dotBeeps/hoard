@@ -27,13 +27,14 @@ import { Type } from "@sinclair/typebox";
 import { readFileSync, readdirSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { IMAGE_SIZES } from "../lib/animated-image.ts";
+import { PANTRY_KEYS, getGlobal } from "../lib/globals.ts";
 
 // ── Panel Manager Access ──
 // dragon-parchment API is published to globalThis by dragon-parchment.ts extension.
 // No direct imports — avoids jiti module isolation issues.
-const PANELS_KEY = Symbol.for("pantry.parchment");
+// panels API is untyped at the inter-extension boundary
 function getPanels(): any {
-  return (globalThis as any)[PANELS_KEY];
+  return getGlobal(PANTRY_KEYS.parchment);
 }
 
 // ── Types ──

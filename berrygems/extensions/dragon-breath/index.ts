@@ -440,7 +440,7 @@ function handleCarbonCommand(ctx: ExtensionContext, stats: BreathStats): void {
 
 // ── External Usage API ──────────────────────────────────────────────────────────
 
-/** Public API surface exposed via globalThis[Symbol.for("pantry.breath")]. */
+/** Public API surface exposed via getGlobal(PANTRY_KEYS.breath). */
 export interface BreathAPI {
   addExternalUsage(opts: {
     inputTokens: number;

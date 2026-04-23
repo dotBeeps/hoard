@@ -33,24 +33,23 @@ import {
 } from "../lib/panel-chrome.ts";
 import { AnimatedImagePlayer } from "../lib/animated-image-player.ts";
 import { resolveImageSize, type ImageFrames } from "../lib/animated-image.ts";
+import { PANTRY_KEYS, getGlobal } from "../lib/globals.ts";
+
 // ── Panel Manager Access ──
 
-const PANELS_KEY = Symbol.for("pantry.parchment");
-const KITTY_KEY = Symbol.for("pantry.kitty");
+// panels API is untyped at the inter-extension boundary
+function getPanels(): any {
+  return getGlobal(PANTRY_KEYS.parchment);
+}
 function getKitty():
   | { loadImage: Function; disposeImage: Function; createMerger: Function }
   | undefined {
-  return (globalThis as any)[KITTY_KEY];
+  return getGlobal(PANTRY_KEYS.kitty);
 }
-const IMAGE_FETCH_KEY = Symbol.for("pantry.imageFetch");
 function getImageFetch():
   | { fetch: (query: string, size?: string) => Promise<any> }
   | undefined {
-  return (globalThis as any)[IMAGE_FETCH_KEY];
-}
-
-function getPanels(): any {
-  return (globalThis as any)[PANELS_KEY];
+  return getGlobal(PANTRY_KEYS.imageFetch);
 }
 
 // ── Schema ──

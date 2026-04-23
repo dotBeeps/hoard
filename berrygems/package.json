@@ -11,6 +11,9 @@
     "test:watch": "vitest",
     "test:smoke": "vitest run tests/smoke/install.test.ts"
   },
+  "dependencies": {
+    "zod": "^4.3.6"
+  },
   "devDependencies": {
     "@marcfargas/pi-test-harness": "^0.5.0",
     "@mariozechner/pi-agent-core": "^0.69.0",

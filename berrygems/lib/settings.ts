@@ -18,6 +18,7 @@
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { homedir } from "node:os";
+import { z } from "zod";
 
 // ── Constants ──
 
@@ -107,6 +108,61 @@ const LEGACY_MAP: Record<string, string> = {
   "tone.overrides": "writingStyle.overrides",
 };
 
+// ── Forward-Branch Schema (D-09..D-11) ──
+
+/**
+ * Tolerant Zod schema for the `pantry` namespace. All fields optional + passthrough
+ * so unknown keys and absent sections don't fail validation. Known keys get type
+ * narrowing — a malformed value (e.g. number where string expected) causes
+ * safeParse to fail, which we handle by falling through to the raw object (the
+ * resolvePath + `fallback` path below still returns the user's fallback value).
+ *
+ * Per D-10: this schema never throws, never bricks pantry load. It's a forward
+ * contract for new pantry.* keys, not a strict gate on legacy data.
+ */
+const PantrySettingsSchema = z
+  .object({
+    guard: z
+      .object({
+        autoDetect: z.boolean().optional(),
+        complexityThreshold: z.number().optional(),
+        llmSummaries: z.boolean().optional(),
+        dogAllowedTools: z.array(z.string()).optional(),
+        puppyAllowedTools: z.array(z.string()).optional(),
+      })
+      .passthrough()
+      .optional(),
+    panels: z.object({}).passthrough().optional(),
+    digestion: z
+      .object({
+        triggerMode: z.string().optional(),
+        triggerPercentage: z.number().optional(),
+        triggerFixed: z.number().optional(),
+      })
+      .passthrough()
+      .optional(),
+    todos: z.object({}).passthrough().optional(),
+    contributor: z
+      .object({
+        name: z.string().optional(),
+        email: z.string().optional(),
+      })
+      .passthrough()
+      .optional(),
+    musings: z
+      .object({
+        enabled: z.boolean().optional(),
+        cycleMs: z.number().optional(),
+        cacheTurns: z.number().optional(),
+        maxGenerations: z.number().optional(),
+      })
+      .passthrough()
+      .optional(),
+    tone: z.object({}).passthrough().optional(),
+    websearch: z.object({}).passthrough().optional(),
+  })
+  .passthrough();
+
 // ── Public API ──
 
 /**
@@ -129,8 +185,15 @@ export function readPantrySetting<T>(path: string, fallback: T): T {
   // Try new tiered namespace first
   const pantry = settings[PANTRY_NAMESPACE];
   if (typeof pantry === "object" && pantry !== null) {
-    const value = resolvePath(pantry as Record<string, unknown>, path);
-    if (value !== undefined) return value as T;
+    const validated = PantrySettingsSchema.safeParse(pantry);
+    // On safeParse failure we skip the forward branch and fall through — this
+    // honors D-10 ("malformed settings must not brick pantry load") without
+    // throwing. Legacy branch + fallback param still apply below.
+    if (validated.success) {
+      const pantryObj = validated.data as Record<string, unknown>;
+      const value = resolvePath(pantryObj, path);
+      if (value !== undefined) return value as T;
+    }
   }
 
   // Fall back to legacy flat namespace

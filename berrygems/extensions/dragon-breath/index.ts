@@ -18,6 +18,7 @@ import type {
 } from "@mariozechner/pi-coding-agent";
 import type { Usage } from "@mariozechner/pi-ai";
 import { readPantrySetting, readPantryKey } from "../../lib/settings.ts";
+import { PANTRY_KEYS, registerGlobal } from "../../lib/globals.ts";
 
 // ── Energy Model ──────────────────────────────────────────────────────────────
 
@@ -477,13 +478,13 @@ export default function dragonBreath(pi: ExtensionAPI): void {
       },
     };
 
-    (globalThis as any)[Symbol.for("pantry.breath")] = api;
+    registerGlobal(PANTRY_KEYS.breath, api);
     renderWidget(ctx, stats);
   });
 
   pi.on("session_shutdown", async () => {
     stats = emptyStats();
-    (globalThis as any)[Symbol.for("pantry.breath")] = undefined;
+    registerGlobal(PANTRY_KEYS.breath, undefined);
   });
 
   // ── Turn tracking ──

@@ -9,9 +9,9 @@
  *
  * API published to globalThis at extension load time:
  *
- *   const panels = (globalThis as any)[Symbol.for("pantry.parchment")];
- *   panels.createPanel("my-panel", (panelCtx) => myComponent, options);
- *   panels.close("my-panel");
+ *   const panels = getGlobal<ParchmentAPI>(PANTRY_KEYS.parchment);
+ *   panels?.createPanel("my-panel", (panelCtx) => myComponent, options);
+ *   panels?.close("my-panel");
  *
  * A small dog and a large dragon made this together.
  */
@@ -24,6 +24,7 @@ import type {
 import type { OverlayAnchor, OverlayHandle, TUI } from "@mariozechner/pi-tui";
 import { matchesKey, isKeyRelease, isKeyRepeat } from "@mariozechner/pi-tui";
 import { readPantrySetting, readPantryKey, keyLabel } from "../lib/settings.ts";
+import { PANTRY_KEYS, registerGlobal } from "../lib/globals.ts";
 import {
   setDefaultSkin,
   getSkin,
@@ -217,7 +218,6 @@ const KEYBINDS = {
 };
 const CLOSE_LABEL = keyLabel(KEYBINDS.close);
 const UNFOCUS_LABEL = keyLabel(KEYBINDS.unfocus);
-const API_KEY = Symbol.for("pantry.parchment");
 
 // Resize + nudge step sizes
 const MIN_PANEL_WIDTH = 20;
@@ -1870,7 +1870,7 @@ export default function (pi: ExtensionAPI) {
     keybinds: KEYBINDS,
   };
 
-  (globalThis as any)[API_KEY] = api;
+  registerGlobal(PANTRY_KEYS.parchment, api);
 
   // ── Spatial Focus Shortcuts ──
 

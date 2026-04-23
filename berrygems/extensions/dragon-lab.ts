@@ -14,6 +14,7 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import type { Model, Api } from "@mariozechner/pi-ai";
 import { readPantrySetting } from "../lib/settings.ts";
+import { PANTRY_KEYS, registerGlobal } from "../lib/globals.ts";
 
 // ─── Public API ──────────────────────────────────────────────────────────────
 
@@ -64,8 +65,6 @@ const ANTHROPIC_CONTEXT_MANAGEMENT: LabFeature = {
 
 // ─── Global state ────────────────────────────────────────────────────────────
 
-const LAB_KEY = Symbol.for("pantry.lab");
-
 // Features registered by other extensions at load time.
 const _pending = new Map<string, LabFeature>();
 // Features activated for the current session.
@@ -83,7 +82,7 @@ const api: DragonLabAPI = {
   },
 };
 
-(globalThis as any)[LAB_KEY] = api;
+registerGlobal(PANTRY_KEYS.lab, api);
 
 // ─── Extension entry point ───────────────────────────────────────────────────
 

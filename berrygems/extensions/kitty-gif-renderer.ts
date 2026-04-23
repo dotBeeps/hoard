@@ -6,7 +6,7 @@
  * requires a Kitty-compatible terminal. Graceful no-op if not loaded.
  *
  * Consumers access the API via globalThis — never import directly:
- *   const kitty = (globalThis as any)[Symbol.for("pantry.kitty")];
+ *   const kitty = getGlobal<KittyAPI>(PANTRY_KEYS.kitty);
  *   if (kitty) { ... }
  *
  * Depends on: dragon-parchment (for requestRender).
@@ -22,6 +22,7 @@ import {
   type ImageFrames,
   type ImageSizeOptions,
 } from "../lib/animated-image-player.ts";
+import { PANTRY_KEYS, registerGlobal } from "../lib/globals.ts";
 
 // ── Types ──
 
@@ -90,8 +91,6 @@ export interface FloatMerger {
   /** Return remaining image rows as flush lines (empty content, full-width gap). */
   flushLines(): FloatLine[];
 }
-
-const API_KEY = Symbol.for("pantry.kitty");
 
 // ── Extension ──
 
@@ -179,12 +178,12 @@ export default function (pi: ExtensionAPI) {
   // ── Publish API ──
 
   const api = { loadImage, disposeImage, createMerger };
-  (globalThis as any)[API_KEY] = api;
+  registerGlobal(PANTRY_KEYS.kitty, api);
 
   // Clean up on session end — players hold Kitty terminal memory
   pi.on("session_shutdown" as any, async () => {
     // Individual panels own their images and dispose on close/session_switch.
     // This is a final sweep in case any leaked through.
-    (globalThis as any)[API_KEY] = api; // keep API live for next session
+    registerGlobal(PANTRY_KEYS.kitty, api); // keep API live for next session
   });
 }

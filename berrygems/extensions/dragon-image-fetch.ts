@@ -7,7 +7,7 @@
  * configurable {placeholder} prompts and model selection.
  *
  * Consumers access the API via globalThis — never import directly:
- *   const imageFetch = (globalThis as any)[Symbol.for("pantry.imageFetch")];
+ *   const imageFetch = getGlobal<ImageFetchAPI>(PANTRY_KEYS.imageFetch);
  *   const frames = await imageFetch?.fetch("giphy:dragon coding", "small");
  *
  * Settings (pantry.imageFetch.*):
@@ -43,11 +43,10 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readPantrySetting } from "../lib/settings.ts";
+import { PANTRY_KEYS, registerGlobal } from "../lib/globals.ts";
 import type { ImageFrames } from "../lib/animated-image.ts";
 
 // ── Constants ──
-
-const API_KEY = Symbol.for("pantry.imageFetch");
 
 const GIPHY_API_KEY = "GlVGYHkr3WSBnllca54iNt0yFbjz7L65";
 const GIPHY_STICKER_URL = "https://api.giphy.com/v1/stickers/search";
@@ -455,7 +454,7 @@ function clearCache(): void {
 
 export default function (pi: ExtensionAPI) {
   const api = { fetch: fetchImage, vibeQuery, clearCache, getFallbackQuery };
-  (globalThis as any)[API_KEY] = api;
+  registerGlobal(PANTRY_KEYS.imageFetch, api);
 
   pi.on("session_start" as any, async (_event: any, ctx: any) => {
     _extCtx = ctx;

@@ -41,7 +41,14 @@ AMP (tsc-green + residue sweep) → Tests & Infrastructure → Docs & License (p
 4. `berrygems/lib/globals.ts` exists and exports a `PANTRY_KEYS` const covering every live cross-extension symbol; production extension code imports from this module instead of repeating `Symbol.for("pantry.*")` string literals.
 5. `tsc --project berrygems/tsconfig.json` returns zero errors (dragon-breath import-path bug per CONCERNS.md is fixed).
 
-**Plans:** TBD
+**Plans:** 5 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — AMP-04: fix dragon-breath import path, unblock tsc (wave 1)
+- [ ] 01-02-PLAN.md — AMP-01: delete five amputation-husk directories (wave 2)
+- [ ] 01-03-PLAN.md — AMP-02: sweep .claude/ hoard paths and rewrite AGENTS.override.md template (wave 2)
+- [ ] 01-04-PLAN.md — AMP-03: scrub hoard API residue, dead ally-mode, daemon-present-tense prose (wave 2)
+- [ ] 01-05-PLAN.md — AMP-05: create PANTRY_KEYS globals.ts and migrate 22 call sites (wave 3)
 
 ---
 

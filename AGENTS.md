@@ -88,17 +88,19 @@ There is one automated gate: `tsc` over the berrygems source. Everything else is
 cd /home/dot/Development/pantry; and tsc --project berrygems/tsconfig.json
 ```
 
-- `tsconfig.json` resolves `@mariozechner/pi-*` via symlinks in `berrygems/node_modules/`.
-- Symlinks point to pi's installed packages at `~/.npm/lib/node_modules/mitsupi/node_modules/`.
+- `tsconfig.json` resolves `@mariozechner/pi-*` via local `node_modules` symlinks.
+- Symlinks point to pi's installed packages under `~/.npm/lib/node_modules/@mariozechner/pi-coding-agent/node_modules/`.
 - If symlinks break after pi updates, recreate them:
   ```fish
-  set PI_MODULES "$HOME/.npm/lib/node_modules/mitsupi/node_modules"
-  mkdir -p berrygems/node_modules/@mariozechner
-  ln -sf "$PI_MODULES/@mariozechner/pi-tui" berrygems/node_modules/@mariozechner/pi-tui
-  ln -sf "$PI_MODULES/@mariozechner/pi-coding-agent" berrygems/node_modules/@mariozechner/pi-coding-agent
-  ln -sf "$PI_MODULES/@mariozechner/pi-ai" berrygems/node_modules/@mariozechner/pi-ai
-  ln -sf "$PI_MODULES/@mariozechner/pi-agent-core" berrygems/node_modules/@mariozechner/pi-agent-core
-  ln -sf "$PI_MODULES/@sinclair" berrygems/node_modules/@sinclair
+  set PI_MODULES "$HOME/.npm/lib/node_modules/@mariozechner/pi-coding-agent/node_modules"
+  mkdir -p node_modules/@mariozechner berrygems/node_modules/@mariozechner
+  for MODULE_ROOT in node_modules berrygems/node_modules
+      ln -sf "$HOME/.npm/lib/node_modules/@mariozechner/pi-coding-agent" "$MODULE_ROOT/@mariozechner/pi-coding-agent"
+      ln -sf "$PI_MODULES/@mariozechner/pi-tui" "$MODULE_ROOT/@mariozechner/pi-tui"
+      ln -sf "$PI_MODULES/@mariozechner/pi-ai" "$MODULE_ROOT/@mariozechner/pi-ai"
+      ln -sf "$PI_MODULES/@mariozechner/pi-agent-core" "$MODULE_ROOT/@mariozechner/pi-agent-core"
+      ln -sf "$PI_MODULES/typebox" "$MODULE_ROOT/typebox"
+  end
   ```
 - No eslint config. No test framework. Type checking is the only automated gate; behaviour testing is manual via `/reload` in pi.
 
@@ -128,7 +130,7 @@ This project extends [pi](https://github.com/badlogic/pi-mono), a terminal codin
 | `@mariozechner/pi-tui`          | Terminal UI components, keyboard, rendering                        | `Text`, `Box`, `Container`, `SelectList`, `SettingsList`, `matchesKey`, `Key`, `truncateToWidth`, `visibleWidth`                                                     |
 | `@mariozechner/pi-agent-core`   | Agent loop, state, transport abstraction                           | (rarely imported directly)                                                                                                                                           |
 | `@mariozechner/pi-coding-agent` | Coding agent CLI — tools, sessions, extensions, skills, compaction | `ExtensionAPI`, `ExtensionContext`, `DynamicBorder`, `BorderedLoader`, `getMarkdownTheme`, `keyHint`, `isToolCallEventType`, `withFileMutationQueue`, `CustomEditor` |
-| `@sinclair/typebox`             | JSON schema definitions                                            | `Type` for tool parameter schemas                                                                                                                                    |
+| `typebox`                      | JSON schema definitions                                            | `Type` for tool parameter schemas                                                                                                                                    |
 
 ### Extension Runtime
 

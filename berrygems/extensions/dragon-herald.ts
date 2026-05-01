@@ -12,22 +12,86 @@
  *      OSC sequences. Requires libnotify.
  *
  * Settings (pantry.herald.*):
- *   enabled      — master switch (default: true)
- *   title        — notification title (default: "Ember 🐉")
- *   method       — "auto" | "osc777" | "notify-send" (default: "auto")
- *   minDuration  — ms threshold; skip notifications for fast responses (default: 5000)
+ *   enabled       — master switch (default: true)
+ *   agentName     — agent display name override (default: profile AGENTS.md name)
+ *   title         — full notification title override
+ *   titleTemplate — title template when title is unset; {agent} is replaced (default: "{agent} 🐉")
+ *   method        — "auto" | "osc777" | "notify-send" (default: "auto")
+ *   minDuration   — ms threshold; skip notifications for fast responses (default: 5000)
  *
  * A small dog wrote this spec. A large dragon signs the notifications.
  */
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { execSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { readPantrySetting } from "../lib/settings.ts";
 
 // ── Settings ──
 
 function cfg<T>(key: string, fallback: T): T {
   return readPantrySetting<T>(`herald.${key}`, fallback);
+}
+
+// ── Agent Identity ──
+
+const GENERIC_AGENT_NAMES = new Set([
+  "AI",
+  "Assistant",
+  "Agent",
+  "Dragon",
+  "System",
+]);
+
+function cleanAgentName(name: string): string | null {
+  const clean = name.trim().replace(/[.,:;!?]+$/g, "");
+  if (!clean || GENERIC_AGENT_NAMES.has(clean)) return null;
+  return clean.length > 48 ? clean.slice(0, 48).trim() : clean;
+}
+
+function extractAgentNameFromProfile(content: string): string | null {
+  const candidates = [
+    /^#\s+([\p{L}][\p{L}\p{N}_-]{1,47})(?:\s*(?:\/|—|-|$))/mu,
+    /\b(?:profile\s+is|profile\s+name\s*[:=]|I['’]m|I\s+am|You\s+are)\s+([\p{L}][\p{L}\p{N}_-]{1,47})\b/mu,
+  ];
+
+  for (const pattern of candidates) {
+    const match = content.match(pattern);
+    if (!match?.[1]) continue;
+    const name = cleanAgentName(match[1]);
+    if (name) return name;
+  }
+
+  return null;
+}
+
+function readAgentNameFromProfileDir(): string | null {
+  const profileDir = process.env.PI_CODING_AGENT_DIR;
+  if (!profileDir) return null;
+
+  const agentsPath = join(profileDir, "AGENTS.md");
+  if (!existsSync(agentsPath)) return null;
+
+  try {
+    return extractAgentNameFromProfile(readFileSync(agentsPath, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function resolveAgentName(): string {
+  const configured = cleanAgentName(cfg<string>("agentName", ""));
+  return configured ?? readAgentNameFromProfileDir() ?? "Dragon";
+}
+
+function buildTitle(): string {
+  const explicitTitle = cfg<string>("title", "").trim();
+  if (explicitTitle) return explicitTitle;
+
+  const agentName = resolveAgentName();
+  const template = cfg<string>("titleTemplate", "{agent} 🐉").trim() || "{agent} 🐉";
+  return template.replace(/\{agent\}/g, agentName);
 }
 
 // ── Notification Methods ──
@@ -131,7 +195,7 @@ export default function (pi: ExtensionAPI) {
   });
 
   pi.on("agent_end", async (event: any) => {
-    const title = cfg<string>("title", "Ember 🐉");
+    const title = buildTitle();
     const method = cfg<string>("method", "auto");
     const minDuration = cfg<number>("minDuration", 5000);
 

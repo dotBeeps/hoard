@@ -13,8 +13,10 @@
  *
  * Configurable via pantry.curfew.* in ~/.pi/agent/settings.json:
  *  - enabled    (default: true)
- *  - startHour  (default: 0 — midnight)
- *  - endHour    (default: 6 — 6 AM exclusive)
+ *  - startHour    (default: 0 — midnight)
+ *  - startMinute  (default: 0)
+ *  - endHour      (default: 6 — 6 AM exclusive)
+ *  - endMinute    (default: 0)
  *
  * A small dog designed this from inside a very warm dragon.
  * The dragon let her. This was a mistake.
@@ -45,43 +47,85 @@ const NAG_MESSAGES = [
 
 // ── Settings ──
 
-function getCurfewSettings(): {
+interface CurfewSettings {
   enabled: boolean;
   startHour: number;
+  startMinute: number;
   endHour: number;
-} {
+  endMinute: number;
+}
+
+function clampHour(value: number): number {
+  return Math.max(0, Math.min(23, Math.trunc(value)));
+}
+
+function clampMinute(value: number): number {
+  return Math.max(0, Math.min(59, Math.trunc(value)));
+}
+
+function getCurfewSettings(): CurfewSettings {
   return {
     enabled: readPantrySetting<boolean>("curfew.enabled", true),
-    startHour: readPantrySetting<number>("curfew.startHour", 0),
-    endHour: readPantrySetting<number>("curfew.endHour", 6),
+    startHour: clampHour(readPantrySetting<number>("curfew.startHour", 0)),
+    startMinute: clampMinute(readPantrySetting<number>("curfew.startMinute", 0)),
+    endHour: clampHour(readPantrySetting<number>("curfew.endHour", 6)),
+    endMinute: clampMinute(readPantrySetting<number>("curfew.endMinute", 0)),
   };
 }
 
 // ── Time Helpers ──
 
-function isCurfewHour(now: Date, startHour: number, endHour: number): boolean {
-  const hour = now.getHours();
-  if (startHour < endHour) {
-    // Simple range: e.g. 0–6
-    return hour >= startHour && hour < endHour;
+function minutesSinceMidnight(hour: number, minute: number): number {
+  return hour * 60 + minute;
+}
+
+function getCurfewStart(settings: CurfewSettings): number {
+  return minutesSinceMidnight(settings.startHour, settings.startMinute);
+}
+
+function getCurfewEnd(settings: CurfewSettings): number {
+  return minutesSinceMidnight(settings.endHour, settings.endMinute);
+}
+
+function isCurfewTime(now: Date, settings: CurfewSettings): boolean {
+  const current = minutesSinceMidnight(now.getHours(), now.getMinutes());
+  const start = getCurfewStart(settings);
+  const end = getCurfewEnd(settings);
+
+  if (start === end) {
+    return false;
   }
-  // Wrapped range: e.g. 22–6
-  return hour >= startHour || hour < endHour;
+
+  if (start < end) {
+    // Simple range: e.g. 00:30–06:00
+    return current >= start && current < end;
+  }
+
+  // Wrapped range: e.g. 22:30–06:00
+  return current >= start || current < end;
 }
 
 function formatTime(now: Date): string {
   return now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-function formatHour(h: number): string {
-  return `${String(h).padStart(2, "0")}:00`;
+function formatClock(hour: number, minute: number): string {
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+function formatCurfewLabel(settings: CurfewSettings): string {
+  return `${formatClock(settings.startHour, settings.startMinute)}–${formatClock(
+    settings.endHour,
+    settings.endMinute,
+  )}`;
 }
 
 /** Date key anchored to the curfew start — so "tonight" is stable across midnight. */
-function getNightKey(now: Date, startHour: number): string {
-  // If we're before startHour, the active "night" is the previous calendar day
+function getNightKey(now: Date, settings: CurfewSettings): string {
+  // If we're before start, the active "night" is the previous calendar day.
   const anchor = new Date(now);
-  if (now.getHours() < startHour) {
+  const current = minutesSinceMidnight(now.getHours(), now.getMinutes());
+  if (current < getCurfewStart(settings)) {
     anchor.setDate(anchor.getDate() - 1);
   }
   const yyyy = String(anchor.getFullYear());
@@ -145,12 +189,12 @@ export default function dragonCurfew(pi: ExtensionAPI): void {
   let toolCallsSinceConfirm = 0;
   let nagsPending = 0;
 
-  function isConfirmedTonight(now: Date, startHour: number): boolean {
-    return confirmedNightKey === getNightKey(now, startHour);
+  function isConfirmedTonight(now: Date, settings: CurfewSettings): boolean {
+    return confirmedNightKey === getNightKey(now, settings);
   }
 
-  function confirmTonight(now: Date, startHour: number): void {
-    confirmedNightKey = getNightKey(now, startHour);
+  function confirmTonight(now: Date, settings: CurfewSettings): void {
+    confirmedNightKey = getNightKey(now, settings);
     toolCallsSinceConfirm = 0;
     nagsPending = 0;
   }
@@ -158,15 +202,15 @@ export default function dragonCurfew(pi: ExtensionAPI): void {
   // ── before_agent_start — inject policy or nag ──
 
   pi.on("before_agent_start", async () => {
-    const { enabled, startHour, endHour } = getCurfewSettings();
-    if (!enabled) return;
+    const settings = getCurfewSettings();
+    if (!settings.enabled) return;
 
     const now = new Date();
     const localTime = formatTime(now);
-    const label = `${formatHour(startHour)}–${formatHour(endHour)}`;
-    const nightKey = getNightKey(now, startHour);
+    const label = formatCurfewLabel(settings);
+    const nightKey = getNightKey(now, settings);
 
-    if (!isCurfewHour(now, startHour, endHour)) {
+    if (!isCurfewTime(now, settings)) {
       // Curfew just ended — reset state and send a farewell message once
       if (curfewWasActive) {
         curfewWasActive = false;
@@ -187,7 +231,7 @@ export default function dragonCurfew(pi: ExtensionAPI): void {
     }
 
     curfewWasActive = true;
-    const confirmed = isConfirmedTonight(now, startHour);
+    const confirmed = isConfirmedTonight(now, settings);
 
     // Inject nag if one is pending (accumulated from tool call counter)
     if (confirmed && nagsPending > 0) {
@@ -230,13 +274,13 @@ export default function dragonCurfew(pi: ExtensionAPI): void {
   // ── tool_call — block during unconfirmed curfew ──
 
   pi.on("tool_call", async (event): Promise<ToolCallEventResult | void> => {
-    const { enabled, startHour, endHour } = getCurfewSettings();
-    if (!enabled) return;
+    const settings = getCurfewSettings();
+    if (!settings.enabled) return;
 
     const now = new Date();
-    if (!isCurfewHour(now, startHour, endHour)) return;
+    if (!isCurfewTime(now, settings)) return;
 
-    if (isConfirmedTonight(now, startHour)) {
+    if (isConfirmedTonight(now, settings)) {
       // Confirmed — count the tool call for nag scheduling
       toolCallsSinceConfirm++;
       if (toolCallsSinceConfirm % NAG_INTERVAL === 0) {
@@ -250,7 +294,7 @@ export default function dragonCurfew(pi: ExtensionAPI): void {
       const input = event.input as { command?: unknown } | undefined;
       const command = typeof input?.command === "string" ? input.command : "";
       if (isConfirmCommand(command)) {
-        confirmTonight(now, startHour);
+        confirmTonight(now, settings);
         return; // Let it through
       }
       return {
@@ -274,8 +318,8 @@ export default function dragonCurfew(pi: ExtensionAPI): void {
     const command = typeof input?.command === "string" ? input.command : "";
     if (!isConfirmCommand(command)) return;
 
-    const { startHour, endHour } = getCurfewSettings();
-    const label = `${formatHour(startHour)}–${formatHour(endHour)}`;
+    const settings = getCurfewSettings();
+    const label = formatCurfewLabel(settings);
 
     return {
       content: [
@@ -292,14 +336,14 @@ export default function dragonCurfew(pi: ExtensionAPI): void {
   pi.registerCommand("curfew", {
     description: "Show Dragon Curfew status — active hours, confirmation state",
     handler: async (_args, ctx) => {
-      const { enabled, startHour, endHour } = getCurfewSettings();
+      const settings = getCurfewSettings();
       const now = new Date();
       const localTime = formatTime(now);
-      const label = `${formatHour(startHour)}–${formatHour(endHour)}`;
-      const active = isCurfewHour(now, startHour, endHour);
-      const confirmed = active && isConfirmedTonight(now, startHour);
+      const label = formatCurfewLabel(settings);
+      const active = isCurfewTime(now, settings);
+      const confirmed = active && isConfirmedTonight(now, settings);
 
-      if (!enabled) {
+      if (!settings.enabled) {
         ctx.ui.notify(
           `🐉 Dragon Curfew: disabled (hours would be ${label})`,
           "info",
@@ -308,7 +352,10 @@ export default function dragonCurfew(pi: ExtensionAPI): void {
       }
 
       if (!active) {
-        const nextLabel = `Curfew starts tonight at ${formatHour(startHour)}`;
+        const nextLabel = `Curfew starts tonight at ${formatClock(
+          settings.startHour,
+          settings.startMinute,
+        )}`;
         ctx.ui.notify(
           `🌅 Dragon Curfew: inactive — ${localTime} — ${nextLabel}`,
           "info",

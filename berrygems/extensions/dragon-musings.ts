@@ -1,23 +1,20 @@
 /**
- * Dragon Musings — Whimsical contextual thinking spinner for pi.
+ * Dragon Musings — Whimsical dialectic thinking spinner for pi.
  *
  * The hoard is never silent while the dragon thinks. This extension replaces
- * the default working message with living, breathing phrases that shift with
- * what the agent is actually doing — generated fresh by a cheap LLM, then
- * cached and cycled until the next turn begins anew.
+ * the default working message with short, contextual loading phrases generated
+ * in batches from a rolling summary of the current session.
  *
  * Features:
  * - Hooks before_provider_request to swap in custom spinner text
- * - Reads the last few messages + recent tool calls for context
- * - Fires a single fast/cheap LLM call (Haiku first, then fallbacks) to
- *   generate 8 themed phrases tailored to what's happening right now
- * - Caches generated phrases and cycles through them every ~2 seconds
- * - Falls back to a static 30-phrase list if generation fails or is disabled
- * - Cycles automatically during streaming; resets cleanly on turn_end
+ * - Every N user prompts (default 4), asks a cheap model to compare the latest
+ *   user/agent tail against the previous summary
+ * - Persists a <250 word session-status summary plus a configurable phrase pack
+ *   (default 50 phrases, each <4 words)
+ * - Dialectic flavor: thesis, antithesis, synthesis, evidence, counterpoint
+ * - Caches generated phrases between refreshes and cycles through them
+ * - Falls back to static short phrases if generation fails or is disabled
  * - Configurable via pantry.musings.* settings
- *
- * Themes: dragons, small dogs, hoarding, warmth, smoke, gems, cozy coding.
- * Because waiting should feel like curling up by a fire, not staring at a dot.
  *
  * A small dog and a large dragon made this together.
  */
@@ -36,22 +33,36 @@ function isEnabled(): boolean {
   return readPantrySetting("musings.enabled", true);
 }
 
-/** Whether to fire LLM calls to generate contextual phrases. */
+/** Whether to fire LLM calls to generate contextual summaries and phrases. */
 function isContextualEnabled(): boolean {
   return readPantrySetting("musings.generateContextual", true);
 }
 
 /** Milliseconds between phrase changes in the spinner. */
 function getCycleMs(): number {
-  return readPantrySetting("musings.cycleMs", 2000);
+  return Math.max(250, readPantrySetting("musings.cycleMs", 2000));
 }
 
 /**
- * How many turns to reuse generated phrases before regenerating.
- * 0 = regenerate every turn (expensive), default 4.
+ * How many user prompts to reuse a phrase pack before regenerating.
+ * 0 = regenerate every user prompt.
+ *
+ * `cacheTurns` remains as a backwards-compatible fallback for older configs.
  */
-function getCacheTurns(): number {
-  return readPantrySetting("musings.cacheTurns", 4);
+function getRefreshPrompts(): number {
+  const configured = readPantrySetting(
+    "musings.refreshPrompts",
+    readPantrySetting("musings.cacheTurns", 4),
+  );
+  return Math.max(0, Math.floor(configured));
+}
+
+/** How many short loading messages to ask for. */
+function getMessageCount(): number {
+  return Math.max(
+    1,
+    Math.min(100, Math.floor(readPantrySetting("musings.messageCount", 50))),
+  );
 }
 
 /**
@@ -59,12 +70,20 @@ function getCacheTurns(): number {
  * Prevents runaway token spend in long sessions.
  */
 function getMaxGenerations(): number {
-  return readPantrySetting("musings.maxGenerations", 20);
+  return Math.max(
+    0,
+    Math.floor(readPantrySetting("musings.maxGenerations", 20)),
+  );
 }
 
 /**
  * Custom generation prompt template. Placeholders:
- *   {context} — auto-extracted summary of recent activity
+ *   {previous_summary} — last saved summary, or initial-summary marker
+ *   {user_tail}        — latest user messages
+ *   {agent_tail}       — latest assistant text/tool activity
+ *   {context_recent}   — compact recent activity
+ *   {message_count}    — configured number of loading messages
+ *   {context}          — alias for context_recent
  * Empty string = use built-in default.
  */
 function getCustomPrompt(): string {
@@ -81,55 +100,104 @@ function getPreferredModel(): string {
 }
 
 // ── Static Fallback Phrases ──
-// Used when LLM generation fails or is disabled. Rich enough to feel alive.
+// Keep every fallback below four words.
 
 const STATIC_PHRASES: string[] = [
-  "Warming the hoard...",
-  "Sniffing out a solution...",
-  "Digesting your request...",
-  "Curling around the codebase...",
-  "Tucking pup in for a think...",
-  "Rummaging through treasures...",
-  "Polishing a gem...",
-  "Dragon breath compiling...",
-  "Sitting on the problem...",
-  "Counting the gold...",
-  "Breathing on cold logic...",
-  "Nose deep in the tome...",
-  "Small dog, big thoughts...",
-  "Scales rustling softly...",
-  "Mining a deeper seam...",
-  "Unfolding leathery wings...",
-  "Following the scent...",
-  "Sorting through the hoard...",
-  "Puppy dreams of clean code...",
-  "Smoking quietly...",
-  "Filing gems by color...",
-  "Listening to the bytes...",
-  "Consulting the ancient scroll...",
-  "Tail curled around the problem...",
-  "Hoarding a useful thought...",
-  "Paws tapping the floor...",
-  "Ember glow, slow thoughts...",
-  "Scenting the answer nearby...",
-  "Very cozy. Still thinking...",
-  "One more layer of the hoard...",
+  "Thesis warming",
+  "Antithesis sniffing",
+  "Synthesis nesting",
+  "Evidence glittering",
+  "Counterpoint glowing",
+  "Premise polishing",
+  "Claim curling",
+  "Doubt simmering",
+  "Proof hoarded",
+  "Logic rumbling",
+  "Tiny thesis",
+  "Pup premise",
+  "Dragon considers",
+  "Hoard compares",
+  "Tail annotates",
+  "Smoke footnotes",
+  "Gem remembers",
+  "Warm inference",
+  "Question hatches",
+  "Answer broods",
+  "Context steeping",
+  "Pattern scenting",
+  "Assumption booped",
+  "Argument purring",
+  "Tension softens",
+  "Caveat curls",
+  "Model mulls",
+  "Archive stirs",
+  "Scrolls whisper",
+  "Claws index",
+  "Premises align",
+  "Edges glow",
+  "Thread tugged",
+  "Signal found",
+  "Meaning ferments",
+  "Pup tucked",
+  "Dragon rereads",
+  "Inference chews",
+  "Map unfolding",
+  "Hoard hums",
+  "Claim meets",
+  "Evidence answers",
+  "Sparks compare",
+  "Warm recursion",
+  "Tiny counterclaim",
+  "Dialectic dozes",
+  "Logic cuddled",
+  "Question circled",
+  "Pattern warmed",
+  "Gem triangulates",
 ];
 
-// ── LLM Phrase Generation ──
+// ── LLM Summary + Phrase Generation ──
 
-const DEFAULT_GENERATION_SYSTEM_PROMPT = `You generate short whimsical loading phrases for a coding agent named Ember (a dragon who works with a small dog).
-Return exactly 8 phrases, one per line.
+const MUSINGS_STATE_ENTRY = "dragon-musings-state";
+
+const DEFAULT_GENERATION_SYSTEM_PROMPT = `You generate session summaries and very short dialectic loading phrases for a coding agent dragon working with dot, a tiny dog.
+Return ONLY valid JSON with this shape:
+{
+  "summary": "<250 words, updated session-status summary>",
+  "messages": ["phrase", "phrase"]
+}
 Rules:
-- Max 6 words each
-- No punctuation at the end except "..."
-- No numbering, bullets, or labels
-- Theme: dragons, small dogs, hoarding, warmth, gems, cozy coding
-- Vary sentence openings — don't start more than 2 phrases the same way
-- Base them loosely on the provided context`;
+- The summary must compare the previous summary with the latest user tail and agent tail.
+- If there is no previous summary, create an initial summary from the current tails.
+- Generate exactly the requested number of messages.
+- Every message must be fewer than 4 words (1-3 words).
+- No numbering, bullets, labels, markdown, or trailing punctuation except ellipses.
+- Flavor: dialectic, thesis/antithesis/synthesis, evidence, counterpoint, archive-dragon warmth.
+- Keep messages varied and useful for a thinking/loading spinner.`;
 
-/** Max characters per placeholder field. */
-const PLACEHOLDER_LIMIT = 500;
+/** Max characters per extracted context field. */
+const FIELD_LIMIT = 900;
+const RECENT_LIMIT = 1400;
+
+interface SessionTail {
+  userTail: string;
+  agentTail: string;
+  recent: string;
+  userPromptCount: number;
+}
+
+interface MusingsSnapshot {
+  summary: string;
+  phrases: string[];
+  generatedAtPromptCount: number;
+  generationsThisSession: number;
+}
+
+interface PhraseState {
+  phrases: string[];
+  index: number;
+  summary: string;
+  generatedAtPromptCount: number;
+}
 
 /** Extract text from a message content (string or content array). */
 function extractText(content: unknown, limit: number): string {
@@ -143,18 +211,87 @@ function extractText(content: unknown, limit: number): string {
     .trim();
 }
 
-/**
- * Walk the branch and extract last user message, last assistant text,
- * and a recent-activity summary. Returns an object of placeholder values.
- */
-function buildPlaceholders(ctx: ExtensionContext): Record<string, string> {
-  let userLastMsg = "";
-  let aiLastMsg = "";
+function countWords(text: string): number {
+  return text.trim().split(/\s+/).filter(Boolean).length;
+}
+
+function sanitizeSummary(summary: string): string {
+  const words = summary
+    .replace(/```[\s\S]*?```/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  return words.slice(0, 249).join(" ");
+}
+
+function stripPhrasePrefix(line: string): string {
+  return line
+    .replace(/^[-*•\s]+/, "")
+    .replace(/^\d+[.)]\s*/, "")
+    .replace(/^messages?:\s*/i, "")
+    .replace(/^phrase:\s*/i, "")
+    .replace(/^['\"]|['\"]$/g, "")
+    .trim();
+}
+
+function sanitizePhrase(line: string): string | null {
+  const cleaned = stripPhrasePrefix(line)
+    .replace(/[.!?]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!cleaned) return null;
+  if (cleaned.length > 48) return null;
+
+  const words = cleaned.split(/\s+/).filter(Boolean);
+  if (words.length === 0) return null;
+  return words.slice(0, 3).join(" ");
+}
+
+function fillPhraseSet(phrases: string[], count: number, recentlySeen: Set<string>): string[] {
+  const result: string[] = [];
+  const seen = new Set<string>();
+
+  function add(phrase: string, allowRecent: boolean): void {
+    const sanitized = sanitizePhrase(phrase);
+    if (!sanitized) return;
+    const key = sanitized.toLowerCase();
+    if (seen.has(key)) return;
+    if (!allowRecent && recentlySeen.has(key)) return;
+    seen.add(key);
+    result.push(sanitized);
+  }
+
+  for (const phrase of phrases) add(phrase, false);
+  for (const phrase of shuffle([...STATIC_PHRASES])) add(phrase, false);
+  for (const phrase of phrases) add(phrase, true);
+  for (const phrase of shuffle([...STATIC_PHRASES])) add(phrase, true);
+
+  let i = 0;
+  while (result.length < count) {
+    add(STATIC_PHRASES[i % STATIC_PHRASES.length]!, true);
+    i++;
+    if (i > STATIC_PHRASES.length * 2) break;
+  }
+
+  return shuffle(result).slice(0, count);
+}
+
+function buildSessionTail(ctx: ExtensionContext): SessionTail {
+  const userParts: string[] = [];
+  const agentParts: string[] = [];
   const recentParts: string[] = [];
+  let userPromptCount = 0;
 
   try {
     const branch = ctx.sessionManager.getBranch();
-    const recent = branch.slice(-8);
+    const recent = branch.slice(-14);
+
+    for (const entry of branch) {
+      if (entry.type !== "message") continue;
+      const msg = (entry as any).message;
+      if (msg?.role === "user") userPromptCount++;
+    }
 
     for (const entry of recent) {
       if (entry.type !== "message") continue;
@@ -162,22 +299,23 @@ function buildPlaceholders(ctx: ExtensionContext): Record<string, string> {
       if (!msg) continue;
 
       if (msg.role === "user") {
-        const text = extractText(msg.content, PLACEHOLDER_LIMIT);
+        const text = extractText(msg.content, FIELD_LIMIT);
         if (text) {
-          userLastMsg = text; // keep overwriting — last one wins
-          recentParts.push(`User: ${text.slice(0, 120)}`);
+          userParts.push(text);
+          recentParts.push(`User: ${text.slice(0, 180)}`);
         }
       } else if (msg.role === "assistant") {
-        // Extract text content (skip thinking/tool_use blocks)
         const text = extractText(
           Array.isArray(msg.content)
             ? msg.content.filter((c: any) => c.type === "text")
             : msg.content,
-          PLACEHOLDER_LIMIT,
+          FIELD_LIMIT,
         );
-        if (text) aiLastMsg = text; // last one wins
+        if (text) {
+          agentParts.push(text);
+          recentParts.push(`Agent: ${text.slice(0, 180)}`);
+        }
 
-        // Also collect tool names for the summary
         if (Array.isArray(msg.content)) {
           for (const block of msg.content) {
             if (
@@ -185,6 +323,7 @@ function buildPlaceholders(ctx: ExtensionContext): Record<string, string> {
               (block as any).type === "tool_use"
             ) {
               const name = (block as any).name ?? "unknown tool";
+              agentParts.push(`Used ${name}`);
               recentParts.push(`Tool: ${name}`);
             }
           }
@@ -192,19 +331,32 @@ function buildPlaceholders(ctx: ExtensionContext): Record<string, string> {
       }
     }
   } catch {
-    // Session may not be available
+    // Session may not be available during early startup.
   }
 
-  const contextRecent =
-    recentParts.length > 0
-      ? recentParts.slice(-6).join(". ").slice(0, PLACEHOLDER_LIMIT)
-      : "general coding work";
-
   return {
-    "{user_last_msg}": userLastMsg || "(no user message yet)",
-    "{ai_last_msg}": aiLastMsg || "(no assistant message yet)",
-    "{context_recent}": contextRecent,
-    "{context}": contextRecent, // backward compat
+    userTail: userParts.slice(-3).join("\n---\n").slice(0, FIELD_LIMIT),
+    agentTail: agentParts.slice(-4).join("\n---\n").slice(0, FIELD_LIMIT),
+    recent:
+      recentParts.length > 0
+        ? recentParts.slice(-8).join("\n").slice(0, RECENT_LIMIT)
+        : "general coding work",
+    userPromptCount,
+  };
+}
+
+function buildPlaceholders(
+  tail: SessionTail,
+  previousSummary: string,
+  messageCount: number,
+): Record<string, string> {
+  return {
+    "{previous_summary}": previousSummary || "(none — create initial summary)",
+    "{user_tail}": tail.userTail || "(no user tail yet)",
+    "{agent_tail}": tail.agentTail || "(no agent tail yet)",
+    "{context_recent}": tail.recent,
+    "{context}": tail.recent,
+    "{message_count}": String(messageCount),
   };
 }
 
@@ -219,15 +371,16 @@ function resolveModel(ctx: ExtensionContext) {
       const found = ctx.modelRegistry.find(provider, modelId);
       if (found) return found;
     } else {
-      // Scan all known providers for a match
-      for (const provider of ["anthropic", "google", "openai"]) {
+      // Scan all known providers for a match.
+      for (const provider of ["anthropic", "google", "openai", "zai", "github-copilot"]) {
         const found = ctx.modelRegistry.find(provider, pref);
         if (found) return found;
       }
     }
   }
 
-  // Auto-select cheapest available — github-copilot is FREE, ZAI flash is $0.06/MTok, Anthropic last
+  // Auto-select cheapest available — github-copilot is free in many setups,
+  // ZAI flash is cheap, Anthropic/Google are fallbacks.
   return (
     ctx.modelRegistry.find("github-copilot", "claude-haiku-4-5") ??
     ctx.modelRegistry.find("zai", "glm-4.7-flashx") ??
@@ -235,21 +388,77 @@ function resolveModel(ctx: ExtensionContext) {
     ctx.modelRegistry.find("anthropic", "claude-haiku-4-5") ??
     ctx.modelRegistry.find("google", "gemini-2.0-flash-lite") ??
     ctx.modelRegistry.find("google", "gemini-2.0-flash") ??
-    ctx.model ?? // last resort: current model
+    ctx.model ??
     null
   );
 }
 
-async function generatePhrases(ctx: ExtensionContext): Promise<string[]> {
+function extractJsonObject(text: string): unknown | null {
+  const trimmed = text.trim();
+  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const candidate = fenced?.[1]?.trim() ?? trimmed;
+
+  try {
+    return JSON.parse(candidate);
+  } catch {
+    const start = candidate.indexOf("{");
+    const end = candidate.lastIndexOf("}");
+    if (start < 0 || end <= start) return null;
+    try {
+      return JSON.parse(candidate.slice(start, end + 1));
+    } catch {
+      return null;
+    }
+  }
+}
+
+function parseGenerationResponse(text: string): { summary: string; phrases: string[] } {
+  const parsed = extractJsonObject(text) as
+    | { summary?: unknown; messages?: unknown; phrases?: unknown }
+    | null;
+
+  if (parsed) {
+    const rawMessages = Array.isArray(parsed.messages)
+      ? parsed.messages
+      : Array.isArray(parsed.phrases)
+        ? parsed.phrases
+        : [];
+    return {
+      summary: typeof parsed.summary === "string" ? sanitizeSummary(parsed.summary) : "",
+      phrases: rawMessages
+        .map((value) => sanitizePhrase(String(value)))
+        .filter((value): value is string => Boolean(value)),
+    };
+  }
+
+  // Lenient fallback for non-JSON responses.
+  const lines = text.split("\n").map((line) => line.trim()).filter(Boolean);
+  const summaryLine = lines.find((line) => /^summary\s*:/i.test(line));
+  const summary = summaryLine
+    ? sanitizeSummary(summaryLine.replace(/^summary\s*:/i, ""))
+    : "";
+  const phrases = lines
+    .filter((line) => !/^summary\s*:/i.test(line))
+    .map(sanitizePhrase)
+    .filter((value): value is string => Boolean(value));
+
+  return { summary, phrases };
+}
+
+async function generateMusings(
+  ctx: ExtensionContext,
+  previousSummary: string,
+  messageCount: number,
+): Promise<{ summary: string; phrases: string[]; promptCount: number } | null> {
   const model = resolveModel(ctx);
-  if (!model) return [];
+  if (!model) return null;
 
   const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model);
-  if (!auth.ok || !auth.apiKey) return [];
+  if (!auth.ok || !auth.apiKey) return null;
 
-  const placeholders = buildPlaceholders(ctx);
+  const tail = buildSessionTail(ctx);
+  const placeholders = buildPlaceholders(tail, previousSummary, messageCount);
 
-  // Build the user prompt — custom template with placeholders or default
   const custom = getCustomPrompt();
   let userText: string;
   if (custom) {
@@ -258,7 +467,13 @@ async function generatePhrases(ctx: ExtensionContext): Promise<string[]> {
       userText = userText.replaceAll(key, value);
     }
   } else {
-    userText = `Generate 8 short, whimsical loading phrases (max 6 words each) themed around dragons, small dogs, hoarding knowledge, warmth, and coding. Base them loosely on this context: ${placeholders["{context_recent}"]!}. Return one phrase per line, no numbering, no punctuation at end except "..."`;
+    userText = [
+      `Previous summary:\n${placeholders["{previous_summary}"]}`,
+      `Latest user tail:\n${placeholders["{user_tail}"]}`,
+      `Latest agent tail:\n${placeholders["{agent_tail}"]}`,
+      `Recent activity:\n${placeholders["{context_recent}"]}`,
+      `Create an updated session-status summary under 250 words. Then generate exactly ${messageCount} dialectic loading messages, each fewer than 4 words. Return only JSON.`,
+    ].join("\n\n");
   }
 
   const userMessage: UserMessage = {
@@ -268,7 +483,10 @@ async function generatePhrases(ctx: ExtensionContext): Promise<string[]> {
   };
 
   const systemPrompt = custom
-    ? "Return exactly 8 short phrases, one per line. No numbering or labels."
+    ? [
+        DEFAULT_GENERATION_SYSTEM_PROMPT,
+        "The custom user prompt may add style guidance, but you must still return the required JSON shape.",
+      ].join("\n")
     : DEFAULT_GENERATION_SYSTEM_PROMPT;
 
   const response = await complete(
@@ -283,13 +501,17 @@ async function generatePhrases(ctx: ExtensionContext): Promise<string[]> {
     .join("\n")
     .trim();
 
-  const phrases = text
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0 && line.length < 60)
-    .slice(0, 10);
+  const parsed = parseGenerationResponse(text);
+  const summary = parsed.summary || previousSummary;
+  if (!summary && parsed.phrases.length === 0) return null;
 
-  return phrases.length >= 3 ? phrases : [];
+  return {
+    summary:
+      summary ||
+      "Initial session context captured; the dragon is comparing the latest request with the working tail.",
+    phrases: parsed.phrases,
+    promptCount: tail.userPromptCount,
+  };
 }
 
 // ── Phrase Cache & Cycling ──
@@ -301,28 +523,6 @@ function shuffle<T>(arr: T[]): T[] {
     [arr[i], arr[j]] = [arr[j]!, arr[i]!];
   }
   return arr;
-}
-
-/** Blend generated phrases with a few random static ones, dedupe, shuffle. */
-function blendAndShuffle(
-  generated: string[],
-  recentlySeen: Set<string>,
-): string[] {
-  // Pick 3 random static phrases for variety
-  const staticPicks = shuffle([...STATIC_PHRASES]).slice(0, 3);
-  const combined = [...generated, ...staticPicks];
-
-  // Dedupe against recently seen phrases (case-insensitive)
-  const unique = combined.filter((p) => !recentlySeen.has(p.toLowerCase()));
-
-  // If deduping killed too many, fall back to the generated set as-is
-  const result = unique.length >= 3 ? unique : combined;
-  return shuffle(result);
-}
-
-interface PhraseState {
-  phrases: string[];
-  index: number;
 }
 
 function pickFallback(state: PhraseState): string {
@@ -338,26 +538,88 @@ function pickNext(state: PhraseState): string {
   return phrase;
 }
 
+function restoreSnapshot(ctx: ExtensionContext): MusingsSnapshot | null {
+  try {
+    const entries = ctx.sessionManager.getEntries();
+    for (let i = entries.length - 1; i >= 0; i--) {
+      const entry = entries[i] as {
+        type?: string;
+        customType?: string;
+        data?: Partial<MusingsSnapshot>;
+      };
+      if (entry.type !== "custom" || entry.customType !== MUSINGS_STATE_ENTRY) continue;
+      if (!entry.data) continue;
+      return {
+        summary: typeof entry.data.summary === "string" ? entry.data.summary : "",
+        phrases: Array.isArray(entry.data.phrases)
+          ? entry.data.phrases
+              .map(String)
+              .map(sanitizePhrase)
+              .filter((p): p is string => Boolean(p))
+          : [],
+        generatedAtPromptCount:
+          typeof entry.data.generatedAtPromptCount === "number"
+            ? entry.data.generatedAtPromptCount
+            : 0,
+        generationsThisSession:
+          typeof entry.data.generationsThisSession === "number"
+            ? entry.data.generationsThisSession
+            : 0,
+      };
+    }
+  } catch {
+    // Ignore restore failures; musings are decorative.
+  }
+  return null;
+}
+
 // ── Extension ──
 
 export default function (pi: ExtensionAPI) {
   let cycleInterval: ReturnType<typeof setInterval> | null = null;
   let ctxRef: ExtensionContext | null = null;
 
-  // Generation rate-limiting state
+  // Generation rate-limiting state.
   let generationsThisSession = 0;
-  let turnsSinceLastGeneration = 0;
-  let generationInFlight = false; // prevent concurrent generation
-  let turnCount = 0;
+  let generationInFlight = false; // Prevent concurrent generation.
+  let lastSeenUserPromptCount = 0;
 
-  // Track recently seen phrases to avoid repetition across generations
+  // Track recently seen phrases to avoid repetition across generations.
   const recentlySeen = new Set<string>();
-  const MAX_RECENTLY_SEEN = 60;
+  const MAX_RECENTLY_SEEN = 160;
 
   const state: PhraseState = {
     phrases: [],
     index: Math.floor(Math.random() * STATIC_PHRASES.length),
+    summary: "",
+    generatedAtPromptCount: 0,
   };
+
+  function snapshot(): MusingsSnapshot {
+    return {
+      summary: state.summary,
+      phrases: state.phrases,
+      generatedAtPromptCount: state.generatedAtPromptCount,
+      generationsThisSession,
+    };
+  }
+
+  function save(ctx: ExtensionContext): void {
+    pi.appendEntry(MUSINGS_STATE_ENTRY, snapshot());
+    ctxRef = ctx;
+  }
+
+  function rememberPhrases(phrases: string[]): void {
+    for (const phrase of phrases) recentlySeen.add(phrase.toLowerCase());
+    if (recentlySeen.size <= MAX_RECENTLY_SEEN) return;
+
+    const iter = recentlySeen.values();
+    while (recentlySeen.size > MAX_RECENTLY_SEEN) {
+      const oldest = iter.next();
+      if (oldest.done) break;
+      recentlySeen.delete(oldest.value);
+    }
+  }
 
   function stopCycling(): void {
     if (cycleInterval !== null) {
@@ -378,31 +640,73 @@ export default function (pi: ExtensionAPI) {
     }, ms);
   }
 
-  /** Whether we should fire a generation call this turn. */
-  function shouldGenerate(): boolean {
+  function currentUserPromptCount(ctx: ExtensionContext): number {
+    return buildSessionTail(ctx).userPromptCount;
+  }
+
+  /** Whether we should fire a generation call for the current user prompt. */
+  function shouldGenerate(ctx: ExtensionContext): boolean {
     if (!isContextualEnabled()) return false;
 
-    // Respect session budget
     const maxGen = getMaxGenerations();
     if (maxGen > 0 && generationsThisSession >= maxGen) return false;
 
-    // Respect cache lifetime — only regenerate every N turns
-    const cacheTurns = getCacheTurns();
-    if (state.phrases.length >= 3 && turnsSinceLastGeneration < cacheTurns)
-      return false;
+    const promptCount = currentUserPromptCount(ctx);
+    lastSeenUserPromptCount = Math.max(lastSeenUserPromptCount, promptCount);
 
-    return true;
+    // Initial summary/phrase pack.
+    if (!state.summary || state.phrases.length < Math.min(3, getMessageCount())) {
+      return true;
+    }
+
+    const refreshPrompts = getRefreshPrompts();
+    if (refreshPrompts === 0) {
+      return promptCount > state.generatedAtPromptCount;
+    }
+
+    return promptCount - state.generatedAtPromptCount >= refreshPrompts;
   }
 
-  // before_provider_request fires before EACH LLM call in a turn.
-  // We only generate once per turn (guarded by generationInFlight + turnCount).
+  function resetVolatileState(): void {
+    stopCycling();
+    state.phrases = [];
+    state.index = Math.floor(Math.random() * STATIC_PHRASES.length);
+    state.summary = "";
+    state.generatedAtPromptCount = 0;
+    generationsThisSession = 0;
+    generationInFlight = false;
+    lastSeenUserPromptCount = 0;
+    recentlySeen.clear();
+    ctxRef = null;
+  }
+
+  function restoreState(ctx: ExtensionContext): void {
+    resetVolatileState();
+    const restored = restoreSnapshot(ctx);
+    if (!restored) return;
+
+    state.summary = sanitizeSummary(restored.summary);
+    state.phrases = fillPhraseSet(
+      restored.phrases,
+      Math.min(restored.phrases.length || getMessageCount(), getMessageCount()),
+      recentlySeen,
+    );
+    state.generatedAtPromptCount = restored.generatedAtPromptCount;
+    state.index = 0;
+    generationsThisSession = restored.generationsThisSession;
+    rememberPhrases(state.phrases);
+    lastSeenUserPromptCount = currentUserPromptCount(ctx);
+    ctxRef = ctx;
+  }
+
+  // before_provider_request fires before each LLM call in a turn.
   pi.on("before_provider_request", async (_event, ctx) => {
     if (!isEnabled()) return;
-    if (!ctx.hasUI) return; // Subagents have no TUI — skip musings entirely
+    if (!ctx.hasUI) return; // Subagents have no TUI — skip musings entirely.
 
     ctxRef = ctx;
 
-    // Start cycling from cached phrases or fallback — always instant
+    // Start cycling from cached phrases or fallback — always instant.
     if (!cycleInterval) {
       state.index =
         state.phrases.length > 0
@@ -411,60 +715,47 @@ export default function (pi: ExtensionAPI) {
       startCycling(ctx);
     }
 
-    // Only fire generation once per turn (first before_provider_request)
     if (generationInFlight) return;
+    if (!shouldGenerate(ctx)) return;
 
-    if (shouldGenerate()) {
-      generationInFlight = true;
-      generatePhrases(ctx)
-        .then((phrases) => {
-          if (phrases.length >= 3) {
-            state.phrases = blendAndShuffle(phrases, recentlySeen);
-            state.index = 0;
+    generationInFlight = true;
+    const requestedCount = getMessageCount();
+    const previousSummary = state.summary;
 
-            // Record these as seen
-            for (const p of state.phrases) recentlySeen.add(p.toLowerCase());
-            // Evict oldest if the set grows too large
-            if (recentlySeen.size > MAX_RECENTLY_SEEN) {
-              const iter = recentlySeen.values();
-              while (recentlySeen.size > MAX_RECENTLY_SEEN) {
-                const oldest = iter.next();
-                if (oldest.done) break;
-                recentlySeen.delete(oldest.value);
-              }
-            }
-          }
-          generationsThisSession++;
-          turnsSinceLastGeneration = 0;
-        })
-        .catch(() => {
-          // Silent fallback — generation is best-effort
-        })
-        .finally(() => {
-          generationInFlight = false;
-        });
-    }
+    generateMusings(ctx, previousSummary, requestedCount)
+      .then((generated) => {
+        if (!generated) return;
+
+        state.summary = sanitizeSummary(generated.summary);
+        state.phrases = fillPhraseSet(generated.phrases, requestedCount, recentlySeen);
+        state.generatedAtPromptCount = generated.promptCount;
+        state.index = 0;
+        rememberPhrases(state.phrases);
+        generationsThisSession++;
+        save(ctx);
+      })
+      .catch(() => {
+        // Silent fallback — generation is best-effort decoration.
+      })
+      .finally(() => {
+        generationInFlight = false;
+      });
   });
 
   pi.on("turn_end", async (_event, ctx) => {
     stopCycling();
-    if (ctx.hasUI) ctx.ui.setWorkingMessage(); // restore pi default
+    if (ctx.hasUI) ctx.ui.setWorkingMessage(); // Restore pi default.
     generationInFlight = false;
-    turnCount++;
-    turnsSinceLastGeneration++;
-    // DON'T clear phrases — reuse cached ones until cacheTurns expires
+    lastSeenUserPromptCount = currentUserPromptCount(ctx);
+    // Do not clear phrases — reuse cached pack until refreshPrompts expires.
   });
 
-  pi.on("session_start", async () => {
-    stopCycling();
-    state.phrases = [];
-    state.index = Math.floor(Math.random() * STATIC_PHRASES.length);
-    generationsThisSession = 0;
-    turnsSinceLastGeneration = 0;
-    generationInFlight = false;
-    turnCount = 0;
-    recentlySeen.clear();
-    ctxRef = null;
+  pi.on("session_start", async (_event, ctx) => {
+    restoreState(ctx);
+  });
+
+  pi.on("session_before_switch", async (_event, ctx) => {
+    restoreState(ctx);
   });
 
   pi.on("session_shutdown", async () => {
@@ -472,7 +763,7 @@ export default function (pi: ExtensionAPI) {
     ctxRef = null;
   });
 
-  // /musings command — show current settings and generation stats
+  // /musings command — show current settings and generation stats.
   pi.registerCommand("musings", {
     description: "Show dragon musings settings and generation stats",
     handler: async (_args, ctx) => {
@@ -483,29 +774,39 @@ export default function (pi: ExtensionAPI) {
           : `${generationsThisSession} (unlimited)`;
       const modelPref = getPreferredModel() || "(auto — cheapest available)";
       const customPrompt = getCustomPrompt();
+      const promptCount = currentUserPromptCount(ctx);
+      const promptDelta = Math.max(0, promptCount - state.generatedAtPromptCount);
 
       const lines = [
         "🐉 Dragon Musings — Status",
         "",
-        `  Enabled          ${isEnabled() ? "yes" : "no"}`,
-        `  Contextual gen   ${isContextualEnabled() ? "yes" : "no"}`,
-        `  Cycle speed      ${getCycleMs()}ms`,
-        `  Cache lifetime   ${getCacheTurns()} turns`,
-        `  Session budget   ${budgetLabel}`,
-        `  Model            ${modelPref}`,
-        `  Custom prompt    ${customPrompt ? "yes (" + customPrompt.length + " chars)" : "no (using default)"}`,
+        `  Enabled            ${isEnabled() ? "yes" : "no"}`,
+        `  Contextual gen     ${isContextualEnabled() ? "yes" : "no"}`,
+        `  Cycle speed        ${getCycleMs()}ms`,
+        `  Refresh cadence    ${getRefreshPrompts()} user prompts`,
+        `  Message count      ${getMessageCount()}`,
+        `  Session budget     ${budgetLabel}`,
+        `  Model              ${modelPref}`,
+        `  Custom prompt      ${
+          customPrompt ? "yes (" + customPrompt.length + " chars)" : "no (using default)"
+        }`,
         "",
-        `  Session turns    ${turnCount}`,
-        `  Turns since gen  ${turnsSinceLastGeneration}`,
-        `  Cached phrases   ${state.phrases.length}`,
+        `  User prompts       ${promptCount}`,
+        `  Prompts since gen  ${promptDelta}`,
+        `  Cached messages    ${state.phrases.length}`,
+        `  Summary words      ${countWords(state.summary)}`,
+        "",
+        state.summary ? `  Summary: ${state.summary}` : "  Summary: (not generated yet)",
         "",
         "  Settings: pantry.musings.{enabled,generateContextual,cycleMs,",
-        "    cacheTurns,maxGenerations,model,prompt}",
+        "    refreshPrompts,messageCount,maxGenerations,model,prompt}",
         "",
         "  Prompt placeholders:",
-        "    {user_last_msg}    last user message (500 chars)",
-        "    {ai_last_msg}      last assistant text (500 chars)",
-        "    {context_recent}   recent activity summary (500 chars)",
+        "    {previous_summary} last saved summary",
+        "    {user_tail}        latest user messages",
+        "    {agent_tail}       latest assistant/tool tail",
+        "    {context_recent}   compact recent activity",
+        "    {message_count}    configured message count",
         "    {context}          alias for {context_recent}",
       ];
       ctx.ui.notify(lines.join("\n"), "info");

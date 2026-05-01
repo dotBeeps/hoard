@@ -14,7 +14,7 @@
 import type { ExtensionAPI, ExtensionContext, SessionBeforeSwitchEvent } from "@mariozechner/pi-coding-agent";
 import { compact, DynamicBorder } from "@mariozechner/pi-coding-agent";
 import { Container, SelectList, Text, type SelectItem } from "@mariozechner/pi-tui";
-import { Type } from "@sinclair/typebox";
+import { Type } from "typebox";
 import { complete, type Api, type Model, type UserMessage } from "@mariozechner/pi-ai";
 
 // ── Types ──

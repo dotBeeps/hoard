@@ -34,7 +34,7 @@ import {
   type ChromeOptions,
 } from "../lib/panel-chrome.ts";
 import { complete, type UserMessage } from "@mariozechner/pi-ai";
-import { Type } from "@sinclair/typebox";
+import { Type } from "typebox";
 import {
   buildFirstCompactionPrompt,
   buildAnchoredUpdatePrompt,

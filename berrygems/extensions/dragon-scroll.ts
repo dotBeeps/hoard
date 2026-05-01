@@ -22,7 +22,7 @@ import {
 } from "@mariozechner/pi-tui";
 import type { MarkdownTheme } from "@mariozechner/pi-tui";
 import type { Theme } from "@mariozechner/pi-coding-agent";
-import { Type } from "@sinclair/typebox";
+import { Type } from "typebox";
 import { StringEnum } from "@mariozechner/pi-ai";
 import {
   renderHeader,

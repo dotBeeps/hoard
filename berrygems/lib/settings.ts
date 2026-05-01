@@ -152,9 +152,14 @@ const PantrySettingsSchema = z
     musings: z
       .object({
         enabled: z.boolean().optional(),
+        generateContextual: z.boolean().optional(),
         cycleMs: z.number().optional(),
-        cacheTurns: z.number().optional(),
+        refreshPrompts: z.number().optional(),
+        messageCount: z.number().optional(),
+        cacheTurns: z.number().optional(), // legacy fallback for refreshPrompts
         maxGenerations: z.number().optional(),
+        model: z.string().optional(),
+        prompt: z.string().optional(),
       })
       .passthrough()
       .optional(),

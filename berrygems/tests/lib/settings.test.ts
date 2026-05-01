@@ -90,6 +90,20 @@ describe("lib/settings — readPantrySetting", () => {
     expect(readPantrySetting("guard.autoDetect", false)).toBe(false);
   });
 
+  it("reads dragon-musings refresh and phrase-pack settings", () => {
+    const home = makeHome();
+    writeGlobal(
+      home,
+      JSON.stringify({
+        pantry: { musings: { refreshPrompts: 4, messageCount: 50 } },
+      }),
+    );
+    process.env.HOME = home;
+
+    expect(readPantrySetting("musings.refreshPrompts", 0)).toBe(4);
+    expect(readPantrySetting("musings.messageCount", 0)).toBe(50);
+  });
+
   it("returns fallback when the settings file does not exist", () => {
     const home = mkdtempSync(join(tmpdir(), "pantry-settings-missing-"));
     roots.push(home);

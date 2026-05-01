@@ -21,7 +21,7 @@ import {
   truncateToWidth,
 } from "@mariozechner/pi-tui";
 import { StringEnum } from "@mariozechner/pi-ai";
-import { Type, type Static } from "@sinclair/typebox";
+import { Type, type Static } from "typebox";
 
 import {
   getSkin,
